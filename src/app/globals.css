@@ -1,0 +1,295 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens, taken from the prototype (design/Dossier.dc.html).
+ * Each token below becomes a Tailwind utility, e.g. --color-muted → text-muted,
+ * --radius-card → rounded-card, --text-title → text-title.
+ */
+@theme {
+  /*
+   * Colours come in pairs, light-dark(light, dark), and follow the
+   * color-scheme set in the base layer below: the system's, unless the
+   * sidebar's switch chose one (data-theme on <html>). Every text colour
+   * meets WCAG AA (4.5:1) on every surface in both schemes.
+   */
+
+  /* Surfaces: a cool light-grey shell around the screen's panel, and a
+     royal-navy sidebar in both schemes (its own tokens: .sidebar-dark below). */
+  --color-paper: light-dark(#eef2f7, #0f172a); /* shell around the panel, side columns, disabled fields */
+  --color-sidebar: #162032;
+  --color-surface: light-dark(#f6f8fb, #162032); /* the panel each screen sits in */
+  --color-card: light-dark(#ffffff, #1e293b);
+  --color-canvas: light-dark(#e6ebf2, #0b1220); /* behind document previews */
+  --color-input: light-dark(#ffffff, #131c2e); /* inputs */
+
+  /* Text */
+  --color-ink: light-dark(#0f172a, #f1f5f9);
+  --color-document: light-dark(#1e293b, #e2e8f0); /* posting text, set like a document */
+  /* Secondary text: hints, labels, metadata. It passes on every surface
+     and on the hover and selected tints. */
+  --color-muted: light-dark(#475569, #a3b1c6);
+  /* Disabled and decorative only: never for text people need to read. */
+  --color-faint: light-dark(#94a3b8, #64748b);
+
+  /* Primary actions: royal blue, and a lighter blue in the dark scheme, with
+     on-primary text at 4.5:1 or more. primary-text is for text and icons
+     marking a choice, e.g. a selected chip's label. */
+  --color-primary: light-dark(#162032, #c7d2e5);
+  --color-primary-hover: light-dark(#2a3a57, #e2e8f0);
+  --color-on-primary: light-dark(#ffffff, #162032);
+  --color-primary-text: light-dark(#0f172a, #f1f5f9);
+  --color-action-blue: light-dark(#1d4ed8, #60a5fa); /* a button that has to stand out from the navy ones */
+  --color-action-blue-hover: light-dark(#1e40af, #93c5fd);
+  --color-on-action-blue: light-dark(#ffffff, #0b1220);
+  /* Focus rings: 3:1 against every surface. */
+  --color-focus: light-dark(#162032, #c7d2e5);
+
+  /* Toasts and tooltips: a dark navy chip, a little raised in the dark scheme. */
+  --color-inverse: light-dark(#162032, #24324d);
+  --color-on-inverse: light-dark(#f8fafc, #f8fafc);
+
+  /* Lines */
+  --color-line: light-dark(rgb(15 23 42 / 0.08), rgb(226 232 240 / 0.07)); /* dividers */
+  --color-line-card: light-dark(rgb(15 23 42 / 0.1), rgb(226 232 240 / 0.1));
+  --color-line-field: light-dark(rgb(15 23 42 / 0.14), rgb(226 232 240 / 0.14)); /* chips and other controls named by their text */
+  /* Text fields, whose border is what shows they're fields: 3:1 on every surface (E11-3, WCAG 1.4.11). */
+  --color-line-input: light-dark(rgb(15 23 42 / 0.5), rgb(226 232 240 / 0.42));
+  --color-line-control: light-dark(rgb(15 23 42 / 0.16), rgb(226 232 240 / 0.14)); /* secondary buttons */
+  --color-line-popover: light-dark(rgb(15 23 42 / 0.12), rgb(226 232 240 / 0.12)); /* menus */
+  --color-line-strong: light-dark(rgb(15 23 42 / 0.2), rgb(226 232 240 / 0.24)); /* upcoming steps */
+
+  /* Tints for hover, selection and tracks */
+  --color-hover: light-dark(rgb(15 23 42 / 0.05), rgb(226 232 240 / 0.07));
+  --color-selected: light-dark(rgb(15 23 42 / 0.07), rgb(226 232 240 / 0.1));
+  --color-track: light-dark(rgb(15 23 42 / 0.06), rgb(226 232 240 / 0.08));
+  --color-toggle-off: light-dark(rgb(15 23 42 / 0.5), rgb(226 232 240 / 0.42)); /* 3:1, like text fields */
+
+  /* Feedback. error and danger are for text; danger-fill is behind white text. */
+  --color-danger: light-dark(#9a4a3a, #f87171); /* remove / destructive text */
+  --color-error: light-dark(#9a3a2c, #f87171);
+  --color-error-strong: light-dark(#7a2e22, #fca5a5);
+  --color-danger-fill: light-dark(#9a3a2c, #c4320a);
+  --color-danger-fill-hover: light-dark(#7a2e22, #9a3a2c);
+  --color-danger-surface: light-dark(oklch(0.98 0.01 30), rgb(239 68 68 / 0.14));
+  --color-danger-line: light-dark(oklch(0.8 0.06 30), rgb(239 68 68 / 0.35));
+  --color-danger-control: light-dark(oklch(0.7 0.1 30), rgb(239 68 68 / 0.55)); /* outlined danger button */
+  --color-danger-disabled: light-dark(oklch(0.8 0.05 30), #5c2a2a);
+  --color-warning: light-dark(#6b4f1a, #fbbf24);
+  --color-warning-surface: light-dark(oklch(0.94 0.04 85), rgb(245 158 11 / 0.14));
+  --color-warning-line: light-dark(oklch(0.85 0.06 85), rgb(245 158 11 / 0.4));
+  --color-success: light-dark(#2f6b4a, #4ade80);
+  --color-success-surface: light-dark(oklch(0.95 0.05 150), rgb(74 222 128 / 0.14));
+  --color-flash: light-dark(oklch(0.95 0.05 90), rgb(240 200 90 / 0.16)); /* briefly marks content that changed */
+
+  /* Application statuses (dots and bars; the label next to them is ink) */
+  --color-status-draft: light-dark(#94a3b8, #64748b);
+  --color-status-sent: light-dark(#1f3a5f, #6f8fbf); /* applied: dark navy */
+  --color-status-screening: light-dark(#4a6fa5, #7f9fd0); /* steel blue */
+  --color-status-interview: light-dark(#b08d3c, #c9a75a); /* muted gold */
+  --color-status-offer: light-dark(#2f6b4f, #5c9b7c); /* forest */
+  --color-status-accepted: light-dark(#2c6e6a, #5aa39e); /* deep teal */
+  --color-status-rejected: light-dark(#8c2f39, #c0606a); /* wine */
+  --color-status-declined: light-dark(#5b6b82, #8d9ab0); /* slate */
+  /* Applied and not heard back yet, in the funnel: a plain light gray. */
+  --color-status-waiting: light-dark(#9ca3af, #8a919c);
+
+  /* Agentic job search's page: a light green tint, apart from Manual job search. */
+  --color-agent-tint: light-dark(rgb(22 163 74 / 0.06), rgb(74 222 128 / 0.05));
+
+  /* Job events on the dashboard calendar (job-events.ts): solid capsules with
+     white text, at least 4.5:1 in both schemes. Navy is recruiter and
+     screening calls, green interview rounds, maroon offers and finals. */
+  --color-job-screening: light-dark(#1e3a8a, #2b4fb3);
+  --color-job-interview: light-dark(#166534, #1d7a43);
+  --color-job-offer: light-dark(#7f1d1d, #9b2626);
+
+  /* Each month's light, see-through tint behind the calendar's month, so
+     flipping months is easy to follow. Day numbers keep their own colours. */
+  --color-month-1: light-dark(rgb(37 99 235 / 0.1), rgb(96 165 250 / 0.16)); /* blue */
+  --color-month-2: light-dark(rgb(190 24 93 / 0.09), rgb(244 114 182 / 0.15)); /* rose */
+  --color-month-3: light-dark(rgb(22 163 74 / 0.1), rgb(74 222 128 / 0.14)); /* green */
+  --color-month-4: light-dark(rgb(13 148 136 / 0.1), rgb(45 212 191 / 0.14)); /* teal */
+  --color-month-5: light-dark(rgb(126 34 206 / 0.09), rgb(192 132 252 / 0.15)); /* plum */
+  --color-month-6: light-dark(rgb(217 119 6 / 0.1), rgb(251 191 36 / 0.14)); /* amber */
+  --color-month-7: light-dark(rgb(29 78 216 / 0.1), rgb(129 140 248 / 0.16)); /* royal navy */
+  --color-month-8: light-dark(rgb(101 163 13 / 0.1), rgb(163 230 53 / 0.13)); /* olive */
+  --color-month-9: light-dark(rgb(146 64 14 / 0.1), rgb(217 119 6 / 0.15)); /* brown */
+  --color-month-10: light-dark(rgb(194 65 12 / 0.1), rgb(251 146 60 / 0.14)); /* pumpkin */
+  --color-month-11: light-dark(rgb(71 85 105 / 0.1), rgb(148 163 184 / 0.15)); /* gray */
+  --color-month-12: light-dark(rgb(67 56 202 / 0.1), rgb(165 180 252 / 0.16)); /* indigo */
+
+  /* Radii */
+  --radius-control: 8px; /* buttons, inputs, nav items */
+  --radius-toast: 12px;
+  --radius-card: 12px;
+  --radius-panel: 12px; /* large cards and panels */
+  --radius-dialog: 16px;
+
+  /* Shadows: warm in the light scheme, deeper in the dark one, where a faint one wouldn't show. */
+  --shadow-page: 0 1px 2px rgb(0 0 0 / 0.06), 0 12px 40px light-dark(rgb(15 23 42 / 0.1), rgb(0 0 0 / 0.5));
+  --shadow-dialog: 0 8px 32px light-dark(rgb(15 23 42 / 0.16), rgb(0 0 0 / 0.5));
+  --shadow-raised: 0 1px 2px light-dark(rgb(0 0 0 / 0.08), rgb(0 0 0 / 0.5)); /* selected segment */
+  --shadow-control: 0 1px 3px light-dark(rgb(15 23 42 / 0.08), rgb(0 0 0 / 0.3)); /* fields and secondary buttons */
+  --shadow-cta: 0 1px 3px light-dark(rgb(15 23 42 / 0.14), rgb(0 0 0 / 0.4));
+  --shadow-knob: 0 1px 2px rgb(0 0 0 / 0.2);
+  --shadow-menu: 0 8px 32px light-dark(rgb(15 23 42 / 0.16), rgb(0 0 0 / 0.55));
+  --shadow-toolbar: 0 4px 14px light-dark(rgb(0 0 0 / 0.16), rgb(0 0 0 / 0.5));
+  --shadow-toast: 0 8px 32px light-dark(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.55));
+
+  /* Type scale. Sizes follow the prototype; text-xs (12px) and text-sm
+     (14px) keep Tailwind's defaults. */
+  --text-label: 12.5px; /* field labels, hints */
+  --text-label--line-height: 1.45;
+  --text-meta: 13px; /* secondary lines, "Saved just now" */
+  --text-meta--line-height: 1.45;
+  --text-control: 13.5px; /* chips, compact rows */
+  --text-control--line-height: 1.4;
+  --text-field: 14.5px; /* input text, settings rows */
+  --text-field--line-height: 1.4;
+  --text-lead: 15px; /* page introductions */
+  --text-lead--line-height: 1.55;
+  --text-section: 24px; /* section titles (serif) */
+  --text-section--line-height: 1.2;
+  --text-section--letter-spacing: -0.01em;
+  --text-section--font-weight: 500;
+  --text-title: 40px; /* page titles (serif) */
+  --text-title--line-height: 1.1;
+  --text-title--letter-spacing: -0.015em;
+  --text-title--font-weight: 400;
+
+  /* Motion. Use with motion-safe: so reduced-motion users don't get it. */
+  --animate-toast-in: toast-in 160ms ease-out;
+  /* Only an opacity change, after a pause, so it's fine without motion-safe. */
+  --animate-skeleton-in: skeleton-in 200ms ease-out 150ms both;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  @keyframes skeleton-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* Thin scrollbars in the app's colours, for areas that scroll on their own
+   inside the page, such as the board's lanes. Browsers without
+   scrollbar-color (Safari) keep their own, which are thin already. */
+@utility scrollbar-subtle {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-ink) 20%, transparent) transparent;
+
+  &:hover {
+    scrollbar-color: color-mix(in srgb, var(--color-ink) 36%, transparent) transparent;
+  }
+}
+
+/* Fonts come from next/font (src/fonts), which sets the --typeface-* variables at runtime. */
+@theme inline {
+  --font-sans: var(--typeface-geist);
+  --font-serif: var(--typeface-newsreader);
+  --font-mono: var(--typeface-plex-mono);
+  --font-plex-sans: var(--typeface-plex-sans);
+  --font-garamond: var(--typeface-eb-garamond);
+}
+
+@layer base {
+  /* The system's scheme, unless the sidebar's switch chose one. This also
+     sets native controls (date pickers, selects, scrollbars) to match. */
+  :root {
+    color-scheme: light dark;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+  }
+
+  /* A dropdown's options take the page's colors, not the select's: a see-through
+     select's light text on the system's white list read white on white in the dark scheme. */
+  option,
+  optgroup {
+    background-color: var(--color-card);
+    color: var(--color-ink);
+  }
+
+  /* Jumps to an anchor or a focused field stop below the page bar (97px, 119px on an application, with the 8px above it), not under it. */
+  html {
+    scroll-padding-top: 128px;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+  }
+
+  a {
+    color: var(--color-ink);
+  }
+
+  /* Title Case for the app's own titles and controls: headings, buttons,
+     tabs, menu items and table headers (and anything marked capitalize,
+     like the sidebar and links drawn as buttons). Text people write, and
+     resumes and letters (data-document), stay as written. */
+  :is(h1, h2, h3, h4, button, th, [role="tab"], [role="menuitem"], [role="menuitemradio"]):not([data-document], [data-document] *) {
+    text-transform: capitalize;
+  }
+  a:hover {
+    color: var(--color-muted);
+  }
+
+  ::placeholder {
+    color: var(--color-muted);
+    opacity: 1;
+  }
+
+  /* A visible keyboard focus ring on every control (WCAG 2.2 AA), in ink
+     (light in the dark scheme); the 2px gap keeps it apart from buttons in
+     the same colour. */
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+/* The height of the screen's panel, page bar included (the window less the
+   panel's bottom border and the shell's 8px margin under it), for screens
+   that keep to the window. */
+@utility h-panel {
+  height: calc(100dvh - 9px);
+}
+
+/* The slate-navy sidebar, in both schemes: its own text, button and tint
+   tokens, so every part inside (nav, toggles, the account row) turns light
+   on dark without classes of its own. Popovers portal outside and keep the
+   page's tokens. Buttons and the selected item are white with navy text; every text colour here meets WCAG AA on #162032 and on
+   the selected item. */
+.sidebar-dark {
+  color-scheme: dark;
+  --color-ink: #f8fafc;
+  --color-muted: #c7d2e5;
+  --color-faint: #8a9cc0;
+  --color-surface: #1f2b44;
+  --color-card: #1f2b44;
+  --color-primary: #ffffff;
+  --color-primary-hover: #dbe4f3;
+  --color-on-primary: #162032;
+  --color-focus: #ffffff;
+  --color-hover: rgb(255 255 255 / 0.08);
+  --color-selected: #ffffff;
+  --color-line: rgb(255 255 255 / 0.12);
+  --color-line-card: rgb(255 255 255 / 0.14);
+  color: var(--color-ink);
+}

@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "DateStyle" ADD VALUE 'NEXT_TO_TITLE';

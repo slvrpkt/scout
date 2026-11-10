@@ -1,0 +1,1159 @@
+// Dossier's data model (PRD §9). After editing, run
+// `docker/bin/yarn prisma migrate dev --name <name>` and `docker compose restart app`.
+//
+// Conventions:
+// - The profile's basics and the settings are key-value tables (ProfileField,
+//   Setting): one text row per key, and a missing key means empty or the
+//   default. Code maps the keys to typed fields (src/lib/profile.ts,
+//   src/lib/settings.ts), so a new field needs no migration.
+// - Text fields the user fills in are non-null and default to "", so forms can
+//   autosave partial entries without null checks.
+// - `sort` orders entries within a list; lower comes first.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Profile (E2-1) ──────────────────────────────────────────────────────────
+
+/// The profile's basics (name, headline, contact details, summary…), one row
+/// per filled-in field. The keys and how each value is written are in
+/// src/lib/profile.ts (PROFILE_KEYS); a missing key means empty.
+model ProfileField {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Skill {
+  id          String            @id @default(cuid())
+  /// Unique ignoring case ("Figma" and "figma" are the same skill).
+  name        String            @unique @db.Citext
+  sort        Int               @default(0)
+  /// The group it's printed under on resumes ("Technical SEO"); empty for none (#280).
+  group       String            @default("")
+  /// "SKILL" (Profile → Skills) or "TOOL" (Profile → Tools & platforms, grouped by the AI on the Full resume).
+  kind        String            @default("SKILL")
+  experiences ExperienceSkill[]
+  projects    ProjectSkill[]
+  createdAt   DateTime          @default(now())
+}
+
+enum LanguageLevel {
+  NATIVE
+  C2
+  C1
+  B2
+  B1
+  A2
+  A1
+}
+
+model Language {
+  id        String        @id @default(cuid())
+  /// Unique ignoring case; adding an existing language updates its level (PRO-4).
+  name      String        @unique @db.Citext
+  level     LanguageLevel
+  sort      Int           @default(0)
+  createdAt DateTime      @default(now())
+}
+
+/// A role. Dates are month and year; `current` means "Present" (no end date).
+model Experience {
+  id         String            @id @default(cuid())
+  role       String            @default("")
+  company    String            @default("")
+  location   String            @default("")
+  /// One line about the company or the role, under its title on resumes as written (#257).
+  descriptor String            @default("")
+  startYear  Int?
+  /// 1–12, or null when only the year is known.
+  startMonth Int?
+  endYear    Int?
+  endMonth   Int?
+  current    Boolean           @default(false)
+  /// One point per line.
+  bullets    String            @default("")
+  sort       Int               @default(0)
+  skills     ExperienceSkill[]
+  /// Its bullets said again in fewer, for the base resume's two-page rule.
+  summaries  ExperienceSummary[]
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+}
+
+/// A job's bullets rewritten as `count` bullets, keeping the facts
+/// (condense-bullets), for the base resume's two-page rule (resume-fit.ts).
+/// Made in the background after Profile → Experience changes; one whose
+/// `fingerprint` no longer matches the job's text is out of date. Derived
+/// from the profile, so it isn't exported.
+model ExperienceSummary {
+  experienceId  String
+  experience    Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  count         Int
+  /// One bullet per line.
+  bullets       String
+  /// A hash of the role, company and bullets it was made from.
+  fingerprint   String
+  promptVersion String
+  createdAt     DateTime   @default(now())
+
+  @@id([experienceId, count])
+}
+
+/// A skill used in a role (PRO-6). Deleting either side removes the link (PRO-3).
+model ExperienceSkill {
+  experienceId String
+  skillId      String
+  experience   Experience @relation(fields: [experienceId], references: [id], onDelete: Cascade)
+  skill        Skill      @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([experienceId, skillId])
+  @@index([skillId])
+}
+
+/// A side, open-source, course or thesis project (PRO-13). Dates work as in Experience.
+model Project {
+  id         String         @id @default(cuid())
+  name       String         @default("")
+  /// Where it can be seen, e.g. its repository or site.
+  link       String         @default("")
+  startYear  Int?
+  startMonth Int?
+  endYear    Int?
+  endMonth   Int?
+  current    Boolean        @default(false)
+  /// One point per line.
+  bullets    String         @default("")
+  sort       Int            @default(0)
+  skills     ProjectSkill[]
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+}
+
+/// A skill used in a project, as ExperienceSkill is for a role.
+model ProjectSkill {
+  projectId String
+  skillId   String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill     Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([projectId, skillId])
+  @@index([skillId])
+}
+
+/// A degree, course or certificate. Dates work as in Experience.
+model Education {
+  id         String   @id @default(cuid())
+  degree     String   @default("")
+  school     String   @default("")
+  startYear  Int?
+  startMonth Int?
+  endYear    Int?
+  endMonth   Int?
+  current    Boolean  @default(false)
+  /// The graduation year (endYear) is printed on resumes only when this is on; off by default.
+  showYear   Boolean  @default(false)
+  notes      String   @default("")
+  sort       Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+/// Private unless included in a document (PRO-8).
+/// A publication (#218), cited the way its author wants: no citation style is enforced.
+/// A certification (Profile → Certifications), as LinkedIn has them. Every
+/// field is optional; resumes show them word for word, and the AI never
+/// rewrites them.
+model Certification {
+  id           String   @id @default(cuid())
+  name         String   @default("")
+  /// The issuing organization, e.g. "Project Management Institute".
+  issuer       String   @default("")
+  /// "2024-03" (month and year), or "" when not given.
+  issuedOn     String   @default("")
+  /// "2027-03", or "" when not given or when it doesn't expire.
+  expiresOn    String   @default("")
+  noExpiry     Boolean  @default(false)
+  credentialId String   @default("")
+  /// Where to check it, e.g. the issuer's verification page.
+  url          String   @default("")
+  /// "Show on resumes": off keeps it in the profile but off every resume.
+  onResumes    Boolean  @default(true)
+  sort         Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Publication {
+  id        String   @id @default(cuid())
+  /// The citation as written, with **bold** and *italic* marked like that.
+  citation  String   @default("")
+  /// Where to read it, e.g. its DOI link.
+  link      String   @default("")
+  /// "Show on resumes": off keeps it in the profile but off every resume.
+  onResumes Boolean  @default(true)
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Reference {
+  id        String   @id @default(cuid())
+  name      String   @default("")
+  relation  String   @default("")
+  company   String   @default("")
+  email     String   @default("")
+  phone     String   @default("")
+  sort      Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Something the user tells the AI about themselves: one of the profile's
+/// "Facts about me", or one for a single application. Never shown on a
+/// document; given to the AI with the profile when it writes.
+model Fact {
+  id            String       @id @default(cuid())
+  /// The application it's for; null for the profile's own.
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  text          String       @default("")
+  sort          Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([applicationId, sort])
+}
+
+// ─── Themes and settings (E2-2) ──────────────────────────────────────────────
+
+/// Serifs, then sans, then mono: the order the theme builder lists them.
+enum ThemeFont {
+  NEWSREADER
+  GARAMOND
+  SOURCE_SERIF
+  LORA
+  LIBRE_CASLON
+  PLAYFAIR
+  FRAUNCES
+  GEIST
+  PLEX_SANS
+  INTER
+  MANROPE
+  WORK_SANS
+  SPACE_GROTESK
+  CALIBRI
+  SEGOE_UI
+  PLEX_MONO
+  JETBRAINS_MONO
+}
+
+/// Sidebars sit at the start of the line: on the left, or on the right in
+/// right-to-left documents.
+enum ThemeLayout {
+  SINGLE
+  /// One column, with each section's title in a narrow column beside it.
+  SIDE_HEADINGS
+  /// Two columns, with contact details and skills in a sidebar.
+  SPLIT
+  /// The same with the sidebar at the end of the line.
+  SPLIT_END
+}
+
+enum ThemeAlign {
+  LEFT
+  CENTER
+}
+
+/// How section titles look.
+enum HeadingStyle {
+  /// Underlined.
+  RULE
+  /// Small caps.
+  CAPS
+  PLAIN
+  /// Small caps after a short accent bar.
+  BAR
+  /// Small caps on a pale band of the accent.
+  BAND
+}
+
+/// The name, headline and contact details: on the page, or on a block of the accent.
+enum HeaderStyle {
+  PLAIN
+  BANNER
+}
+
+/// The sidebar of sidebar layouts: on the page, or on a pale tint of the accent.
+enum SidebarStyle {
+  PLAIN
+  TINTED
+}
+
+/// A role's or degree's dates: on its title line, or in a column before it.
+enum DateStyle {
+  INLINE
+  TIMELINE
+  NEXT_TO_TITLE
+}
+
+enum Density {
+  COMPACT
+  REGULAR
+  AIRY
+}
+
+/// A resume theme (RES-2…RES-4). Built-in themes use their slug as id
+/// ("editorial") and are read-only: the app never edits them, the seed keeps
+/// them in sync, and a trigger stops them from being deleted.
+model Theme {
+  id            String         @id @default(cuid())
+  builtIn       Boolean        @default(false)
+  name          String
+  headFont      ThemeFont
+  bodyFont      ThemeFont
+  /// "#rrggbb"
+  accent        String
+  layout        ThemeLayout    @default(SINGLE)
+  align         ThemeAlign     @default(LEFT)
+  headingStyle  HeadingStyle   @default(PLAIN)
+  density       Density        @default(REGULAR)
+  headerStyle   HeaderStyle    @default(PLAIN)
+  sidebarStyle  SidebarStyle   @default(PLAIN)
+  dateStyle     DateStyle      @default(INLINE)
+  documents     Document[]
+  sentDocuments SentDocument[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+enum AiProvider {
+  /// Ollama or llama.cpp on the user's own hardware.
+  LOCAL
+  /// Any server that speaks the OpenAI chat completions API.
+  OPENAI
+  ANTHROPIC
+  /// Mistral's own API (#206).
+  MISTRAL
+  /// LM Studio on the user's own hardware (#210).
+  LMSTUDIO
+}
+
+enum Creativity {
+  FAITHFUL
+  BALANCED
+  EXPRESSIVE
+}
+
+enum PaperSize {
+  A4
+  LETTER
+}
+
+enum DateFormat {
+  /// 27 September 2026
+  DAY_MONTH_YEAR
+  /// September 27, 2026
+  MONTH_DAY_YEAR
+  /// 27-09-2026
+  NUMERIC
+  /// 09/27/2026
+  US_NUMERIC
+  /// 09/27/26
+  US_SHORT
+}
+
+enum Tone {
+  WARM
+  DIRECT
+  FORMAL
+}
+
+/// App settings, one row per saved setting; a missing key means the default.
+/// The keys, their types and defaults are in src/lib/settings.ts
+/// (settingsSchema); the enums above type its values.
+/// The encouraging lines the dashboard calendar shows in its spare space,
+/// one at random per visit. Seeded by the quotes migration; app content, not
+/// the user's data, so exports leave them out.
+model Quote {
+  id   Int    @id @default(autoincrement())
+  text String
+}
+
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Applications (E2-3) ─────────────────────────────────────────────────────
+// The JSON columns are validated with the zod schemas in src/lib/application-data.ts.
+
+/// PRD §8. Draft…Offer are "in progress"; Accepted, Rejected and Declined are "closed".
+enum ApplicationStatus {
+  DRAFT
+  SENT
+  SCREENING
+  INTERVIEW
+  OFFER
+  ACCEPTED
+  REJECTED
+  DECLINED
+}
+
+/// Who the employer is, for the label on the applications list.
+enum EmployerType {
+  GOVERNMENT
+  STARTUP
+  /// A private company: no label.
+  PRIVATE
+}
+
+/// How an application was made: by the user, or by the job agent (E16).
+enum ApplicationOrigin {
+  MANUAL
+  AGENT
+}
+
+/// Where a job agent candidate stands (E16).
+enum AgentCandidateStatus {
+  /// Scored, and waiting for a draft or a dismissal.
+  SCORED
+  /// A draft is being written.
+  DRAFTING
+  /// A tailored draft is ready for review.
+  DRAFTED
+  /// The draft was approved and is a normal application.
+  APPROVED
+  /// The user passed on it; it never comes back.
+  DISMISSED
+}
+
+/// The stages the funnel counts, in order (PRD §8, DSH-3).
+enum FunnelStage {
+  SENT
+  SCREENING
+  INTERVIEW
+  OFFER
+  ACCEPTED
+}
+
+model Application {
+  id                  String            @id @default(cuid())
+  /// Whether the user made it, or the job agent prepared it (E16).
+  origin              ApplicationOrigin @default(MANUAL)
+  /// The agent's score for the posting, when the agent prepared it.
+  agentScore          Int?
+  /// An agent draft not approved yet: only the Agent screen shows it (#195).
+  awaitingReview      Boolean           @default(false)
+  title               String            @default("")
+  company             String            @default("")
+  role                String            @default("")
+  location            String            @default("")
+  /// Work mode as written in the posting, e.g. "Hybrid · 3 days in office".
+  mode                String            @default("")
+  salary              String            @default("")
+  deadline            DateTime?         @db.Date
+  /// Saved, not fetched (NEW-1).
+  postingUrl          String            @default("")
+  postingText         String            @default("")
+  /// What the AI read from the posting (extractedSchema).
+  extracted           Json?
+  /// The prompt version that wrote `extracted`, e.g. "extract-posting@1" (E6-5).
+  extractedWith       String?
+  /// How the posting's requirements match the profile (matchSchema).
+  match               Json?
+  /// The prompt version that wrote `match`.
+  matchedWith         String?
+  status              ApplicationStatus @default(DRAFT)
+  /// Government, startup or private, as the user set it; null shows Dossier's own guess (employer-type.ts).
+  employerType        EmployerType?
+  /// The furthest stage ever reached; null while never sent. Only the status module changes it.
+  furthestStage       FunnelStage?
+  sentAt              DateTime?
+  /// When the next interview is, while the application is in Interview (E9-9); shown on the dashboard.
+  nextInterviewAt     DateTime?
+  tone                Tone              @default(WARM)
+  /// The language the documents were written in, e.g. "English".
+  language            String            @default("")
+  /// The tailored resume follows its theme's layout, sidebar included; off
+  /// means a single column (APP-4, decided in E5-1 #42).
+  followThemeLayout   Boolean           @default(false)
+  archivedAt          DateTime?
+  /// When it was last put back from the Archive, for its "Was archived" label.
+  restoredAt          DateTime?
+  /// The Gmail thread the application was sent in, when it went out through Gmail (E15-2).
+  emailThreadId       String?
+  /// The Google Calendar event of the next interview, and the calendar it's
+  /// in, when Dossier added it: kept in step with nextInterviewAt both ways.
+  interviewEventId    String?
+  interviewCalendarId String?
+  /// Where the user applied (Applied Using), as they chose it; null shows Dossier's guess (applied-via.ts).
+  appliedVia          String?
+  /// Things To Note: the user's lasting notes about the role, apart from the dated Activity entries.
+  thingsToNote        String            @default("")
+  /// Two pages would mean shortening the 3 most recent jobs: the tailored
+  /// resume waits, as written, until the user allows a third page or not.
+  resumePagesAsk      Boolean           @default(false)
+  /// Why the AI thinks this job is worth a third page, when it does: asked
+  /// alongside a two-page resume, which can then be rewritten for three.
+  resumePagesReason   String?
+  /// Ideas from the AI for matching this job better, for the candidate to vet.
+  resumeSuggestions   String[]         @default([])
+  /// When the resume was last written from the profile; older than the profile's last change, it's out of date.
+  resumeWrittenAt     DateTime?
+  /// Set while it's being sent through Gmail; left set when a send stopped halfway, so it may have gone out.
+  sendingAt           DateTime?
+  /// The skills line under each job is left out: the last thing given up to fit.
+  /// Certifications and tools a fit left out as its last resort ("certification:<id>", "tool:<name>").
+  resumeHide           String[] @default([])
+  resumeNoSkills      Boolean          @default(false)
+  /// The most pages this resume may use, when you allowed more than Settings say.
+  resumePageLimit     Int?
+  /// The format the resume or cover letter was last downloaded in: what a
+  /// send made on an employer's site most likely used (Google Drive backup).
+  lastDownloadFormat  FileFormat?
+  /// Its folder in Google Drive, once what was sent is saved there.
+  driveFolderId       String?
+  /// The posting as a Word file in that folder.
+  drivePostingFileId  String?
+  /// Why the last save to Google Drive didn't work; null once it does.
+  driveProblem        String?
+  /// The Find jobs posting it was started from, if any (E14-8).
+  posting             Posting?
+  /// The agent candidate it was prepared from (E16).
+  agentCandidate      AgentCandidate?
+  /// The startup it was started from on Startups, if any (#222).
+  startup             Startup?
+  /// Mail sent and received about it through Gmail (E15-3).
+  emails              EmailMessage[]
+  events              StatusEvent[]
+  documents           Document[]
+  messages            ChatMessage[]
+  notes               Note[]
+  /// The resume and cover letter as they were sent: what the employer has.
+  sentDocuments       SentDocument[]
+  /// What the user tells the AI for this application; "Anything I should know?" (NEW-6) becomes the first.
+  facts               Fact[]
+  /// Its background jobs, deleted with it (their inputs and results hold the posting and the documents).
+  jobs                Job[]
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+/// One status change. Keeps the application's furthestStage and sentAt from
+/// before the change, so the change can be undone (decision in #26).
+model StatusEvent {
+  id                    String            @id @default(cuid())
+  applicationId         String
+  application           Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  from                  ApplicationStatus
+  to                    ApplicationStatus
+  at                    DateTime          @default(now())
+  previousFurthestStage FunnelStage?
+  previousSentAt        DateTime?
+  /// The copies saved when this change sent the application; undoing it removes them.
+  sentDocuments         SentDocument[]
+
+  @@index([applicationId, at])
+}
+
+/// A document's file format, as downloaded or sent.
+enum FileFormat {
+  PDF
+  DOCX
+}
+
+enum DocumentKind {
+  RESUME
+  COVER_LETTER
+  /// The email that goes with the application, written on request.
+  EMAIL
+}
+
+/// A tailored resume, cover letter or application email, split into editable units (unitsSchema).
+model Document {
+  id            String            @id @default(cuid())
+  applicationId String
+  application   Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  kind          DocumentKind
+  units         Json
+  /// The theme it was created with; null falls back to the base theme.
+  themeId       String?
+  theme         Theme?            @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  /// The prompt version that last wrote its units, e.g. "tailor-resume@1" (E6-5).
+  writtenWith   String?
+  /// Parts left out to fit one page, which can be put back (trimmedSchema, E10-10).
+  trimmed       Json?
+  /// Earlier states, after each AI change and before each restore (E8-10).
+  versions      DocumentVersion[]
+  updatedAt     DateTime          @updatedAt
+
+  @@unique([applicationId, kind])
+}
+
+/// Why a tailored document has a version (E8-10, APP-13).
+enum VersionCause {
+  /// The first draft, when the application was created.
+  WRITTEN
+  /// Left parts out to fit one page, right after writing (E10-10).
+  TRIMMED
+  /// A part rewritten from its toolbar.
+  REGENERATED
+  /// Changed from the refine chat.
+  REFINED
+  /// An AI change undone.
+  UNDONE
+  /// Saved just before restoring another version, so nothing is lost.
+  BEFORE_RESTORE
+  /// An earlier version brought back.
+  RESTORED
+}
+
+/// A tailored document's units as they were at one point (E8-10).
+model DocumentVersion {
+  id         String       @id @default(cuid())
+  documentId String
+  document   Document     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  units      Json
+  cause      VersionCause
+  /// What changed, e.g. the part's name or the chat request.
+  detail     String       @default("")
+  createdAt  DateTime     @default(now())
+
+  @@index([documentId, createdAt])
+}
+
+enum ChatRole {
+  USER
+  AI
+}
+
+/// A message in an application's "Refine with AI" panel (APP-7).
+model ChatMessage {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  role          ChatRole
+  text          String
+  /// The unit the message is about ("About: Summary"), if any.
+  targetUnit    String?
+  /// Unit changes it made, with the previous text for Undo (editsSchema).
+  edits         Json?
+  undone        Boolean     @default(false)
+  /// The letter's tone before this message changed it, for Undo; null when it didn't.
+  previousTone  Tone?
+  /// For AI messages, the prompt version that wrote it (E6-5).
+  writtenWith   String?
+  createdAt     DateTime    @default(now())
+
+  @@index([applicationId, createdAt])
+}
+
+/// A private note or activity entry on an application (APP-14, E8-9).
+model Note {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  body          String
+  /// A call, an interview, an email, … or a plain note.
+  kind          NoteKind    @default(NOTE)
+  /// When it happened, which the user can set; the timeline is in this order.
+  at            DateTime    @default(now())
+  createdAt     DateTime    @default(now())
+  /// Shown as "edited" once it differs from createdAt (E8-9).
+  updatedAt     DateTime    @default(now()) @updatedAt
+
+  @@index([applicationId, createdAt])
+  @@index([at])
+}
+
+/// What an entry in an application's history is.
+enum NoteKind {
+  NOTE
+  CALL
+  EMAIL
+  INTERVIEW
+  MEETING
+  UPDATE
+}
+
+/// A tailored document frozen as it was sent (application history): the
+/// exact resume or cover letter the employer got, whatever is edited later.
+model SentDocument {
+  id            String       @id @default(cuid())
+  applicationId String
+  application   Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// The status change that sent it, when one did; null for a send recorded by hand.
+  eventId       String?
+  event         StatusEvent? @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  kind          DocumentKind
+  units         Json
+  /// The theme it was in; null falls back to the base theme.
+  themeId       String?
+  theme         Theme?       @relation(fields: [themeId], references: [id], onDelete: SetNull)
+  sentAt        DateTime
+  /// The format it went out in: a PDF through Gmail, else the one last downloaded.
+  format        FileFormat   @default(PDF)
+  /// The file in Google Drive it was saved as; null until it's saved.
+  driveFileId   String?
+  /// The resume template it went out in (resumeTemplateSchema); null for none.
+  template      Json?
+  /// Its text size in points; null for a copy from before sizes were set, which keeps its theme's.
+  textSize      Int?
+  /// All else that shaped it when it went out (sentSnapshotSchema): profile, theme, paper and so on. Null on older copies.
+  snapshot      Json?
+
+  @@index([applicationId, sentAt])
+  @@index([sentAt])
+}
+
+// ─── Job search (E14) ────────────────────────────────────────────────────────
+
+/// The job sources Find jobs can search (E14-1 to E14-3).
+enum PostingSource {
+  JSEARCH
+  ADZUNA
+  ARBEITSAGENTUR
+  FREEHIRE
+}
+
+/// A posting from Find jobs that the user kept (E14-5): saved, dismissed, or
+/// started an application from. Plain search results aren't stored. The
+/// fields follow the posting shape in src/lib/job-search/search.ts.
+model Posting {
+  id            String        @id @default(cuid())
+  source        PostingSource
+  /// The source's own id for it.
+  externalId    String
+  title         String        @default("")
+  company       String        @default("")
+  place         String        @default("")
+  /// Null when the source doesn't say.
+  remote        Boolean?
+  /// As the source writes it.
+  salary        String        @default("")
+  postedAt      DateTime?
+  /// Where to read it or apply; always http(s).
+  url           String        @default("")
+  /// Where the source found it, e.g. "LinkedIn".
+  via           String        @default("")
+  description   String        @default("")
+  /// False while the description is only the start of the posting.
+  complete      Boolean       @default(false)
+  /// Pasted into New application rather than found by a search; `source` means nothing then.
+  pasted        Boolean       @default(false)
+  savedAt       DateTime?
+  /// Dismissed postings stay out of later searches.
+  dismissedAt   DateTime?
+  /// The application made from it; deleting the application keeps the posting.
+  applicationId String?       @unique
+  application   Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([source, externalId])
+  @@index([savedAt])
+  @@index([dismissedAt])
+}
+
+/// A posting pasted into New application and handed to Claude chat (#221):
+/// the Claude connector reads it by its id. It's kept for 14 days, then the
+/// task-data sweep deletes it.
+model ClaudePaste {
+  id        String   @id @default(uuid())
+  text      String
+  /// The posting's link, when one was given; always http(s), or empty.
+  url       String   @default("")
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+// ─── Job agent (E16) ─────────────────────────────────────────────────────────
+
+/// One of the job agent's saved searches: every run goes through all the
+/// ones switched on, through the source in Settings → Job search.
+model AgentSearch {
+  id          String           @id @default(cuid())
+  /// What it's called on screen; the keywords unless renamed.
+  name        String
+  /// The search, as Find jobs asks it (searchQuerySchema).
+  query       Json
+  enabled     Boolean          @default(true)
+  /// Its place in the list, and the order runs go through them.
+  position    Int              @default(0)
+  /// How many pages of results a run reads, one source request each (1–5).
+  maxPages    Int              @default(5)
+  /// What to skip, one rule per line: postings it finds that clearly match
+  /// one go straight to Archived.
+  skipRules   String           @default("")
+  /// Where to look, one location per line; empty uses the query's own place.
+  places      String           @default("")
+  /// Other titles searched too, each on its own, one per line (up to 5).
+  altTitles   String           @default("")
+  /// When a run last asked it, and how that went, for the Agent screen.
+  lastRunAt   DateTime?
+  lastMessage String?
+  candidates  AgentCandidate[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([position])
+}
+
+/// A posting the job agent found and scored, and the draft it prepared from
+/// it. Kept after it's dismissed, trimmed to what dedupe needs, so the same
+/// posting never comes back.
+model AgentCandidate {
+  id            String               @id @default(cuid())
+  source        PostingSource
+  /// The source's own id for it.
+  externalId    String
+  title         String               @default("")
+  company       String               @default("")
+  place         String               @default("")
+  remote        Boolean?
+  salary        String               @default("")
+  postedAt      DateTime?
+  /// Where to read it or apply; always http(s).
+  url           String               @default("")
+  via           String               @default("")
+  /// Plain text, as the source gave it.
+  description   String               @default("")
+  complete      Boolean              @default(false)
+  /// 0–100: how well the posting fits the profile (score-posting).
+  score         Int                  @default(0)
+  /// Why it fits, as a JSON list of strings.
+  reasons       Json?
+  /// What gives pause, as a JSON list of strings.
+  redFlags      Json?
+  /// How your own scoring rubric made the score (#42), when there was one: RubricLine[].
+  breakdown     Json?
+  status        AgentCandidateStatus @default(SCORED)
+  /// Why preparing a draft failed, if it did.
+  error         String?
+  /// The tailored draft made from it.
+  applicationId String?              @unique
+  application   Application?         @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  /// A hash of the link without tracking parameters, else of company, title
+  /// and place: the same job from another source or a later run matches.
+  dedupeKey     String               @unique
+  /// The job itself, by company, title and place, whichever board or link it came from.
+  jobKey        String?
+  /// The saved search that found it; deleting the search keeps it.
+  searchId      String?
+  search        AgentSearch?         @relation(fields: [searchId], references: [id], onDelete: SetNull)
+  /// When it was last put back from the Archive, for its "Was archived" label.
+  restoredAt    DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([source, externalId])
+  @@index([status, score])
+  @@index([createdAt])
+  @@index([searchId])
+
+  @@index([jobKey])
+}
+
+/// How well a posting fits the profile (#208): from Score in Find jobs, or
+/// the job agent. Kept by the source's id, for search results that aren't
+/// stored as postings, so the score shows again in later searches.
+model PostingScore {
+  source     PostingSource
+  externalId String
+  /// 0–100 (score-posting, or Jev).
+  score      Int
+  /// JSON lists of strings.
+  reasons    Json
+  redFlags   Json
+  /// How your own scoring rubric made the score (#42), when there was one: RubricLine[].
+  breakdown  Json?
+  /// What scored it: the prompt version, e.g. "score-posting@1", or Jev's, e.g. "score-posting-jev@1 (jev-1.14.0)".
+  scoredWith String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@id([source, externalId])
+}
+
+/// A search on Find jobs, kept with what it found until the user removes it
+/// (E14-10), so going back to it costs no searches from the source's plan.
+model PostingSearch {
+  id        String        @id @default(cuid())
+  source    PostingSource
+  /// The search as asked (searchQuerySchema in src/lib/job-search/search.ts).
+  query     Json
+  /// The postings found, in order (foundPostingSchema[]); "Show more" adds to them.
+  postings  Json
+  /// How many postings it holds, for the Past searches list.
+  found     Int           @default(0)
+  /// How many the search's filters hid from what the source sent.
+  hidden    Int           @default(0)
+  /// What to ask the source for the next page; null on the last one.
+  next      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([createdAt])
+}
+
+// ─── Startups (#222) ─────────────────────────────────────────────────────────
+
+/// Where a startup stands on the Startups screen.
+enum StartupStatus {
+  NEW
+  SAVED
+  CONTACTED
+  DISMISSED
+}
+
+/// A startup that's hiring (#222): a YC startup's job post on Hacker News, or
+/// a post in Hacker News' monthly "Who is hiring?" thread, with the addresses
+/// it publishes for applications and how well it fits the profile. Kept
+/// with what the user did with it; untouched ones go once no refresh finds
+/// them for a while.
+model Startup {
+  id                 String        @id @default(cuid())
+  /// Where it was found: "YC" (YC's job posts) or "HN" ("Who is hiring?").
+  source             String
+  /// The Hacker News item's id.
+  externalId         String
+  company            String
+  /// The company's own site, "" when unknown.
+  website            String        @default("")
+  /// The post's title, or its first line.
+  summary            String        @default("")
+  /// The post's text as published.
+  details            String        @default("")
+  location           String        @default("")
+  remote             Boolean?
+  /// e.g. "YC W24", or the round a post names.
+  stage              String        @default("")
+  /// JSON list of strings: the roles a post names.
+  roles              Json
+  /// JSON list of { email, label, from, onRequest, foundAt }: only addresses
+  /// the startup published, never guessed. People's own addresses are
+  /// looked up only when asked, and dropped after a while unless used.
+  emails             Json
+  /// JSON list of { label, url }.
+  links              Json
+  /// When it was posted.
+  postedAt           DateTime?
+  /// 0–100: how well it fits the profile, with why (JSON list of strings).
+  score              Int           @default(0)
+  reasons            Json
+  /// The matching's version, e.g. "match@1".
+  scoredWith         String        @default("")
+  status             StartupStatus @default(NEW)
+  /// Where its site says it takes no unsolicited applications; "" when it doesn't.
+  noApplicationsFrom String        @default("")
+  /// When its site was last checked for role addresses, and for people's.
+  emailsCheckedAt    DateTime?
+  peopleCheckedAt    DateTime?
+  notes              String        @default("")
+  /// When a refresh last found it.
+  seenAt             DateTime      @default(now())
+  /// The application started from it ("Write to them"); deleting the application keeps the startup.
+  applicationId      String?       @unique
+  application        Application?  @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([source, externalId])
+  @@index([status, score])
+}
+
+/// A startup removed with "Remove and don't bring back" (#222): only a
+/// SHA-256 hash of its post, its site's domain or its name, so a refresh
+/// leaves it out without keeping anything about it.
+model StartupBlock {
+  hash      String   @id
+  createdAt DateTime @default(now())
+}
+
+// ─── Google: Gmail and Calendar (E15) ────────────────────────────────────────
+
+/// The connected Google account; at most one row, with id "google". It
+/// belongs to this install, not its data: exports leave it out.
+model GoogleAccount {
+  id              String    @id @default("google")
+  /// The Gmail address it's connected as.
+  email           String
+  /// The OAuth refresh token, encrypted like the API keys (GOOGLE_TOKEN).
+  refreshTokenEnc String
+  /// The scopes Google granted, space-separated.
+  scopes          String    @default("")
+  /// Where the inbox check carries on from (Gmail's history id).
+  historyId       String?
+  lastSyncAt      DateTime?
+  /// Why the last check failed; null once one works again.
+  syncProblem     String?
+  /// When Google stopped accepting Scout's access; null while it's fine.
+  expiredAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+enum EmailDirection {
+  /// Sent from Dossier, or from Gmail in a thread Dossier knows.
+  OUTGOING
+  INCOMING
+}
+
+/// What a reply from an employer is, as the AI read it (E15-4).
+enum ReplyKind {
+  REJECTION
+  INTERVIEW
+  QUESTION
+  OFFER
+  /// An automatic "we got your application".
+  ACKNOWLEDGEMENT
+  OTHER
+}
+
+/// A mail in Gmail about an application, or one that may be (E15-3). Only
+/// the text is kept, not attachments.
+model EmailMessage {
+  id              String             @id @default(cuid())
+  gmailId         String             @unique
+  threadId        String
+  /// The mail's Reply-To address, where an answer goes when it has one.
+  replyTo         String             @default("")
+  /// Null while it isn't linked to an application ("Needs a look").
+  /// Deleting the application deletes its mail, as it does its documents.
+  applicationId   String?
+  application     Application?       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  direction       EmailDirection
+  fromName        String             @default("")
+  fromAddress     String             @default("")
+  toAddress       String             @default("")
+  subject         String             @default("")
+  /// The RFC 5322 Message-ID, for replying in the thread.
+  messageId       String             @default("")
+  /// The text, without quoted earlier mail, cut to a sensible length.
+  body            String             @default("")
+  sentAt          DateTime
+  kind            ReplyKind?
+  /// One line on what it says.
+  summary         String             @default("")
+  /// The questions it asks (stringList), for the reply to answer.
+  questions       Json?
+  /// The status it suggests moving to; null once handled or when there's none.
+  suggestedStatus ApplicationStatus?
+  /// The interview time it confirms, if any, for the calendar.
+  confirmedAt     DateTime?
+  /// The prompt version that read it.
+  classifiedWith  String?
+  /// The drafted answer, while there is one.
+  replyDraft      String             @default("")
+  /// What the draft couldn't answer from the profile (stringList).
+  replyGaps       Json?
+  draftedWith     String?
+  /// Answered from Dossier, or marked as needing no answer.
+  handledAt       DateTime?
+  /// "Not job-related": only the ids and date are kept, so the inbox check
+  /// doesn't fetch it again.
+  dismissedAt     DateTime?
+  createdAt       DateTime           @default(now())
+
+  @@index([threadId])
+  @@index([applicationId, sentAt])
+  @@index([sentAt])
+}
+
+// ─── Sign-in (E3-4) ──────────────────────────────────────────────────────────
+
+/// Failed sign-in attempts, for rate limiting (AUTH-5): one row per client IP,
+/// plus the key "*" counting attempts from all IPs together.
+model LoginThrottle {
+  /// The client IP, or "*" for the global counter.
+  key          String    @id
+  failures     Int       @default(0)
+  /// When the current run of failures started.
+  windowStart  DateTime
+  /// Attempts are refused until then.
+  blockedUntil DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  @@index([updatedAt])
+}
+
+// ─── Background jobs (E6-7) ──────────────────────────────────────────────────
+
+/// A job goes queued → running → done, or failed.
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// A long AI task run in the background, e.g. reading a posting or writing the
+/// documents. Each job type validates its own input and result (src/lib/jobs).
+model Job {
+  id            String       @id @default(cuid())
+  /// Which handler runs it, e.g. "extract-posting".
+  type          String
+  /// Finds the job again for something on screen, e.g. "application:<id>".
+  key           String?
+  /// The application it works on, if any: deleting the application deletes the job.
+  applicationId String?
+  application   Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  status        JobStatus    @default(QUEUED)
+  /// The named step in progress, e.g. "Reading the posting".
+  step          String?
+  input         Json
+  result        Json?
+  /// Why it failed, written for the user.
+  error         String?
+  createdAt     DateTime     @default(now())
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  updatedAt     DateTime     @updatedAt
+
+  @@index([key, createdAt])
+  @@index([status])
+  @@index([applicationId])
+}
+
+/// A new posting waiting for its score, so a job found once is never searched for and paid for again.
+model QueuedPosting {
+  id        String   @id @default(cuid())
+  /// The job itself (agent/candidates.ts): the same job waits once.
+  jobKey    String   @unique
+  searchId  String
+  /// The "What to skip" rules of every search that found it.
+  rules     Json
+  posting   Json
+  /// The batch it went out in, while it's out.
+  batchId   String?
+  createdAt DateTime @default(now())
+
+  @@index([batchId])
+}
+
+/// What one call to an outside service cost, as an estimate, for Estimated cost and its limits.
+model CostEvent {
+  id     String   @id @default(cuid())
+  /// Who it's paid to (cost-rates.ts).
+  center String
+  /// What it was for, e.g. the AI task.
+  kind   String
+  /// In dollars.
+  amount Float
+  at     DateTime @default(now())
+
+  @@index([at])
+}

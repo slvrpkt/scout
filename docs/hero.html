@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scout hero</title>
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  html, body { width: 1600px; height: 800px; }
+  body {
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color: #f4f6fb;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 500px at 85% 20%, rgba(74, 111, 165, 0.45), transparent 60%),
+      radial-gradient(700px 500px at 10% 100%, rgba(176, 141, 60, 0.22), transparent 60%),
+      linear-gradient(135deg, #0f1f36 0%, #1f3a5f 55%, #1a2d49 100%);
+    position: relative;
+  }
+  /* A faint grid, like a map the scout reads. */
+  .grid {
+    position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(90deg, rgba(0,0,0,0.9), rgba(0,0,0,0.2));
+  }
+  .copy { position: absolute; left: 96px; top: 150px; width: 640px; }
+  .badge { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
+  .logo { width: 64px; height: 64px; border-radius: 16px; background: #f4f6fb; color: #1f3a5f; display: grid; place-items: center; font: 600 40px Georgia, serif; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+  .eyebrow { font-size: 18px; letter-spacing: 0.18em; text-transform: uppercase; color: #c9a75a; font-weight: 600; }
+  h1 { font: 500 112px/1 Georgia, "Times New Roman", serif; letter-spacing: -0.02em; }
+  .tagline { margin-top: 18px; font: 400 40px/1.2 Georgia, serif; color: #dfe6f2; }
+  .lede { margin-top: 28px; font-size: 22px; line-height: 1.5; color: #b8c4d8; }
+  .pills { margin-top: 34px; display: flex; flex-wrap: wrap; gap: 10px; }
+  .pill { padding: 9px 16px; border-radius: 999px; background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.16); font-size: 17px; color: #e7ecf5; }
+  .shot { position: absolute; left: 820px; top: 110px; width: 900px; border-radius: 18px; overflow: hidden; transform: perspective(1800px) rotateY(-14deg) rotateX(4deg); transform-origin: left center; box-shadow: 0 40px 90px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.12); }
+  .shot img { display: block; width: 100%; }
+</style>
+</head>
+<body>
+  <div class="grid"></div>
+  <div class="copy">
+    <div class="badge"><div class="logo">S</div><div class="eyebrow">Open source · Self-hosted</div></div>
+    <h1>Scout</h1>
+    <div class="tagline">Your agentic job search companion</div>
+    <p class="lede">Finds the jobs, scores them against your profile, and drafts tailored resumes checked against common ATS criteria. You stay in charge: it never applies for you.</p>
+    <div class="pills">
+      <span class="pill">AI job agent</span><span class="pill">Fit scoring</span><span class="pill">ATS-criteria checks</span><span class="pill">Tailored resumes</span><span class="pill">Exact page fit</span>
+    </div>
+  </div>
+  <div class="shot"><img src="images/agent.png" alt=""></div>
+</body>
+</html>

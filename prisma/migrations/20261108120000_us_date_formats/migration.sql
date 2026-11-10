@@ -1,0 +1,3 @@
+-- US date styles for documents: 09/27/2026 and 09/27/26.
+ALTER TYPE "DateFormat" ADD VALUE IF NOT EXISTS 'US_NUMERIC';
+ALTER TYPE "DateFormat" ADD VALUE IF NOT EXISTS 'US_SHORT';
