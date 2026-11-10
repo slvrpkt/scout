@@ -185,7 +185,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
       },
       { signal: call.signal },
     );
-    this.noteCost(call.model, completion.usage, call.json?.name ?? "other");
+    await this.noteCost(call.model, completion.usage, call.json?.name ?? "other");
     const choice = completion.choices[0];
     // Mistral says `model_length` when the context ran out instead.
     const finish: string | undefined = choice?.finish_reason;
@@ -200,10 +200,10 @@ export class OpenAICompatibleProvider extends BaseProvider {
   }
 
   /** Notes what a request cost, on the side; a model on your own hardware costs nothing. */
-  private noteCost(model: string, usage: { prompt_tokens: number; completion_tokens: number } | undefined, kind: string) {
+  private async noteCost(model: string, usage: { prompt_tokens: number; completion_tokens: number } | undefined, kind: string): Promise<void> {
     if (!usage || (this.kind !== "OPENAI" && this.kind !== "MISTRAL")) return;
     const amount = costOfTokens(model, { input_tokens: usage.prompt_tokens, output_tokens: usage.completion_tokens });
-    void import("@/lib/costs").then(({ recordCost }) => recordCost(this.kind === "MISTRAL" ? "MISTRAL" : "OPENAI", kind, amount)).catch(() => {});
+    await import("@/lib/costs").then(({ recordCost }) => recordCost(this.kind === "MISTRAL" ? "MISTRAL" : "OPENAI", kind, amount)).catch(() => {});
   }
 
   protected async fetchModels(signal: AbortSignal): Promise<string[]> {

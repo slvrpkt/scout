@@ -14,6 +14,7 @@ import { cn } from "@/lib/cn";
 
 import { saveScorer, saveTypesafeKey, testJev } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
+import { SpendingLimitNote } from "./spending-limit-note";
 
 type Connection =
   | { status: "untested" }
@@ -101,6 +102,7 @@ export function ScoringSection({ initial }: { initial: ScoringView }) {
           </p>
 
           <Card className="flex flex-col gap-5">
+            <SpendingLimitNote provider="TYPESAFE" />
             <KeyField
               label="TypeSafe key"
               keyState={view.keyState}

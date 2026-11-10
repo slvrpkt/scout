@@ -1,5 +1,7 @@
 import "server-only";
 
+import { employerMatches } from "@/lib/job-search/company";
+
 import type { AgentCandidate, Prisma } from "@/generated/prisma/client";
 import { AgentCandidateStatus, JobStatus } from "@/generated/prisma/enums";
 import { formatCalendarDate, formatDate, formatDateTime, formatDateTime12 } from "@/lib/dates";
@@ -138,7 +140,7 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     prisma.agentCandidate.findMany({
       where: { status: { in: [AgentCandidateStatus.SCORED, AgentCandidateStatus.DRAFTING, AgentCandidateStatus.DRAFTED] } },
       orderBy: [{ score: "desc" }, { createdAt: "desc" }],
-      include: { search: { select: { name: true } }, application: { select: { deadline: true } } },
+      include: SHOWN_INCLUDE,
     }),
     prisma.job.findMany({
       where: { type: "agent-draft", status: { in: [JobStatus.QUEUED, JobStatus.RUNNING] } },
@@ -198,9 +200,9 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
 }
 
 /** A candidate as loaded for the Agent screen: with its search's name and its draft's deadline. */
-type ShownCandidate = AgentCandidate & { search: { name: string } | null; application: { deadline: Date | null } | null };
+type ShownCandidate = AgentCandidate & { search: { name: string; companies: string } | null; application: { deadline: Date | null } | null };
 
-const SHOWN_INCLUDE = { search: { select: { name: true } }, application: { select: { deadline: true } } } as const;
+const SHOWN_INCLUDE = { search: { select: { name: true, companies: true } }, application: { select: { deadline: true } } } as const;
 
 /** A candidate with its score as it stands now: without the fresh bonus once it's past the window. */
 function asNow<T extends { score: number; reasons: Prisma.JsonValue; postedAt: Date | null }>(candidate: T, now: Date, hours: number): T {
@@ -231,7 +233,8 @@ function candidateView(candidate: ShownCandidate, draftJobId: string | null, log
     error: candidate.error,
     applicationId: candidate.applicationId,
     draftJobId,
-    foundBy: candidate.search?.name ?? null,
+    // A company search says which of its companies it found the job at: "IT PMs · Accenture".
+    foundBy: candidate.search ? [candidate.search.name, skipRuleList(candidate.search.companies).find((company) => employerMatches(candidate.company, company))].filter(Boolean).join(" · ") : null,
     wasArchived: candidate.restoredAt != null,
     description: candidate.description,
     postedOn: candidate.postedAt ? formatDate(candidate.postedAt) : null,

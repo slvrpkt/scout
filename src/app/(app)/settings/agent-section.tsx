@@ -18,7 +18,7 @@ import type { Scorer } from "@/lib/scoring/scorers";
 import { MAX_AGENT_TIMES, sortedTimes } from "@/lib/settings";
 
 import { saveAgentSettings } from "../agent/actions";
-import { AgentSearches, type AgentSearchSetting } from "./agent-searches";
+import { AgentSearches, type AgentSearchSetting, type HomeCountry } from "./agent-searches";
 import { TitleSkips } from "./skip-rules";
 import { SETTINGS_SECTIONS, settingsSectionHref, type SettingsSectionId } from "./sections";
 import { SettingsSectionIntro } from "./settings-screen";
@@ -73,6 +73,7 @@ export function AgentSection({
   source,
   scoring,
   countries,
+  homeCountry,
   timeZone,
 }: {
   initial: AgentSettings;
@@ -86,6 +87,8 @@ export function AgentSection({
   /** What scores the postings (Settings → Scoring), and whether it's set up. */
   scoring: { scorer: Scorer; ready: boolean };
   countries: readonly Country[];
+  /** The country company searches cover (Profile → Basics, else the US). */
+  homeCountry?: HomeCountry;
   /** The user's time zone, which the hour is in. */
   timeZone: string;
 }) {
@@ -155,7 +158,7 @@ export function AgentSection({
         }}
       />
 
-      <AgentSearches initial={searches} max={maxSearches} maxPages={maxPages} startFrom={startFrom} source={source} countries={countries} />
+      <AgentSearches initial={searches} max={maxSearches} maxPages={maxPages} startFrom={startFrom} source={source} countries={countries} homeCountry={homeCountry} />
 
       <section aria-labelledby="agent-all-searches" className="flex flex-col gap-4 rounded-panel border-2 border-line-strong bg-canvas p-5">
         <div className="flex flex-col gap-1">

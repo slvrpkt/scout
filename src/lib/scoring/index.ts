@@ -23,7 +23,7 @@ import { zipPoint } from "./zip";
 // Scoring chose: the AI model's score-posting, or Jev. Find jobs' Score and
 // the job agent both come here.
 
-export type ScorablePosting = Pick<FoundPosting, "title" | "company" | "place" | "remote" | "salary" | "description" | "lat" | "lng"> & Partial<Pick<FoundPosting, "postedAt">>;
+export type ScorablePosting = Pick<FoundPosting, "title" | "company" | "place" | "remote" | "salary" | "description" | "lat" | "lng"> & Partial<Pick<FoundPosting, "postedAt" | "companySearch">>;
 
 /** With `gate`, the job agent's: postings your settings rule out, or that can't reach `cutoff` (your minimum score) even with a perfect fit, are set aside without the AI. */
 export type ScoreOptions = { gate?: { cutoff: number } };
@@ -77,9 +77,12 @@ export async function loadPostingScorer(given?: AIProvider): Promise<PostingScor
   };
 
   // Before the AI: set aside what your settings rule out, or what can't reach the cutoff anyway.
+  // A company search asked for that company wherever it is: its distance from your ZIP code isn't counted.
+  const homeFor = (posting: ScorablePosting) => (posting.companySearch ? null : home);
+
   const before = (posting: ScorablePosting, options?: ScoreOptions) => {
     if (!options?.gate) return null;
-    const facts = factsOf(posting, home);
+    const facts = factsOf(posting, homeFor(posting));
     const out = ruledOut(posting, facts, prefs);
     if (out) return { data: { score: 0, reasons: [`Set aside before scoring, by your settings: ${out.rule} (${out.note}).`], redFlags: [] }, scoredWith: `rules + ${tag}`, skip: out, free: true };
     const best = Math.min(100, bestPossible(facts, prefs, criteriaPoints) + freshBonus(posting).points);
@@ -98,7 +101,7 @@ export async function loadPostingScorer(given?: AIProvider): Promise<PostingScor
   // After: the AI's fit with your settings' points, what code couldn't tell taken from the AI.
   const after = (posting: ScorablePosting, rules: readonly string[], { data, scoredWith }: Answer) => {
     const { criteria: judged, workStyle, payPerYear, ...fit } = data;
-    const known = factsOf(posting, home);
+    const known = factsOf(posting, homeFor(posting));
     const facts = { ...known, style: known.style ?? workStyle ?? null, pay: known.pay ?? payPerYear ?? null };
     const { score, breakdown } = rubricScore(rubric, fit.score, judged ?? [], { fitPoints: prefs.fitPoints, lines: prefLines(facts, prefs) });
     const word = ruleOutWord(posting, prefs.ruleOut);

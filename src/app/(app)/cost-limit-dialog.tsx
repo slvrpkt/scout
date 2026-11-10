@@ -17,9 +17,12 @@ function seen(): string {
   }
 }
 
-/** Says a cost limit has been passed; shown again this session only if the message changes. */
-export function CostLimitDialog({ messages }: { messages: string[] }) {
-  const text = messages.join(" ");
+/** One passed limit: which service and limit, the limit and what's used, and what's paused until when (cost-rates.ts overLimitBlock). */
+export type LimitBlock = { title: string; amounts: string; paused: string };
+
+/** Says which cost limits have been passed; shown again this session only if they change. */
+export function CostLimitDialog({ limits }: { limits: LimitBlock[] }) {
+  const text = limits.map((limit) => `${limit.title} ${limit.amounts}`).join(" ");
   const already = useSyncExternalStore(never, seen, () => text);
   const [closed, setClosed] = useState(false);
   const close = () => {
@@ -37,11 +40,15 @@ export function CostLimitDialog({ messages }: { messages: string[] }) {
         <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex w-[min(480px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-dialog border border-line-popover bg-card p-6 shadow-menu">
           <Dialog.Title className="font-serif text-[22px] leading-tight">Cost limit reached</Dialog.Title>
           <Dialog.Description asChild>
-            <div className="flex flex-col gap-2 text-sm text-muted">
-              {messages.map((message) => (
-                <p key={message}>{message}</p>
+            <div className="flex flex-col gap-3 text-sm text-muted">
+              {limits.map((limit) => (
+                <div key={limit.title} className="flex flex-col gap-1 rounded-control border border-line-card px-3.5 py-3">
+                  <p className="font-medium text-ink">{limit.title}</p>
+                  <p className="text-ink">{limit.amounts}</p>
+                  <p>{limit.paused}</p>
+                </div>
               ))}
-              <p>Everything else keeps working. It carries on when the period ends, or as soon as you raise the limit.</p>
+              <p>Everything else keeps working. Amounts are Scout&apos;s estimates; your provider&apos;s account shows the real charges.</p>
             </div>
           </Dialog.Description>
           <div className="flex justify-end gap-2">

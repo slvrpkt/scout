@@ -259,6 +259,32 @@ describe("runAgentScan (E16-3)", () => {
     expect(asked.filter((entry) => entry.toLowerCase() === "tpm @ austin")).toHaveLength(1);
   });
 
+  it("searches each title at each company once, across the country in the profile, locations aside", async () => {
+    await prisma().agentSearch.updateMany({ data: { places: "Austin", altTitles: "TPM", companies: ["Accenture", "Leidos"].join(String.fromCharCode(10)) } });
+    await prisma().profileField.upsert({ where: { key: "country" }, create: { key: "country", value: "Canada" }, update: { value: "Canada" } });
+    vi.mocked(searchPostings).mockClear();
+    await runAgentScan({ manual: true }, context(), now);
+    const asked = vi.mocked(searchPostings).mock.calls.map(([, , query]) => query);
+    const own = (await prisma().agentSearch.findFirstOrThrow()).name;
+    for (const title of [own, "TPM"]) {
+      for (const company of ["Accenture", "Leidos"]) {
+        expect(asked).toContainEqual(expect.objectContaining({ keywords: title, company, place: "", country: "ca" }));
+      }
+    }
+    // Its location isn't searched while it has companies.
+    expect(asked.some((query) => query.place === "Austin")).toBe(false);
+    await prisma().profileField.deleteMany({ where: { key: "country" } });
+  });
+
+  it("searches companies across the US when the profile has no country", async () => {
+    await prisma().agentSearch.updateMany({ data: { places: "", altTitles: "", companies: "Accenture" } });
+    await prisma().profileField.deleteMany({ where: { key: "country" } });
+    vi.mocked(searchPostings).mockClear();
+    await runAgentScan({ manual: true }, context(), now);
+    const asked = vi.mocked(searchPostings).mock.calls.map(([, , query]) => query);
+    expect(asked).toContainEqual(expect.objectContaining({ company: "Accenture", country: "us", place: "" }));
+  });
+
   it("searches the whole country for a location of Anywhere, with no place and no distance", async () => {
     await prisma().agentSearch.updateMany({ data: { places: ["Austin", "Anywhere"].join(String.fromCharCode(10)) } });
     vi.mocked(searchPostings).mockClear();

@@ -70,7 +70,7 @@ describe("stored settings", () => {
       agentDraftScore: 80,
       agentDraftShares: [],
       agentDailyGoal: 150,
-      costLimits: {},
+      costLimits: { ANTHROPIC: { day: 1, week: 5, month: 15 }, OPENAI: { day: 1, week: 5, month: 15 }, MISTRAL: { day: 1, week: 5, month: 15 }, JSEARCH: { day: 0.3, week: 1.5, month: 6 } },
       agentTitleSkip: expect.any(Array),
       agentBatch: true,
       agentBatchId: null,

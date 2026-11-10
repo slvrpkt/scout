@@ -1,4 +1,4 @@
-import { COST_CENTERS } from "@/lib/cost-rates";
+import { COST_CENTERS, DEFAULT_COST_LIMITS } from "@/lib/cost-rates";
 import { z } from "zod";
 
 import { AiProvider, Creativity, DateFormat, PaperSize, Tone } from "@/generated/prisma/enums";
@@ -278,8 +278,8 @@ export const settingsSchema = z.object({
   agentTitleSkip: json(z.array(z.string())).catch(DEFAULT_TITLE_SKIP),
   /** Score by batch, at half the price, where the provider has it. */
   agentBatch: flag(true),
-  /** A daily, weekly and monthly limit per service (cost-rates.ts); past one, the job agent stops. */
-  costLimits: json(z.partialRecord(z.enum(COST_CENTERS), z.object({ day: z.number().nullish(), week: z.number().nullish(), month: z.number().nullish() }))).catch({}),
+  /** A daily, weekly and monthly limit per service (cost-rates.ts); past one, the job agent stops. On from the start, at DEFAULT_COST_LIMITS. */
+  costLimits: json(z.partialRecord(z.enum(COST_CENTERS), z.object({ day: z.number().nullish(), week: z.number().nullish(), month: z.number().nullish() }))).catch(DEFAULT_COST_LIMITS),
   /** The batch that's out, if any. */
   agentBatchId: z.string().nullable().catch(null),
   /** When the batch that's out was sent, to say when to check back. */

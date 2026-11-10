@@ -16,6 +16,7 @@ import { checkInbox, disconnectGoogleAccount, saveGoogleClient, saveGoogleSettin
 import { cn } from "@/lib/cn";
 
 import { SettingsSectionIntro } from "./settings-screen";
+import { SpendingLimitNote } from "./spending-limit-note";
 
 export type GoogleSettings = {
   gmailRead: boolean;
@@ -461,6 +462,7 @@ function ClientCard({ initial, connected }: { initial: GoogleClientView; connect
           }}
         />
         <div className="flex flex-col gap-2.5">
+          <SpendingLimitNote provider="GOOGLE" />
           <Input
             label="Client secret"
             type="password"

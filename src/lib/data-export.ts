@@ -318,6 +318,7 @@ const agentSearch = z.object({
   skipRules: z.string().default(""),
   places: z.string().default(""),
   altTitles: z.string().default(""),
+  companies: z.string().default(""),
   lastRunAt: optionalDate,
   lastMessage: text.nullable(),
   createdAt: date,

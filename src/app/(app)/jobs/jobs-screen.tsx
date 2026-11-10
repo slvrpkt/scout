@@ -1,5 +1,6 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent } from "react";
@@ -204,12 +205,13 @@ function SearchForm({
     event.preventDefault();
     if (pending) return;
     const problems = {
-      keywords: form.keywords.trim() ? undefined : "Type what you're looking for.",
+      keywords: form.keywords.trim() || form.company?.trim() ? undefined : "Type what you're looking for, or a company.",
       country: form.country ? uncovered : "Choose a country.",
     };
     setErrors(problems);
     if (problems.keywords || problems.country) return;
-    onSearch({ ...form, keywords: form.keywords.trim(), place: form.place.trim() });
+    const company = form.company?.trim();
+    onSearch({ ...form, keywords: form.keywords.trim(), place: form.place.trim(), company: company || undefined });
   };
 
   return (
@@ -220,7 +222,22 @@ function SearchForm({
       onSubmit={submit}
       className="mx-10 mb-7 grid grid-cols-1 items-start gap-x-4 gap-y-4 rounded-panel border border-line-card bg-card p-6 sm:grid-cols-2 lg:grid-cols-[2fr_1.5fr_1.3fr_1fr_1fr]"
     >
-      <SearchFields value={form} onChange={set} source={source} countries={countries} errors={errors} />
+      <SearchFields
+        value={form}
+        onChange={set}
+        source={source}
+        countries={countries}
+        errors={errors}
+        underWhat={
+          <Input
+            label="Company (optional)"
+            value={form.company ?? ""}
+            placeholder="e.g. Accenture"
+            hint="Only this company's jobs. Leave What empty to see all of them."
+            onChange={(event) => set({ company: event.target.value })}
+          />
+        }
+      />
       <div className="sm:col-span-2 lg:col-span-5">
         <SearchFilters value={form} onChange={set} source={source} />
       </div>

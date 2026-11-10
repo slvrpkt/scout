@@ -1,3 +1,4 @@
+import { profileCountry } from "@/lib/job-search/profile-country";
 import { AtsCard } from "./ats-card";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
@@ -93,7 +94,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             dailyGoal: settings.agentDailyGoal,
             titleSkip: settings.agentTitleSkip,
           }}
-          searches={(await loadAgentSearches()).map(({ id, query, enabled, maxPages, skipRules, places, altTitles }) => ({ id, query, enabled, maxPages, skipRules, places, altTitles }))}
+          searches={(await loadAgentSearches()).map(({ id, query, enabled, maxPages, skipRules, places, altTitles, companies }) => ({ id, query, enabled, maxPages, skipRules, places, altTitles, companies }))}
           maxSearches={MAX_AGENT_SEARCHES}
           maxPages={MAX_AGENT_PAGES}
           // A first search starts from the last one in Find jobs.
@@ -101,6 +102,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
           source={(await loadJobSearchConfig()).source}
           scoring={await scoringReadiness()}
           countries={COUNTRIES}
+          homeCountry={await profileCountry()}
           timeZone={await lastKnownTimeZone()}
         />
       ) : section === "google" ? (

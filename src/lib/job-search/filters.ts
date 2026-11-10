@@ -1,3 +1,4 @@
+import { employerMatches } from "./company";
 import { payOf, workStyleOf, type WorkStyle } from "@/lib/scoring/preferences";
 
 import type { FoundPosting, SearchPage, SearchQuery } from "./search";
@@ -108,7 +109,11 @@ export function passesFilters(posting: FoundPosting, query: Pick<SearchQuery, "w
 
 /** A page with the postings the filters hide taken out, and how many that was. */
 export function filterPage(page: SearchPage, query: SearchQuery): SearchPage {
-  const postings = page.postings.filter((posting) => passesFilters(posting, query));
+  // A company search keeps only that company's jobs, marked so the distance from your ZIP code doesn't rule them out.
+  const company = query.company?.trim();
+  const postings = page.postings
+    .filter((posting) => passesFilters(posting, query) && (!company || employerMatches(posting.company, company)))
+    .map((posting) => (company ? { ...posting, companySearch: true } : posting));
   return { ...page, postings, hidden: page.postings.length - postings.length };
 }
 

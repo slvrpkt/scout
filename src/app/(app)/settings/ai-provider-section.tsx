@@ -16,6 +16,7 @@ import { useAutosave } from "@/hooks/use-autosave";
 
 import { listAiModels, saveAiProvider, saveApiKey, testAiConnection } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
+import { SpendingLimitNote } from "./spending-limit-note";
 
 type Connection =
   | { status: "untested" }
@@ -240,6 +241,8 @@ export function AiProviderSection({ initial }: { initial: AiSettingsView }) {
 
         {option.apiKey ? (
           <div className="flex flex-col gap-2.5">
+            {/* Only hosted providers bill for use: a local model's optional token needs no limit. */}
+            {(provider === "ANTHROPIC" || provider === "MISTRAL" || provider === "OPENAI") && <SpendingLimitNote provider={provider} />}
             <Input
               label={option.apiKey.label}
               hint={keyState === "unreadable" ? undefined : option.apiKey.hint}

@@ -73,7 +73,7 @@ export const addAgentSearch = action(z.object({ query: searchQuerySchema }), asy
 
 /** A saved search's query, saved as it's typed, its pages or its on/off switch. */
 export const changeAgentSearch = action(
-  z.object({ id: searchId, query: searchQuerySchema.optional(), enabled: z.boolean().optional(), maxPages: z.number().int().min(1).max(MAX_AGENT_PAGES).optional(), skipRules: z.string().max(MAX_SKIP_RULES_LENGTH).optional(), places: z.string().max(1000).optional(), altTitles: z.string().max(1000).optional() }),
+  z.object({ id: searchId, query: searchQuerySchema.optional(), enabled: z.boolean().optional(), maxPages: z.number().int().min(1).max(MAX_AGENT_PAGES).optional(), skipRules: z.string().max(MAX_SKIP_RULES_LENGTH).optional(), places: z.string().max(1000).optional(), altTitles: z.string().max(1000).optional(), companies: z.string().max(1500).optional() }),
   async ({ id, ...changes }) => {
     if (!(await updateAgentSearch(id, changes))) throw new ActionError("That search no longer exists.");
     revalidatePath("/agent");

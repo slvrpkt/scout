@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { filterPage, levelOf, passesFilters, remoteOnly, searchTerms, sourceTypes } from "./filters";
+import { queryFromParams as parseQuery } from "./search";
 import { EMPTY_QUERY, queryFromParams, searchHref, type FoundPosting } from "./search";
 
 const posting = (patch: Partial<FoundPosting> = {}): FoundPosting => ({
@@ -83,5 +84,41 @@ describe("what the source is asked", () => {
     const query = { ...EMPTY_QUERY, keywords: "IT PM", country: "us", workModes: ["remote" as const, "hybrid" as const], levels: ["senior" as const], types: ["fulltime" as const], minSalary: 110000 };
     const params = Object.fromEntries(new URL(searchHref(query), "http://x").searchParams);
     expect(queryFromParams(params)).toMatchObject({ workModes: ["remote", "hybrid"], levels: ["senior"], types: ["fulltime"], minSalary: 110000 });
+  });
+});
+
+describe("a company search's results", () => {
+  const posting = (company: string): FoundPosting => ({
+    source: "JSEARCH",
+    externalId: company,
+    title: "Project Manager",
+    company,
+    place: "Reston, VA, US",
+    remote: false,
+    salary: "",
+    postedAt: null,
+    url: "",
+    via: "",
+    description: "",
+    complete: true,
+  });
+
+  it("keeps only that company's jobs, marked so their distance doesn't count", () => {
+    const page = filterPage({ postings: [posting("Accenture Federal Services"), posting("Deloitte"), posting("Accenture")], next: null }, { ...EMPTY_QUERY, keywords: "Project Manager", company: "Accenture" });
+    expect(page.postings.map((entry) => entry.company)).toEqual(["Accenture Federal Services", "Accenture"]);
+    expect(page.postings.every((entry) => entry.companySearch)).toBe(true);
+    expect(page.hidden).toBe(1);
+  });
+
+  it("leaves a search without a company as it was", () => {
+    const page = filterPage({ postings: [posting("Deloitte")], next: null }, { ...EMPTY_QUERY, keywords: "Project Manager" });
+    expect(page.postings[0].companySearch).toBeUndefined();
+  });
+
+  it("keeps the company in the address, and needs only a company or a title", () => {
+    const query = { ...EMPTY_QUERY, keywords: "", company: "Leidos", country: "us" };
+    expect(searchHref(query)).toContain("company=Leidos");
+    expect(parseQuery({ company: "Leidos" })).toMatchObject({ keywords: "", company: "Leidos" });
+    expect(parseQuery({})).toBeNull();
   });
 });

@@ -35,8 +35,8 @@ Ten things Scout does, and [many more](#and-much-more):
 
 **Find**
 
-1. **Agentic job search.** Save up to 20 searches. Each has a job title, up to 5 alternative titles (like "TPM" or "AI Program Manager"), up to 10 locations or "Anywhere", and filters for work mode, seniority, job type and minimum salary. The agent runs them at the times you pick, skips what you've already seen, and keeps the best matches for you to review.
-2. **Manual job search.** Search postings yourself through JSearch (Google for Jobs, which covers LinkedIn, Indeed, Glassdoor and many company sites), with the same filters, and start an application from any result in one click.
+1. **Agentic job search.** Save up to 20 searches. Each has a job title, up to 5 alternative titles (like "TPM" or "AI Program Manager"), up to 10 locations or "Anywhere", and filters for work mode, seniority, job type and minimum salary. Or follow up to 10 companies: Scout looks for the title at each one across your whole country and keeps only their jobs. The agent runs your searches at the times you pick, skips what you've already seen, and keeps the best matches for you to review, with filters by company and location.
+2. **Manual job search.** Search postings yourself through JSearch (Google for Jobs, which covers LinkedIn, Indeed, Glassdoor and many company sites), with the same filters and an optional company, and start an application from any result in one click.
 
 **Score**
 
@@ -100,6 +100,8 @@ Scout runs on your own computer, for one person. You'll need about 15 minutes an
 - **A job search key (JSearch).** Get one from [OpenWeb Ninja](https://www.openwebninja.com/api/jsearch) or [RapidAPI](https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch). There's a free tier to start with; pay-as-you-go after that.
 
 You paste both keys into Scout's Settings once it's running. They're stored encrypted in your own database and only ever sent to the provider they belong to.
+
+> **Set a hard spending limit on every key before you add it.** Scout's agents run on their own. If something goes wrong, such as an agent repeating the same searches, a key with no billing limit could run up an unexpectedly large bill. Set a monthly limit with each provider (in the Anthropic Console under Settings → Limits; for JSearch, a plan with a fixed number of requests rather than open-ended pay-as-you-go). Scout also starts with its own daily, weekly and monthly limits switched on (JSearch: $0.30 a day, $1.50 a week, $6 a month; a hosted AI model: $1, $5 and $15), which pause it when they're reached. You can change them in Settings → Estimated cost. Keys with no billing limit are strongly discouraged.
 
 ### 2. Install and run
 
@@ -181,7 +183,7 @@ Scout is a personal project, shared in the hope that it helps, and given as it i
 
 - **Review every resume and cover letter** before you send it, and only send what's true for you.
 - **Check the job itself** with the employer before sharing personal details.
-- **Keep an eye on your API spending** (Settings → Estimated cost has limits you can set).
+- **Keep an eye on your API spending.** Settings → Estimated cost shows what Scout thinks it has spent, and its limits pause it when they're reached. Those amounts are **estimates**, worked out from each provider's published prices as of the date shown on that page; prices change and providers bill differently. Always check your real usage and charges in your account with each provider. Scout isn't a billing system.
 
 You're always the one who decides what gets sent, and responsible for it. [LICENSE](LICENSE) has the full terms.
 

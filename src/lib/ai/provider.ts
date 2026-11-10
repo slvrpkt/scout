@@ -119,7 +119,9 @@ export abstract class BaseProvider implements AIProvider {
   private async withinCostLimit(): Promise<void> {
     const center = this.costCenter();
     if (!center) return;
-    const over = await import("@/lib/costs").then(({ limitReached }) => limitReached(center)).catch(() => null);
+    // A limit that can't be checked stops the request, rather than letting it through unchecked.
+    const over = await import("@/lib/costs").then(({ limitReached }) => limitReached(center)).catch(() => "unchecked" as const);
+    if (over === "unchecked") throw new AiError("provider", "Couldn't check your cost limit just now, so nothing was sent. Try again in a moment.", "cost limit");
     if (over) throw new AiError("provider", `${overLimitText(over)} Raise the limit in Settings → Estimated cost to carry on.`, "cost limit");
   }
 

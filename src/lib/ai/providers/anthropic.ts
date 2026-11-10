@@ -30,8 +30,8 @@ const promptSchemas = new Set<string>();
 
 /** Claude through the Messages API with the user's own key. */
 /** Notes what a request cost, on the side: it never holds up or fails the request. */
-function noteCost(model: string, usage: TokenUse, kind: string, batch: boolean) {
-  void import("@/lib/costs").then(({ recordCost }) => recordCost("ANTHROPIC", kind, costOfTokens(model, usage, { batch }))).catch(() => {});
+async function noteCost(model: string, usage: TokenUse, kind: string, batch: boolean): Promise<void> {
+  await import("@/lib/costs").then(({ recordCost }) => recordCost("ANTHROPIC", kind, costOfTokens(model, usage, { batch }))).catch(() => {});
 }
 
 /** A request as the Messages API takes it; text that stays the same between requests is marked to be cached. */
@@ -104,7 +104,7 @@ export class AnthropicProvider extends BaseProvider {
     const answers = new Map<string, string>();
     for await (const entry of await this.client.messages.batches.results(id)) {
       if (entry.result.type !== "succeeded") continue;
-      noteCost(entry.result.message.model, entry.result.message.usage, "posting_score", true);
+      await noteCost(entry.result.message.model, entry.result.message.usage, "posting_score", true);
       answers.set(entry.custom_id, entry.result.message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(""));
     }
     return answers;
@@ -136,7 +136,7 @@ export class AnthropicProvider extends BaseProvider {
   /** One request; `structured` asks for `call.json` through output_config, otherwise the schema goes in the prompt. */
   private async send(client: Anthropic, call: ChatCall, effort: Effort | undefined, structured: boolean): Promise<ChatAnswer> {
     const message = await client.messages.create(paramsFor(call, effort, structured), { signal: call.signal });
-    noteCost(call.model, message.usage, call.json?.name ?? "other", false);
+    await noteCost(call.model, message.usage, call.json?.name ?? "other", false);
     if (message.stop_reason === "refusal") {
       throw new AiError("provider", "The model declined to answer this one. Try rewording it, or try again.", "refusal");
     }

@@ -17,6 +17,7 @@ import { cn } from "@/lib/cn";
 
 import { saveJobSearchDetails, saveJobSource, saveJobSourceKey, testJobSource } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
+import { SpendingLimitNote } from "./spending-limit-note";
 
 type Choice = JobSource | "OFF";
 
@@ -137,6 +138,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
             {source === "JSEARCH" && (
               <>
                 <HostChoice host={view.jsearch.host} onChange={(host) => void chooseHost(host)} />
+                <SpendingLimitNote provider="JSEARCH" />
                 <KeyField
                   label="API key"
                   keyState={view.jsearch.keyState}
@@ -146,6 +148,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
                 />
               </>
             )}
+            {source === "ADZUNA" && <SpendingLimitNote provider="ADZUNA" />}
             {source === "ADZUNA" && (
               <div className="grid grid-cols-1 gap-x-[18px] gap-y-5 sm:grid-cols-2">
                 <Input

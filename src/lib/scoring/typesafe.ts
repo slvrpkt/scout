@@ -122,7 +122,9 @@ export async function askJev(
   const timeout = AbortSignal.timeout(timeoutMs);
   const both = signal ? AbortSignal.any([signal, timeout]) : timeout;
   const body = JSON.stringify({ model: JEV_MODEL, ...request });
-  const over = await import("@/lib/costs").then(({ limitReached }) => limitReached("TYPESAFE")).catch(() => null);
+  // A limit that can't be checked stops the request, rather than letting it through unchecked.
+  const over = await import("@/lib/costs").then(({ limitReached }) => limitReached("TYPESAFE")).catch(() => "unchecked" as const);
+  if (over === "unchecked") throw new AiError("provider", "Couldn't check your cost limit just now, so nothing was sent. Try again in a moment.", "cost limit");
   if (over) throw new AiError("provider", `${overLimitText(over)} Raise the limit in Settings → Estimated cost to carry on.`, "cost limit");
 
   for (let attempt = 0; ; attempt++) {
@@ -146,7 +148,7 @@ export async function askJev(
       const parsed = resultSchema.safeParse(await response.json().catch(() => null));
       if (!parsed.success) throw fail("invalid-output", "TypeSafe answer");
       // About four characters a token; output is free.
-      void import("@/lib/costs").then(({ recordCost }) => recordCost("TYPESAFE", "posting_score", (body.length / 4 / 1_000_000) * JEV_INPUT_RATE)).catch(() => {});
+      await import("@/lib/costs").then(({ recordCost }) => recordCost("TYPESAFE", "posting_score", (body.length / 4 / 1_000_000) * JEV_INPUT_RATE)).catch(() => {});
       return parsed.data;
     }
     if (!RETRYABLE.has(response.status) || attempt >= retryDelaysMs.length) throw await errorFor(response);

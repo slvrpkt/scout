@@ -10,7 +10,9 @@ import { AiError } from "@/lib/ai/errors";
 import { searchPostings } from "@/lib/job-search";
 import { credentialsFor, loadJobSearchConfig, requestContext } from "@/lib/job-search/config";
 import { JobSearchError } from "@/lib/job-search/errors";
-import { isAnywhere, postingKey, type FoundPosting } from "@/lib/job-search/search";
+import { MAX_SEARCH_COMPANIES } from "@/lib/job-search/company";
+import { profileCountry } from "@/lib/job-search/profile-country";
+import { isAnywhere, MAX_ALT_TITLES, postingKey, type FoundPosting } from "@/lib/job-search/search";
 import { startJob, type JobContext } from "@/lib/jobs/runner";
 import { logServerError } from "@/lib/log";
 import { postingStates } from "@/lib/postings";
@@ -182,6 +184,8 @@ export async function runAgentScan({ manual, only }: { manual: boolean; only?: R
   const config = await loadJobSearchConfig();
   const source = config.source!;
   const credentials = credentialsFor(config, source);
+  // Where company searches look: the country in your profile, else the US.
+  const homeCountry = (await profileCountry()).code;
   // Going over locations that failed: those of those searches, no others.
   const ready = readySearches(searches)
     .filter((search) => !only || search.id in only)
@@ -213,8 +217,14 @@ export async function runAgentScan({ manual, only }: { manual: boolean; only?: R
     const asked = { ...search.query, postedWithin: postedWindow(search, now) };
     const atPlaces = places.length > 0 ? places.map((place) => (isAnywhere(place) ? { ...asked, place: "" } : { ...asked, place, anyDistance: true })) : [asked];
     // Its own title, then each other title it has, each searched on its own.
-    const titles = [search.query.keywords, ...skipRuleList(search.altTitles)].map((title) => title.trim()).filter((title, index, all) => title && all.findIndex((other) => other.toLowerCase() === title.toLowerCase()) === index);
-    for (const query of titles.flatMap((keywords) => atPlaces.map((at) => ({ ...at, keywords })))) {
+    const titles = [search.query.keywords, ...skipRuleList(search.altTitles).slice(0, MAX_ALT_TITLES)].map((title) => title.trim()).filter((title, index, all) => title && all.findIndex((other) => other.toLowerCase() === title.toLowerCase()) === index);
+    // With companies: each title at each company, once across the country in your profile (else the US), its locations aside.
+    const companies = skipRuleList(search.companies).slice(0, MAX_SEARCH_COMPANIES);
+    const queries =
+      companies.length > 0
+        ? titles.flatMap((keywords) => companies.map((company) => ({ ...asked, keywords, company, place: "", anyDistance: true, country: homeCountry })))
+        : titles.flatMap((keywords) => atPlaces.map((at) => ({ ...at, keywords })));
+    for (const query of queries) {
     const ask = (from: string | null) => searchPostings(source, credentials, query, from, requestContext(source));
     let stop = false;
     let next: string | null = null;

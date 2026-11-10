@@ -12,7 +12,7 @@ import { loadSettings } from "@/lib/settings-data";
 import { COLOR_SCHEME_COOKIE, parseColorScheme, parseSidebarCollapsed, SIDEBAR_COOKIE } from "@/lib/ui-preferences";
 import { rememberBrowserTimeZone, userTimeZone } from "@/lib/time-zone";
 import { checkForUpdatesDaily, updateNotice } from "@/lib/update-check";
-import { overLimitText } from "@/lib/cost-rates";
+import { overLimitBlock } from "@/lib/cost-rates";
 import { costLimitsPassed } from "@/lib/costs";
 import { findUnfinishedJobs } from "@/lib/jobs/runner";
 import { askForUsagePing, notePageLoad, USAGE_PING_HOST } from "@/lib/usage-ping";
@@ -87,7 +87,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
       {/* Asked once, until answered (#172); nothing is sent before a yes. */}
       {askForUsagePing(settings) && <UsagePingDialog host={USAGE_PING_HOST} />}
       {google?.expiredAt && <GoogleExpiredDialog email={google.email} />}
-      {overLimits.length > 0 && <CostLimitDialog messages={overLimits.map(overLimitText)} />}
+      {overLimits.length > 0 && <CostLimitDialog limits={overLimits.map((over) => overLimitBlock(over, new Date(), timeZone))} />}
     </div>
   );
 }

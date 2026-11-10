@@ -34,6 +34,8 @@ export type AgentSearch = {
   places: string;
   /** Other titles searched too, each on its own, one per line (skipRuleList). */
   altTitles: string;
+  /** Companies to search, one per line (skipRuleList): with them, the search is across the country, not its locations. */
+  companies: string;
   createdAt: Date;
   lastRunAt: Date | null;
   lastMessage: string | null;
@@ -48,7 +50,7 @@ export const readySearches = (searches: readonly AgentSearch[]) => searches.filt
 /** A search's name: its keywords, as they're typed. */
 const nameOf = (query: SearchQuery) => query.keywords.trim() || "New search";
 
-const toSearch = (row: { createdAt: Date; id: string; name: string; query: Prisma.JsonValue; enabled: boolean; position: number; maxPages: number; skipRules: string; places: string; altTitles: string; lastRunAt: Date | null; lastMessage: string | null }): AgentSearch => ({
+const toSearch = (row: { createdAt: Date; id: string; name: string; query: Prisma.JsonValue; enabled: boolean; position: number; maxPages: number; skipRules: string; places: string; altTitles: string; companies: string; lastRunAt: Date | null; lastMessage: string | null }): AgentSearch => ({
   ...row,
   maxPages: Math.min(Math.max(row.maxPages, 1), MAX_AGENT_PAGES),
   // A query the schema no longer reads counts as an empty one, which never runs.
@@ -73,10 +75,10 @@ export async function createAgentSearch(query: SearchQuery, maxPages: number = M
 }
 
 /** Changes a search's query, pages or switch; null when it no longer exists. */
-export async function updateAgentSearch(id: string, changes: { query?: SearchQuery; enabled?: boolean; maxPages?: number; skipRules?: string; places?: string; altTitles?: string }): Promise<AgentSearch | null> {
+export async function updateAgentSearch(id: string, changes: { query?: SearchQuery; enabled?: boolean; maxPages?: number; skipRules?: string; places?: string; altTitles?: string; companies?: string }): Promise<AgentSearch | null> {
   const { count } = await prisma.agentSearch.updateMany({
     where: { id },
-    data: { enabled: changes.enabled, maxPages: changes.maxPages, skipRules: changes.skipRules, places: changes.places, altTitles: changes.altTitles, ...(changes.query ? { query: changes.query, name: nameOf(changes.query) } : {}) },
+    data: { enabled: changes.enabled, maxPages: changes.maxPages, skipRules: changes.skipRules, places: changes.places, altTitles: changes.altTitles, companies: changes.companies, ...(changes.query ? { query: changes.query, name: nameOf(changes.query) } : {}) },
   });
   if (count === 0) return null;
   return toSearch(await prisma.agentSearch.findUniqueOrThrow({ where: { id } }));

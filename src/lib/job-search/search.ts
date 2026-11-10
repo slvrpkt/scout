@@ -65,6 +65,8 @@ export const searchQuerySchema = z.object({
   types: z.array(z.enum(["fulltime", "parttime", "contract", "internship", "volunteer"])).optional(),
   /** Yearly pay at least this; a posting that doesn't list pay is kept. */
   minSalary: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  /** Only this company's jobs (company.ts): searched for by name, and kept only when the employer matches. */
+  company: z.string().trim().max(120).optional(),
 });
 export type SearchQuery = z.output<typeof searchQuerySchema>;
 
@@ -105,6 +107,8 @@ export const foundPostingSchema = z.object({
   complete: z.boolean(),
   /** "FULLTIME", "CONTRACTOR"…, as the source says, when it does. */
   employmentType: z.string().max(100).nullish(),
+  /** Found by a company search: the distance from your ZIP code doesn't rule it out. */
+  companySearch: z.boolean().optional(),
   /** Where the job is on the map, when the source says: for the distance from your ZIP code. */
   lat: z.number().min(-90).max(90).nullish(),
   lng: z.number().min(-180).max(180).nullish(),
@@ -215,7 +219,8 @@ const one = (value: string | string[] | undefined) => (Array.isArray(value) ? va
 /** The search in the URL, or null when there's none (no keywords). */
 export function queryFromParams(params: Record<string, string | string[] | undefined>): SearchQuery | null {
   const keywords = one(params.q).trim();
-  if (!keywords) return null;
+  const company = one(params.company).trim().slice(0, 120);
+  if (!keywords && !company) return null;
   const radius = Number(one(params.radius));
   const posted = POSTED_VALUES.find((value) => value === one(params.posted));
   const country = one(params.country).trim().toLowerCase();
@@ -230,6 +235,7 @@ export function queryFromParams(params: Record<string, string | string[] | undef
     ...listParam(params.level, ["entry", "senior", "manager", "director", "executive"] as const, "levels"),
     ...listParam(params.type, ["fulltime", "parttime", "contract", "internship", "volunteer"] as const, "types"),
     ...(Number(one(params.pay)) > 0 ? { minSalary: Math.min(10_000_000, Math.round(Number(one(params.pay)))) } : {}),
+    ...(company ? { company } : {}),
   };
 }
 
@@ -257,6 +263,7 @@ export const searchRunHref = (id: string) => `/jobs?search=${encodeURIComponent(
 /** The Find jobs URL for a search. */
 export function searchHref(query: SearchQuery): string {
   const params = new URLSearchParams({ q: query.keywords });
+  if (query.company) params.set("company", query.company);
   if (query.place) params.set("where", query.place);
   if (query.country) params.set("country", query.country);
   if (query.radiusKm !== DEFAULT_RADIUS_KM) params.set("radius", String(query.radiusKm));

@@ -802,6 +802,8 @@ model AgentSearch {
   places      String           @default("")
   /// Other titles searched too, each on its own, one per line (up to 5).
   altTitles   String           @default("")
+  /// Companies to search, one per line (up to 10): each with each title, across the country in the profile, locations aside.
+  companies   String           @default("")
   /// When a run last asked it, and how that went, for the Agent screen.
   lastRunAt   DateTime?
   lastMessage String?

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { withCompany } from "./company";
+
 import { filterPage } from "./filters";
 import { logServerError } from "@/lib/log";
 
@@ -52,11 +54,13 @@ export async function searchPostings<S extends JobSource>(
 ): Promise<SearchPage> {
   if (!sourceCovers(source, query.country)) throw jobSearchError("country", source, { country: query.country });
   const adapter = adapterFor(source);
+  // A company search: the company in the search's words ("Project Manager at Accenture"); filterPage keeps only its jobs.
+  const asked = query.company?.trim() ? { ...query, keywords: withCompany(query.keywords, query.company) } : query;
   const key = `search:${source}:${JSON.stringify(query)}:${next ?? ""}`;
   const hit = cached<SearchPage>(key);
   // The search's filters, on what the source sent (filters.ts).
   if (hit) return filterPage(hit, query);
-  const page = await logged(() => adapter.search(query, credentials, next, context));
+  const page = await logged(() => adapter.search(asked, credentials, next, context));
   remember(key, page);
   return filterPage(page, query);
 }

@@ -6,6 +6,7 @@ import { useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { RemovableChip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
+import { MAX_SEARCH_COMPANIES } from "@/lib/job-search/company";
 import { MAX_ALT_TITLES, MAX_SEARCH_PLACES } from "@/lib/job-search/search";
 import { MAX_SKIP_RULE_LENGTH, MAX_SKIP_RULES } from "@/lib/scoring/rubric";
 
@@ -184,6 +185,36 @@ export function AltTitles({ titles, onChange }: { titles: string[]; onChange: (t
       description="Another title for the same kind of job, like “TPM” or “AI Program Manager”."
       inputLabel="Alternative title"
       note="Each title is searched on its own at every location, so each one uses its own requests."
+    />
+  );
+}
+
+/** A job agent search's companies: up to MAX_SEARCH_COMPANIES, each searched with each title across the country in the profile. */
+export function SearchCompanies({ companies, onChange, country }: { companies: string[]; onChange: (companies: string[]) => void; country: string }) {
+  const [shown, setShown] = useState(companies.length > 0);
+  if (!shown) {
+    return (
+      <div className="flex justify-end">
+        <button type="button" onClick={() => setShown(true)} className="text-meta font-medium text-ink underline underline-offset-2">
+          + Add companies
+        </button>
+      </div>
+    );
+  }
+  return (
+    <TagBox
+      title="Companies"
+      tags={companies}
+      onChange={onChange}
+      max={MAX_SEARCH_COMPANIES}
+      maxLength={120}
+      addLabel="Add a company"
+      emptyPrompt="Click to add a company, like “Accenture”"
+      morePrompt="Click to add another company"
+      fullNote={`You've reached the maximum of ${MAX_SEARCH_COMPANIES} companies.`}
+      description="A company's name as it's usually written, like “Accenture” or “Booz Allen Hamilton”."
+      inputLabel="Company"
+      note={`Each title is searched at each company once, across ${country}, and only that company's jobs are kept. Narrow them by place in Agentic job search with its Location filter.`}
     />
   );
 }

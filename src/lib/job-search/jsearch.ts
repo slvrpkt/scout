@@ -173,10 +173,13 @@ async function searchPage(
   context: RequestContext = {},
 ): Promise<SearchPage> {
   const url = searchUrl(query, host, next, context.baseUrl);
-  const over = await import("@/lib/costs").then(({ limitReached }) => limitReached("JSEARCH")).catch(() => null);
+  // A limit that can't be checked stops the request, rather than letting it through unchecked.
+  const over = await import("@/lib/costs").then(({ limitReached }) => limitReached("JSEARCH")).catch(() => "unchecked" as const);
+  if (over === "unchecked") throw new JobSearchError("unavailable", "Couldn't check your cost limit just now, so nothing was sent. Try again in a moment.");
   if (over) throw new JobSearchError("quota", `${overLimitText(over)} Raise the limit in Settings → Estimated cost to carry on.`);
   const raw = await requestJson("JSEARCH", url, { headers: HOSTS[host].headers(key), signal: context.signal, timeoutMs: JSEARCH_TIMEOUT_MS });
-  void import("@/lib/costs").then(({ recordCost }) => recordCost("JSEARCH", "search", JSEARCH_REQUEST_COST)).catch(() => {});
+  // Saved before the next request checks the limit, so back-to-back requests can't slip past it.
+  await import("@/lib/costs").then(({ recordCost }) => recordCost("JSEARCH", "search", JSEARCH_REQUEST_COST)).catch(() => {});
   const answer = responseSchema.safeParse(raw);
   if (!answer.success) throw jobSearchError("changed", "JSEARCH", { detail: `${url.pathname}: unexpected answer${keysOf(raw)}` });
 

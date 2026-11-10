@@ -43,6 +43,7 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
   const [runJobId, setRunJobId] = useState(view.runJobId);
   const [filter, setFilter] = useState<"all" | "drafts" | "scored" | "below">("all");
   const [query, setQuery] = useState("");
+  const [company, setCompany] = useState("");
   const [where, setWhere] = useState("");
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [postedWithin, setPostedWithin] = useState<"any" | "1" | "3" | "7" | "30">("any");
@@ -108,6 +109,10 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
   const empty = drafts.length === 0 && scored.length === 0;
 
   const lists = { all: [...drafts, ...scored, ...below], drafts, scored, below } as const;
+  // The companies and places in what it found, with how many jobs each, for the Company and Location filters.
+  const everything = lists.all;
+  const companies = countsOf(everything.map((candidate) => candidate.company.trim()).filter(Boolean));
+  const places = placeChoices(everything);
   const draftIds = new Set(drafts.map((candidate) => candidate.id));
   // The same filters as Manual job search, over what the agent found: what, where, remote only, and how recent.
   const within = (iso: string | null) => postedWithin === "any" || (iso !== null && Date.parse(iso) >= openedAt - Number(postedWithin) * 86_400_000);
@@ -115,7 +120,8 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
   const list = lists[filter].filter(
     (candidate) =>
       matches(`${candidate.title} ${candidate.company} ${candidate.description}`, query) &&
-      matches(candidate.place, where) &&
+      (!company || candidate.company.trim() === company) &&
+      atPlace(candidate, where) &&
       (!remoteOnly || candidate.remote === true) &&
       within(candidate.postedAt),
   );
@@ -221,14 +227,34 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
             />
           </label>
           <label className="flex min-w-[180px] flex-[1_1_200px] flex-col gap-1.5 text-label text-muted">
-            Where
-            <input
-              type="search"
-              placeholder="City or country"
+            Company
+            <select
+              value={company}
+              onChange={(event) => setCompany(event.target.value)}
+              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+            >
+              <option value="">Any company</option>
+              {companies.map(([name, count]) => (
+                <option key={name} value={name}>
+                  {name} ({count})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[180px] flex-[1_1_200px] flex-col gap-1.5 text-label text-muted">
+            Location
+            <select
               value={where}
               onChange={(event) => setWhere(event.target.value)}
-              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink placeholder:text-muted focus-visible:border-primary"
-            />
+              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+            >
+              <option value="">Anywhere</option>
+              {places.map((choice) => (
+                <option key={choice.value} value={choice.value}>
+                  {choice.label} ({choice.count})
+                </option>
+              ))}
+            </select>
           </label>
           <label className="flex min-w-[150px] flex-col gap-1.5 text-label text-muted">
             Posted
@@ -540,4 +566,44 @@ export function WasArchived() {
 /** How new a freshly posted job is: "Posted 3 hours ago", "Posted today". */
 export function Fresh({ label }: { label: string }) {
   return <span className="w-fit rounded-chip bg-success-surface px-1.5 py-0.5 text-[11px] font-medium text-success">{label}</span>;
+}
+
+/** Each name and how many times it comes up, the most first, then by name. */
+function countsOf(names: readonly string[]): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
+  return [...counts].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+/** "Reston, VA, US" → its state ("VA") and its city ("Reston, VA"); remote jobs as Remote. */
+function placeParts(candidate: { place: string; remote: boolean | null }): { state: string | null; city: string | null; remote: boolean } {
+  const parts = candidate.place.split(",").map((part) => part.trim()).filter(Boolean);
+  // The country at the end, when there is one, isn't a state.
+  if (parts.length >= 3) parts.pop();
+  const state = parts.length >= 2 ? parts[parts.length - 1] : null;
+  const city = parts.length >= 2 ? `${parts[0]}, ${state}` : parts[0] ?? null;
+  return { state, city, remote: candidate.remote === true };
+}
+
+/** The Location filter's choices: Remote, each state, then each city, with how many jobs each. */
+function placeChoices(candidates: readonly { place: string; remote: boolean | null }[]): { value: string; label: string; count: number }[] {
+  const all = candidates.map(placeParts);
+  const remote = all.filter((place) => place.remote).length;
+  const states = countsOf(all.flatMap((place) => (place.state ? [place.state] : [])));
+  const cities = countsOf(all.flatMap((place) => (place.city ? [place.city] : [])));
+  return [
+    ...(remote > 0 ? [{ value: "remote", label: "Remote", count: remote }] : []),
+    ...states.map(([state, count]) => ({ value: `state:${state}`, label: `All of ${state}`, count })),
+    ...cities.map(([city, count]) => ({ value: `city:${city}`, label: city, count })),
+  ];
+}
+
+/** Whether a job is at the place chosen in the Location filter. */
+function atPlace(candidate: { place: string; remote: boolean | null }, where: string): boolean {
+  if (!where) return true;
+  const place = placeParts(candidate);
+  if (where === "remote") return place.remote;
+  if (where.startsWith("state:")) return place.state === where.slice("state:".length);
+  if (where.startsWith("city:")) return place.city === where.slice("city:".length);
+  return true;
 }

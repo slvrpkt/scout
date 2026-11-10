@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { centersInUse, dollars, FREE_CENTERS, overLimitText } from "@/lib/cost-rates";
+import { centersInUse, dollars, FREE_CENTERS, overLimitText, PRICES_AS_OF } from "@/lib/cost-rates";
 import { costLimitsPassed, COST_PERIODS, loadCosts } from "@/lib/costs";
 import { formatDate } from "@/lib/dates";
 import { loadSettings } from "@/lib/settings-data";
@@ -42,6 +42,14 @@ export async function CostsSection() {
     <>
       <div className="flex flex-col gap-5">
         <p className="text-sm text-muted">What Scout has spent on outside services, worked out from each request. Each service&apos;s own bill has the last word.</p>
+        <div role="note" className="flex flex-col gap-1.5 rounded-card border border-warning bg-warning-surface px-5 py-4 text-sm text-warning">
+          <span className="font-medium">These are estimates, not your bill</span>
+          <span>
+            Scout works them out from each provider&apos;s published prices as of {PRICES_AS_OF} and the requests it made. Prices change, providers round and
+            bill differently, and some use isn&apos;t seen by Scout at all. Always check your actual usage and charges in your account with each provider
+            (Anthropic, JSearch and the others you use). This page isn&apos;t a billing system; it&apos;s here to help you keep an eye on spending.
+          </span>
+        </div>
         {passed.map((over) => (
           <p key={`${over.center}${over.period}`} role="alert" className="rounded-card bg-warning-surface px-5 py-3 text-sm text-warning">
             {overLimitText(over)} It carries on when the period ends, or as soon as you raise the limit.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { centersInUse, costOfTokens, dollars, limitsPassed, overLimitText } from "./cost-rates";
+import { centersInUse, costOfTokens, DEFAULT_COST_LIMITS, dollars, limitsPassed, overLimitBlock, overLimitText, resumesOn } from "./cost-rates";
 
 describe("costOfTokens", () => {
   const usage = { input_tokens: 1_000_000, output_tokens: 1_000_000, cache_creation_input_tokens: 1_000_000, cache_read_input_tokens: 1_000_000 };
@@ -44,5 +44,28 @@ describe("centersInUse", () => {
 
   it("lists what's chosen and what's cost something, and nothing else", () => {
     expect(centersInUse(["ANTHROPIC", "JSEARCH", null], spent)).toEqual(["ANTHROPIC", "OPENAI", "JSEARCH"]);
+  });
+});
+
+describe("the limits every install starts with, and the alert when one is passed", () => {
+  it("starts with JSearch and hosted AI capped, and free services not", () => {
+    expect(DEFAULT_COST_LIMITS.JSEARCH).toEqual({ day: 0.3, week: 1.5, month: 6 });
+    expect(DEFAULT_COST_LIMITS.ANTHROPIC).toEqual({ day: 1, week: 5, month: 15 });
+    expect(DEFAULT_COST_LIMITS.LOCAL_AI).toBeUndefined();
+  });
+
+  // Wednesday 12 November 2026, 3 PM in New York.
+  const now = new Date("2026-11-12T20:00:00Z");
+  it("says when each period's limit lets work carry on", () => {
+    expect(resumesOn("day", now, "America/New_York")).toBe("tomorrow (Fri, Nov 13)");
+    expect(resumesOn("week", now, "America/New_York")).toBe("next Monday (Mon, Nov 16)");
+    expect(resumesOn("month", now, "America/New_York")).toBe("December 1");
+  });
+
+  it("shows the limit and what's used, and what's paused until when", () => {
+    const block = overLimitBlock({ center: "JSEARCH", period: "day", limit: 0.3, spent: 0.31 }, now, "America/New_York");
+    expect(block.title).toBe("JSearch (job search): daily limit reached");
+    expect(block.amounts).toBe("Your limit: $0.30 a day · Used today: $0.31");
+    expect(block.paused).toBe("Job searches are paused until tomorrow (Fri, Nov 13). Raise the limit in Settings → Estimated cost to carry on now.");
   });
 });

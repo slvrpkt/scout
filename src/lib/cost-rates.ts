@@ -74,6 +74,20 @@ export const LIMIT_PERIODS = ["day", "week", "month"] as const;
 export type LimitPeriod = (typeof LIMIT_PERIODS)[number];
 
 export type CostLimits = Partial<Record<CostCenter, Partial<Record<LimitPeriod, number | null>>>>;
+
+/**
+ * The limits every install starts with, until they're changed in Settings →
+ * Estimated cost: JSearch $0.30 a day, $1.50 a week and $6 a month (about 100
+ * requests a day), and $1, $5 and $15 for a hosted AI provider. Free services
+ * have none.
+ */
+const AI_LIMITS = { day: 1, week: 5, month: 15 };
+export const DEFAULT_COST_LIMITS: CostLimits = {
+  ANTHROPIC: AI_LIMITS,
+  OPENAI: AI_LIMITS,
+  MISTRAL: AI_LIMITS,
+  JSEARCH: { day: 0.3, week: 1.5, month: 6 },
+};
 export type CostTotals = Record<LimitPeriod, Record<CostCenter, number>>;
 export type OverLimit = { center: CostCenter; period: LimitPeriod; limit: number; spent: number };
 
@@ -99,6 +113,42 @@ const pauses = (center: CostCenter) => (SEARCH_CENTERS.includes(center) ? "Job s
 
 /** The service an AI provider bills through. */
 export const aiCenter = (provider: string | null | undefined): CostCenter | null => (provider === "ANTHROPIC" || provider === "OPENAI" || provider === "MISTRAL" ? provider : null);
+
+const PERIOD_NAMES: Record<LimitPeriod, { limit: string; per: string; used: string }> = {
+  day: { limit: "daily", per: "a day", used: "Used today" },
+  week: { limit: "weekly", per: "a week", used: "Used this week" },
+  month: { limit: "monthly", per: "a month", used: "Used this month" },
+};
+
+/**
+ * When a period's limit stops holding work back, in words and in the time
+ * zone: tomorrow (the next day), next Monday (weeks run Monday to Sunday) or
+ * the 1st of next month.
+ */
+export function resumesOn(period: LimitPeriod, now: Date, timeZone: string): string {
+  const part = (options: Intl.DateTimeFormatOptions, date = now) => new Intl.DateTimeFormat("en-US", { timeZone, ...options }).format(date);
+  const [year, month, day] = [Number(part({ year: "numeric" })), Number(part({ month: "numeric" })), Number(part({ day: "numeric" }))];
+  const at = (y: number, m: number, d: number) => new Date(Date.UTC(y, m - 1, d, 12));
+  const label = (date: Date) => new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }).format(date);
+  if (period === "day") return `tomorrow (${label(at(year, month, day + 1))})`;
+  if (period === "week") {
+    const weekday = at(year, month, day).getUTCDay();
+    const monday = at(year, month, day + (((8 - weekday) % 7) || 7));
+    return `next Monday (${label(monday)})`;
+  }
+  const first = at(month === 12 ? year + 1 : year, month === 12 ? 1 : month + 1, 1);
+  return `${new Intl.DateTimeFormat("en-US", { timeZone: "UTC", month: "long", day: "numeric" }).format(first)}`;
+}
+
+/** One passed limit, laid out for the alert: which service and limit, the limit and what's used, and what's paused until when. */
+export function overLimitBlock({ center, period, limit, spent }: OverLimit, now: Date, timeZone: string): { title: string; amounts: string; paused: string } {
+  const names = PERIOD_NAMES[period];
+  return {
+    title: `${CENTER_LABELS[center]}: ${names.limit} limit reached`,
+    amounts: `Your limit: ${dollars(limit)} ${names.per} · ${names.used}: ${dollars(spent)}`,
+    paused: `${pauses(center).replace(/\.$/, "")} until ${resumesOn(period, now, timeZone)}. Raise the limit in Settings → Estimated cost to carry on now.`,
+  };
+}
 
 /** In words, for the Agent screen and the alert. */
 export const overLimitText = ({ center, period, limit, spent }: OverLimit) => `${CENTER_LABELS[center]} has reached ${dollars(spent)} ${PERIOD_WORDS[period]}, past your limit of ${dollars(limit)}. ${pauses(center)}`;

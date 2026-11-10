@@ -20,9 +20,13 @@ import { searchHref, type JobSource, type SearchQuery } from "@/lib/job-search/s
 import { addAgentSearch, changeAgentSearch, removeAgentSearch } from "../agent/actions";
 import { SearchFields, type SearchFieldErrors } from "../jobs/search-fields";
 import { SearchFilters } from "../jobs/search-filters";
-import { AltTitles, SearchPlaces, SkipRules } from "./skip-rules";
+import { companyInTitle } from "@/lib/job-search/company";
 
-export type AgentSearchSetting = { id: string; query: SearchQuery; enabled: boolean; maxPages: number; skipRules: string; places: string; altTitles?: string };
+import { AltTitles, SearchCompanies, SearchPlaces, SkipRules } from "./skip-rules";
+
+export type AgentSearchSetting = { id: string; query: SearchQuery; enabled: boolean; maxPages: number; skipRules: string; places: string; altTitles?: string; companies?: string };
+/** The country company searches cover, and whether it's the one in the profile or the US by default. */
+export type HomeCountry = { name: string; fromProfile: boolean };
 
 /**
  * The job agent's saved searches: every run goes through each one that's
@@ -37,12 +41,15 @@ export function AgentSearches({
   startFrom,
   source,
   countries,
+  homeCountry = { name: "United States", fromProfile: false },
 }: {
   initial: AgentSearchSetting[];
   /** How many it may keep. */
   max: number;
   /** The most pages a search may read. */
   maxPages: number;
+  /** The country company searches cover (Profile → Basics, else the US). */
+  homeCountry?: HomeCountry;
   /** What Add search starts from: the last search in Find jobs, or an empty one. */
   startFrom: SearchQuery;
   source: JobSource | null;
@@ -113,6 +120,7 @@ export function AgentSearches({
               maxPages={maxPages}
               source={source}
               countries={countries}
+              homeCountry={homeCountry}
               onChange={(next) => setSearches((current) => current.map((entry) => (entry.id === search.id ? next : entry)))}
               onRemove={() => void remove(search.id)}
             />
@@ -126,6 +134,11 @@ export function AgentSearches({
 
 /** Where a search looks and what it keeps, in a line, for its tile. */
 export function searchSummary(search: AgentSearchSetting): string {
+  const companies = skipRuleList(search.companies ?? "");
+  if (companies.length > 0) {
+    const named = companies.length > 3 ? `${companies.slice(0, 3).join(", ")} +${companies.length - 3}` : companies.join(", ");
+    return `At ${named} · across the country in your profile`;
+  }
   const places = skipRuleList(search.places);
   const where = places.length > 0 ? places.join(", ") : search.query.place.trim() || `Anywhere${search.query.country ? ` in ${search.query.country.toUpperCase()}` : ""}`;
   const labels = (options: readonly { value: string; label: string }[], chosen: readonly string[] | undefined) =>
@@ -149,6 +162,7 @@ function SearchCard({
   maxPages,
   source,
   countries,
+  homeCountry,
   onChange,
   onRemove,
 }: {
@@ -160,6 +174,7 @@ function SearchCard({
   maxPages: number;
   source: JobSource | null;
   countries: readonly Country[];
+  homeCountry: HomeCountry;
   onChange: (search: AgentSearchSetting) => void;
   onRemove: () => void;
 }) {
@@ -187,6 +202,11 @@ function SearchCard({
     onChange({ ...search, skipRules });
     if (!toastResult(await track(changeAgentSearch({ id: search.id, skipRules }))).ok) onChange(search);
   };
+  const setCompanies = async (list: string[]) => {
+    const companies = list.join("\n");
+    onChange({ ...search, companies });
+    if (!toastResult(await track(changeAgentSearch({ id: search.id, companies }))).ok) onChange(search);
+  };
   const setAltTitles = async (list: string[]) => {
     const altTitles = list.join("\n");
     onChange({ ...search, altTitles });
@@ -204,6 +224,10 @@ function SearchCard({
 
   const title = search.query.keywords.trim();
   const altCount = skipRuleList(search.altTitles ?? "").length;
+  const companies = skipRuleList(search.companies ?? "");
+  // A company written into a title ("Project Manager at Leidos") while the search has locations: each location costs its own request.
+  const titleCompany =
+    companies.length === 0 && places.length > 0 ? ([search.query.keywords, ...skipRuleList(search.altTitles ?? "")].map(companyInTitle).find(Boolean) ?? null) : null;
   const toggle = (
     <button
       type="button"
@@ -267,11 +291,26 @@ function SearchCard({
           source={source}
           countries={countries}
           errors={errors}
-          underWhat={<AltTitles titles={skipRuleList(search.altTitles ?? "")} onChange={(list) => void setAltTitles(list)} />}
+          underWhat={
+            <div className="flex flex-col gap-2">
+              <AltTitles titles={skipRuleList(search.altTitles ?? "")} onChange={(list) => void setAltTitles(list)} />
+              <SearchCompanies companies={companies} onChange={(list) => void setCompanies(list)} country={homeCountry.name} />
+              {titleCompany && <CompanyInTitleNote searchId={search.id} company={titleCompany} places={places.length} country={homeCountry.name} />}
+            </div>
+          }
           where={
             <div className="flex flex-col gap-1.5">
-              <SearchPlaces places={places} onChange={(list) => void setPlaces(list)} />
-              {search.query.keywords.trim() && places.length > 0 && (
+              {companies.length > 0 ? (
+                <div role="note" className="flex flex-col gap-1 rounded-control border border-dashed border-line-field bg-hover px-4 py-3 text-meta text-muted">
+                  <span className="text-label font-medium text-ink">Locations are off for this search</span>
+                  {homeCountry.fromProfile
+                    ? `Companies are searched across ${homeCountry.name} (the country in your profile), so locations are off for this search.`
+                    : `Companies are searched across ${homeCountry.name}, the default because your profile has no country. Add one in Profile → Basics to search another.`}
+                </div>
+              ) : (
+                <SearchPlaces places={places} onChange={(list) => void setPlaces(list)} />
+              )}
+              {companies.length === 0 && search.query.keywords.trim() && places.length > 0 && (
                 <p className="flex flex-wrap gap-x-2 text-meta text-muted">
                   Open in Manual job search, one location at a time:
                   {places.map((place) => (
@@ -312,5 +351,43 @@ function SearchCard({
         </Button>
       </div>
     </section>
+  );
+}
+
+/**
+ * Said once per search when a title names a company ("Project Manager at
+ * Leidos") and the search has locations: every location is its own request,
+ * where the Companies box would search the company once, across the country.
+ */
+function CompanyInTitleNote({ searchId, company, places, country }: { searchId: string; company: string; places: number; country: string }) {
+  const key = `company-in-title:${searchId}`;
+  const [closed, setClosed] = useState(() => {
+    try {
+      return typeof window !== "undefined" && window.localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  });
+  if (closed) return null;
+  const close = () => {
+    try {
+      window.localStorage.setItem(key, "1");
+    } catch {
+      // Without storage it shows again on the next visit.
+    }
+    setClosed(true);
+  };
+  return (
+    <div role="note" className="flex flex-col gap-2 rounded-control border border-warning bg-warning-surface px-4 py-3 text-meta text-warning">
+      <span className="text-label font-medium">Looks like you&apos;re searching for a company</span>
+      <span>
+        Each location is searched on its own, so a title with “at {company}” across {places} {places === 1 ? "location" : "locations"} is {places} {places === 1 ? "request" : "requests"} on every run, which raises your monthly API cost. To get the same jobs for less, add {company} with + Add companies instead: it&apos;s searched once across {country}, and you can narrow the jobs by place afterwards with the Location filter in Agentic job search.
+      </span>
+      <div>
+        <Button variant="secondary" size="sm" onClick={close}>
+          Got it
+        </Button>
+      </div>
+    </div>
   );
 }
