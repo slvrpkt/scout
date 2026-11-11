@@ -26,28 +26,40 @@ const grade = {
 beforeEach(() => vi.mocked(rewriteToA).mockClear());
 
 describe("AtsScore", () => {
-  it("shows the score in a circle, and on click why, what would raise it and the rewrite", async () => {
+  it("shows the score in a circle, and on click why and what would raise it, with no rewrite while the profile hasn't changed", async () => {
     const user = userEvent.setup();
     render(<AtsScore id="app-1" grade={grade} draft />);
-    expect(rewriteToA).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: /ATS score C/ }));
     const dialog = screen.getByRole("dialog", { name: "ATS grade: C" });
     expect(dialog).toHaveTextContent("Standard section headings");
     expect(dialog).toHaveTextContent("On the resume from the posting: Figma");
     expect(dialog).toHaveTextContent("Not on the resume yet: Kubernetes");
-    await user.click(screen.getByRole("button", { name: "Rewrite to Reach A" }));
-    await waitFor(() => expect(rewriteToA).toHaveBeenCalledWith({ id: "app-1" }));
+    expect(dialog).toHaveTextContent("the score updates on its own after each change");
+    expect(screen.queryByRole("button", { name: /Rewrite/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Re-check/ })).not.toBeInTheDocument();
   });
 
-  it("offers no rewrite at an A, or once it's been sent", async () => {
+  it("offers a rewrite from the profile once it has changed since the resume was written, and not at an A or once sent", async () => {
     const user = userEvent.setup();
-    const { unmount } = render(<AtsScore id="app-1" grade={{ ...grade, letter: "A", score: 95, missing: [] }} draft />);
-    await user.click(screen.getByRole("button", { name: /ATS score A/ }));
-    expect(screen.queryByRole("button", { name: "Rewrite to Reach A" })).not.toBeInTheDocument();
-    expect(screen.queryByText("What would bring it up to an A")).not.toBeInTheDocument();
-    unmount();
-    render(<AtsScore id="app-1" grade={grade} draft={false} />);
+    const { unmount } = render(<AtsScore id="app-1" grade={grade} draft profileNewer />);
     await user.click(screen.getByRole("button", { name: /ATS score C/ }));
-    expect(screen.queryByRole("button", { name: "Rewrite to Reach A" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Rewrite from my updated Profile" }));
+    await waitFor(() => expect(rewriteToA).toHaveBeenCalledWith({ id: "app-1" }));
+    unmount();
+    const second = render(<AtsScore id="app-1" grade={{ ...grade, letter: "A", score: 95, missing: [] }} draft profileNewer />);
+    await user.click(screen.getByRole("button", { name: /ATS score A/ }));
+    expect(screen.queryByRole("button", { name: /Rewrite/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("What would bring it up to an A")).not.toBeInTheDocument();
+    second.unmount();
+    render(<AtsScore id="app-1" grade={grade} draft={false} profileNewer />);
+    await user.click(screen.getByRole("button", { name: /ATS score C/ }));
+    expect(screen.queryByRole("button", { name: /Rewrite/ })).not.toBeInTheDocument();
+  });
+
+  it("says what changed when an edit moves the score: what's now covered, and what dropped off", async () => {
+    const { toast } = await import("@/components/toast");
+    const { rerender } = render(<AtsScore id="app-1" grade={grade} draft />);
+    rerender(<AtsScore id="app-1" grade={{ ...grade, letter: "B", score: 86, covered: ["Kubernetes"], missing: ["Figma"] }} draft />);
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("ATS score C 75 → B 86. Now covered: Kubernetes. No longer on the resume: Figma."));
   });
 });

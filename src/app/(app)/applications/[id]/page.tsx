@@ -98,6 +98,10 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
   const fileName = (doc: "RESUME" | "COVER_LETTER") =>
     resolveFileName(settings.fileNamePattern, { name: profile.basics.name, company: application.company, role: application.role, doc, date: new Date() });
 
+  // The resume's ATS grade as it is now: the score, and the chips beside the chat.
+  const atsGrade = settings.atsOptimize ? gradeOf({ application, profile, resume, extracted, includeReferences, settings }) : null;
+  // The suggestions beside the resume, while they're being worked out again after an edit.
+  const [suggestionsJob] = await findUnfinishedJobs(`suggestions:${id}`);
   return (
     <ApplicationView
       application={{
@@ -166,7 +170,8 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       dateFormat={settings.dateFormat}
       includeReferences={includeReferences}
       template={settings.resumeTemplate}
-      atsGrade={settings.atsOptimize ? gradeOf({ application, profile, resume, extracted, includeReferences, settings }) : null}
+      atsGrade={atsGrade}
+      suggestionsJobId={suggestionsJob?.id ?? null}
       pageLimit={application.status === "DRAFT" ? (application.resumePageLimit ?? maxPages(settings.pageLimit)) : null}
       letterDate={letterDate}
       score={match && match.items.length > 0 ? matchScore(match) : null}
@@ -177,6 +182,7 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       refining={refineJobs.at(-1)?.id ?? null}
       neighbours={application.awaitingReview ? null : await logNeighbours(id, settings)}
       suggestions={refineSuggestions({
+        live: atsGrade,
         match,
         requirements: extracted?.requirements ?? [],
         tone,

@@ -3,24 +3,52 @@
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import { ScoreBadge } from "@/components/score-badge";
-import { toastResult } from "@/components/toast";
+import { toast, toastResult } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { ATS_GOAL, type AtsGrade } from "@/lib/ats-grade";
 
 import { rewriteToA } from "./actions";
 
+/** What changed between two grades, in words; null when nothing did. */
+export function gradeChange(before: AtsGrade, after: AtsGrade): string | null {
+  const nowCovered = after.covered.filter((item) => !before.covered.includes(item));
+  const dropped = before.covered.filter((item) => !after.covered.includes(item));
+  if (before.score === after.score && nowCovered.length === 0 && dropped.length === 0) return null;
+  return [
+    `ATS score ${before.letter} ${before.score} → ${after.letter} ${after.score}.`,
+    nowCovered.length > 0 ? `Now covered: ${nowCovered.join(", ")}.` : "",
+    dropped.length > 0 ? `No longer on the resume: ${dropped.join(", ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /**
  * A tailored resume's ATS score, in the same circle as a posting's fit score:
  * click it for why it got that score and, below an A, what would bring it up.
- * You decide what applies to you; nothing is rewritten until you ask.
+ * The score is worked out from the resume as it is, for free, so it follows
+ * every change, and says what changed when a chat edit moves it. A rewrite
+ * is only offered once the profile has changed since the resume was written
+ * (`profileNewer`): otherwise the chat is the way to add what's true for
+ * this job, and a rewrite could undo it.
  */
-export function AtsScore({ id, grade, draft }: { id: string; grade: AtsGrade; draft: boolean }) {
+export function AtsScore({ id, grade, draft, profileNewer = false }: { id: string; grade: AtsGrade; draft: boolean; profileNewer?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  // The grade last shown: when a change to the resume (a chat edit, say) brings a new one, say what moved.
+  const [shown, setShown] = useState(grade);
+  const [change, setChange] = useState<string | null>(null);
+  if (grade !== shown) {
+    setShown(grade);
+    setChange(gradeChange(shown, grade));
+  }
+  useEffect(() => {
+    if (change) toast(change);
+  }, [change]);
   const rewrite = () =>
     !pending &&
     startTransition(async () => {
@@ -122,7 +150,7 @@ export function AtsScore({ id, grade, draft }: { id: string; grade: AtsGrade; dr
               </ul>
               {grade.missing.length > 0 && (
                 <p className="text-meta text-muted">
-                  Only keep what&apos;s true for you. If you have one of these, add it to your Profile or tell the AI in the chat, then rewrite. A rewrite adds only what your profile backs, so it won&apos;t invent the rest.
+                  Only keep what&apos;s true for you. If you have one of these, tell the AI in the chat (for this job) or add it to your Profile (for every job), and the score updates on its own after each change, for free.
                 </p>
               )}
             </section>
@@ -143,10 +171,16 @@ export function AtsScore({ id, grade, draft }: { id: string; grade: AtsGrade; dr
             </section>
           )}
 
-          {draft && !reached && (
+          {change && (
+            <p role="status" className="rounded-control bg-surface px-3 py-2 text-sm">
+              Since your last change: {change}
+            </p>
+          )}
+          {/* Only after the profile changed: a rewrite then adds what's new in it. Otherwise the chat does this, for this job. */}
+          {draft && !reached && profileNewer && (
             <div className="flex justify-end">
               <Button aria-disabled={pending || undefined} onClick={rewrite}>
-                {pending ? "Rewriting, up to 3 tries…" : "Rewrite to Reach A"}
+                {pending ? "Rewriting, up to 3 tries…" : "Rewrite from my updated Profile"}
               </Button>
             </div>
           )}

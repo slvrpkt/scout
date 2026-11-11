@@ -478,6 +478,8 @@ describe("the Refine with AI panel (E8-5)", () => {
   };
   const panel = () => screen.getByRole("complementary", { name: "Refine with AI" });
   const input = () => screen.getByRole("textbox", { name: "Ask for a change" });
+  /** Apply: sends the changes on the list. */
+  const apply = (user: ReturnType<typeof userEvent.setup>) => user.click(within(panel()).getByRole("button", { name: /^Apply/ }));
 
   it("shows the conversation, with the opening list and its footnote", () => {
     render(
@@ -505,22 +507,37 @@ describe("the Refine with AI panel (E8-5)", () => {
     expect(screen.queryByRole("complementary", { name: "Refine with AI" })).not.toBeInTheDocument();
   });
 
-  it("sends a suggestion about the document on screen, then thinks", async () => {
+  it("says edits stay with this application, and points to the Profile for a lasting one", () => {
+    render(<ApplicationView {...props} />);
+    expect(within(panel()).getByText("Only this application changes.")).toBeInTheDocument();
+    expect(within(panel()).getByRole("link", { name: "edit your Profile" })).toHaveAttribute("href", "/profile");
+  });
+
+  it("adds a suggestion to the list, and sends it with Apply, then thinks", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     await user.click(screen.getByRole("button", { name: "Make the summary shorter" }));
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(within(panel()).getByRole("region", { name: "Changes to make" })).toHaveTextContent("Make the summary shorter");
+    await apply(user);
     expect(sendMessage).toHaveBeenCalledWith({ id: "app-1", text: "Make the summary shorter", viewing: "RESUME", target: null });
     expect(within(panel()).getByText("Thinking…")).toBeInTheDocument();
   });
 
-  it("sends with Enter and starts a new line with Shift+Enter", async () => {
+  it("gathers changes with Enter, keeps new lines with Shift+Enter, and sends them all as one with Apply", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     await user.type(input(), "Sound more{Shift>}{Enter}{/Shift}confident");
     expect(input()).toHaveValue("Sound more\nconfident");
     await user.keyboard("{Enter}");
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ text: "Sound more\nconfident" }));
+    expect(sendMessage).not.toHaveBeenCalled();
     expect(input()).toHaveValue("");
+    await user.type(input(), "Mention Linear{Enter}");
+    await user.click(within(panel()).getByRole("button", { name: "Remove “Mention Linear”" }));
+    await user.type(input(), "Shorter summary{Enter}");
+    await user.click(within(panel()).getByRole("button", { name: "Apply 2 changes" }));
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ text: "Please make all of these changes:\n1. Sound more\nconfident\n2. Shorter summary" }));
+    expect(within(panel()).queryByRole("region", { name: "Changes to make" })).not.toBeInTheDocument();
   });
 
   it("asks about a unit picked with Ask AI", async () => {
@@ -528,10 +545,11 @@ describe("the Refine with AI panel (E8-5)", () => {
     render(<ApplicationView {...props} />);
     await user.click(within(screen.getByRole("group", { name: "Summary" })).getByRole("button", { name: "Ask AI" }));
     expect(input()).toHaveFocus();
-    expect(input()).toHaveAttribute("placeholder", "What should change in the summary?");
+    expect(input()).toHaveAttribute("placeholder", expect.stringMatching(/^What should change in the summary\?/));
     expect(within(panel()).getByText("About: Summary")).toBeInTheDocument();
 
     await user.type(input(), "Mention payments{Enter}");
+    await apply(user);
     expect(sendMessage).toHaveBeenCalledWith({
       id: "app-1",
       text: "Mention payments",
@@ -546,13 +564,14 @@ describe("the Refine with AI panel (E8-5)", () => {
     render(<ApplicationView {...props} />);
     await user.click(within(screen.getByRole("group", { name: "Summary" })).getByRole("button", { name: "Ask AI" }));
     await user.click(screen.getByRole("button", { name: "Stop asking about the summary" }));
-    expect(input()).toHaveAttribute("placeholder", "Ask for a change, e.g. “sound more confident”");
+    expect(input()).toHaveAttribute("placeholder", expect.stringMatching(/^Type a change and press Enter to add it/));
   });
 
   it("shows the reply's edits, switching to the document they're on", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     await user.type(input(), "Make the letter more formal{Enter}");
+    await apply(user);
     report({ id: "reply-1", type: "refine", status: "DONE", result: { messageId: "m9", edited: [{ document: "COVER_LETTER", unitId: "paragraph:1" }] } });
 
     expect(router.refresh).toHaveBeenCalled();
@@ -566,14 +585,16 @@ describe("the Refine with AI panel (E8-5)", () => {
     vi.mocked(sendMessage).mockResolvedValueOnce({ ok: false, error: "I'm still working on your last message." });
     render(<ApplicationView {...props} />);
     await user.type(input(), "Shorter{Enter}");
+    await apply(user);
     expect(toast).toHaveBeenCalledWith("I'm still working on your last message.");
-    expect(input()).toHaveValue("Shorter");
+    expect(within(panel()).getByRole("region", { name: "Changes to make" })).toHaveTextContent("Shorter");
   });
 
   it("offers Retry when the reply fails", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     await user.type(input(), "Shorter{Enter}");
+    await apply(user);
     report({ id: "reply-1", type: "refine", status: "FAILED", error: "The AI server didn't answer in time." });
     expect(toast).toHaveBeenLastCalledWith("The AI server didn't answer in time.", { action: expect.objectContaining({ label: "Retry" }) });
     await act(async () => vi.mocked(toast).mock.lastCall?.[1]?.action?.onClick());
@@ -590,6 +611,7 @@ describe("the Refine with AI panel (E8-5)", () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} aiReady={false} initialTab="conversation" />);
     await user.type(input(), "Change the salary{Enter}");
+    await apply(user);
     expect(sendMessage).toHaveBeenCalledWith({ id: "app-1", text: "Change the salary", viewing: null, target: null });
   });
 
@@ -598,8 +620,8 @@ describe("the Refine with AI panel (E8-5)", () => {
     render(<ApplicationView {...props} aiReady={false} />);
     expect(within(panel()).getByRole("link", { name: "Choose one in Settings" })).toHaveAttribute("href", "/settings?section=ai");
     await user.type(input(), "Shorter{Enter}");
+    await apply(user);
     expect(sendMessage).not.toHaveBeenCalled();
-    expect(input()).toHaveValue("Shorter");
   });
 });
 
@@ -1016,6 +1038,7 @@ describe("the Email tab", () => {
     render(<ApplicationView {...props} initialTab="email" email={email} />);
     expect(within(panel()).getByText(/^Ask for changes to your email/)).toBeInTheDocument();
     await user.click(within(panel()).getByRole("button", { name: "Shorter, under 100 words" }));
+    await user.click(within(panel()).getByRole("button", { name: /^Apply/ }));
     expect(sendMessage).toHaveBeenCalledWith({ id: "app-1", text: "Shorter, under 100 words", viewing: "EMAIL", target: null });
   });
 
@@ -1023,6 +1046,7 @@ describe("the Email tab", () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} email={email} />);
     await user.type(screen.getByRole("textbox", { name: "Ask for a change" }), "Make the email shorter{Enter}");
+    await user.click(within(panel()).getByRole("button", { name: /^Apply/ }));
     report({ id: "reply-1", type: "refine", status: "DONE", result: { messageId: "m9", edited: [{ document: "EMAIL", unitId: "body" }] } });
     expect(screen.getByRole("tab", { name: "Email" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("group", { name: "Message" }).className).toMatch(/flash/);

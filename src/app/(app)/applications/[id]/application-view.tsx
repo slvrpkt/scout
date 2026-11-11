@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { Switch } from "radix-ui";
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
 
+import { useJob } from "@/hooks/use-job";
+
 import { plainUnit, type UnitRenderer } from "@/components/documents/document-page";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { TailoredLetter, TailoredResume } from "@/components/documents/tailored-documents";
@@ -177,6 +179,8 @@ export type ApplicationViewProps = {
   template?: ResumeTemplate | null;
   /** The resume's ATS grade, while ATS optimization is on. */
   atsGrade?: AtsGrade | null;
+  /** The suggestions beside the resume being worked out again after an edit: followed, so they show once they're ready. */
+  suggestionsJobId?: string | null;
   /** The most pages this draft's resume may have, to warn when it grows past them; null for none. */
   pageLimit?: number | null;
   /** The date on the letter, at UTC midnight. */
@@ -229,6 +233,7 @@ export function ApplicationView({
   template = null,
   pageLimit = null,
   atsGrade = null,
+  suggestionsJobId = null,
   letterJobId = null,
   letterDate,
   score,
@@ -262,6 +267,11 @@ export function ApplicationView({
   const [historyOf, setHistoryOf] = useState<DocumentKind | null>(null);
   const [viewing, setViewing] = useState<ViewedVersion | null>(null);
   const [restoring, setRestoring] = useState(false);
+  // New suggestions after an edit come a little later: show them as soon as they're ready.
+  const suggestionsJob = useJob(suggestionsJobId, 0, (job) => {
+    if (job.status === "DONE") startTransition(() => router.refresh());
+  });
+  const updatingSuggestions = Boolean(suggestionsJobId) && (!suggestionsJob || suggestionsJob.status === "QUEUED" || suggestionsJob.status === "RUNNING");
   const [reply, setReply] = useState<Rewrite | null>(refining ? { jobId: refining, revision: 0 } : null);
   // The message being sent, shown until the page has it.
   const [sending, showSending] = useOptimistic(NO_MESSAGES, (current, message: ChatEntry) => [...current, message]);
@@ -701,12 +711,13 @@ export function ApplicationView({
         <TabsContent value="resume" className="flex min-h-0 min-w-0 flex-[999_1_480px]">
           {resume && resumeTheme && resumeUnits ? (
             <DocumentPreview
-              meta={!viewed(DocumentKind.RESUME) && !frozen && atsGrade ? <AtsScore id={application.id} grade={atsGrade} draft={application.status === "DRAFT"} /> : undefined}
+              meta={!viewed(DocumentKind.RESUME) && !frozen && atsGrade ? <AtsScore id={application.id} grade={atsGrade} draft={application.status === "DRAFT"} profileNewer={outdated} /> : undefined}
               caption={viewed(DocumentKind.RESUME) || frozen ? undefined : hint}
               runningHeader={runningHeader(profile.basics)}
               side={
                 viewed(DocumentKind.RESUME) || frozen ? undefined : (
                   <ResumeSuggestions
+                    updating={updatingSuggestions}
                     beforeApplying={atsGrade?.beforeApplying ?? []}
                     items={application.resumeSuggestions?.length ? application.resumeSuggestions : (atsGrade?.missing ?? []).map((item) => `The posting asks for ${item}. If you have it, add it to your resume.`)}
                   />

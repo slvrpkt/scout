@@ -35,10 +35,19 @@ const SUBTITLES: Record<Tab, string> = {
   notes: "Switch to the resume, cover letter or email to make changes.",
 };
 
+/** The changes on the list, as one request: a single one as it is, several numbered. */
+export function batchRequest(changes: readonly string[]): string {
+  if (changes.length === 1) return changes[0];
+  return ["Please make all of these changes:", ...changes.map((change, index) => `${index + 1}. ${change}`)].join("\n");
+}
+
 /**
  * "Refine with AI" (APP-7): the conversation about this application's
- * documents, with suggestions and a box to ask for a change. It sticks to
- * the side of the documents, and moves below them on narrow windows.
+ * documents, with suggestions and a box to ask for a change. Changes are
+ * gathered first: Enter (or a suggestion) adds one to the list, and Apply
+ * sends them all as one request, which costs about the same as one change.
+ * It sticks to the side of the documents, and moves below them on narrow
+ * windows.
  */
 export function RefinePanel({
   tab,
@@ -68,22 +77,40 @@ export function RefinePanel({
   children?: (message: ChatEntry) => ReactNode;
 }) {
   const [draft, setDraft] = useState("");
+  // The changes gathered so far, for this tab only.
+  const [list, setList] = useState<{ tab: Tab; changes: string[] }>({ tab, changes: [] });
+  const changes = list.tab === tab ? list.changes : [];
   const input = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (focusRequest > 0) input.current?.focus();
   }, [focusRequest]);
 
-  const send = async (text: string) => {
-    if (!text.trim() || thinking) return;
+  /** Adds a change to the list; nothing is sent yet. */
+  const add = (text: string) => {
+    const change = text.trim();
+    if (!change) return;
+    setList({ tab, changes: changes.includes(change) ? changes : [...changes, change] });
     setDraft("");
-    if (!(await onSend(text.trim()))) setDraft(text);
+  };
+  const remove = (change: string) => setList({ tab, changes: changes.filter((entry) => entry !== change) });
+  // What Apply sends: the list, and what's still in the box.
+  const toApply = [...changes, ...(draft.trim() && !changes.includes(draft.trim()) ? [draft.trim()] : [])];
+  const apply = async () => {
+    if (toApply.length === 0 || thinking) return;
+    const before = { draft, changes };
+    setDraft("");
+    setList({ tab, changes: [] });
+    if (!(await onSend(batchRequest(toApply)))) {
+      setDraft(before.draft);
+      setList({ tab, changes: before.changes });
+    }
   };
 
   return (
     <aside
       aria-labelledby="refine-heading"
-      className="flex-[1_0_300px] border-t border-line bg-paper @min-[780px]:border-t-0 @min-[780px]:border-l"
+      className="flex-[1_0_380px] border-t border-line bg-paper @min-[780px]:border-t-0 @min-[780px]:border-l"
     >
       <div className="flex h-[min(100dvh,680px)] flex-col @min-[780px]:h-full">
         <div className="flex flex-col gap-1 px-6 pt-[26px] pb-3.5">
@@ -91,6 +118,16 @@ export function RefinePanel({
             Refine with AI
           </h2>
           <p className="text-meta leading-[1.45] text-muted">{SUBTITLES[tab]}</p>
+          {(tab === "resume" || tab === "letter" || tab === "email") && (
+            <p className="mt-1 rounded-control bg-surface px-2.5 py-1.5 text-meta leading-[1.45] text-muted">
+              <b className="text-ink">Only this application changes.</b> Edits here stay with this {tab === "resume" ? "resume" : tab === "letter" ? "cover letter" : "email"} and never go back to your
+              Profile. For a lasting change, one every future resume uses,{" "}
+              <Link href="/profile" className="font-medium text-ink underline underline-offset-2">
+                edit your Profile
+              </Link>
+              .
+            </p>
+          )}
         </div>
 
         {/* column-reverse keeps the newest message in view. Focusable, so it scrolls from the keyboard too (E11-3). */}
@@ -121,14 +158,31 @@ export function RefinePanel({
                 <button
                   key={suggestion}
                   type="button"
-                  aria-disabled={thinking || undefined}
-                  onClick={() => void send(suggestion)}
+                  aria-disabled={thinking || changes.includes(suggestion) || undefined}
+                  onClick={() => !changes.includes(suggestion) && add(suggestion)}
                   className="rounded-full border border-line-field bg-card px-[11px] py-1.5 text-label hover:border-line-strong aria-disabled:cursor-not-allowed aria-disabled:text-muted"
                 >
                   {suggestion}
                 </button>
               ))}
             </div>
+          )}
+          {/* The changes gathered so far: Apply sends them together. */}
+          {changes.length > 0 && (
+            <section aria-label="Changes to make" className="flex flex-col gap-1.5 rounded-card border border-line bg-card px-3 py-2.5">
+              <p className="text-label font-medium text-ink">Changes to make ({changes.length})</p>
+              <ol className="flex flex-col gap-1">
+                {changes.map((change, index) => (
+                  <li key={change} className="flex items-start gap-2 text-sm">
+                    <span className="flex-none text-muted tabular-nums">{index + 1}.</span>
+                    <span className="flex-1">{change}</span>
+                    <button type="button" aria-label={`Remove “${change}”`} onClick={() => remove(change)} className="flex-none rounded-full px-1 leading-none text-muted hover:text-ink">
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
           )}
           <div className="flex flex-col gap-2 rounded-card border border-line-input bg-input px-3 py-2.5 focus-within:border-primary">
             {target && (
@@ -149,24 +203,33 @@ export function RefinePanel({
             <textarea
               ref={input}
               aria-label="Ask for a change"
-              rows={2}
+              rows={4}
               value={draft}
-              placeholder={target ? `What should change in the ${target.name}?` : "Ask for a change, e.g. “sound more confident”"}
+              placeholder={
+                target
+                  ? `What should change in the ${target.name}?\nPress Enter to add it, then Apply changes.`
+                  : "Type a change and press Enter to add it, e.g. “sound more confident”.\nAdd all your changes first, then press Apply changes."
+              }
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
                 // Enter sends, Shift+Enter starts a new line; not while an input method is composing.
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
-                  void send(draft);
+                  add(draft);
                 }
               }}
               className="w-full resize-none bg-transparent text-sm leading-normal text-ink outline-none placeholder:text-muted"
             />
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted">Enter to send</span>
-              <Button size="sm" className="px-3.5 py-[7px]" aria-disabled={thinking || !draft.trim() || undefined} onClick={() => void send(draft)}>
-                Send
-              </Button>
+              <span className="text-xs text-muted">Shift+Enter for a new line</span>
+              <span className="flex gap-2">
+                <Button size="sm" variant="secondary" className="px-3.5 py-[7px]" aria-disabled={!draft.trim() || undefined} onClick={() => add(draft)}>
+                  Add
+                </Button>
+                <Button size="sm" className="px-3.5 py-[7px]" aria-disabled={thinking || toApply.length === 0 || undefined} onClick={() => void apply()}>
+                  {toApply.length > 1 ? `Apply ${toApply.length} changes` : "Apply changes"}
+                </Button>
+              </span>
             </div>
           </div>
         </div>

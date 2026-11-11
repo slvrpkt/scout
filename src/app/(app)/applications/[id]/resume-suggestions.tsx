@@ -5,14 +5,20 @@ import { Lightbulb } from "lucide-react";
  * for you to vet. Nothing here is on the resume. If one is true for you, ask
  * for it in the chat on the right, or edit the resume yourself.
  */
-export function ResumeSuggestions({ items, beforeApplying = [] }: { items: readonly string[]; beforeApplying?: readonly string[] }) {
-  if (items.length === 0 && beforeApplying.length === 0) return null;
+export function ResumeSuggestions({ items, beforeApplying = [], updating = false }: { items: readonly string[]; beforeApplying?: readonly string[]; /** Being worked out again after an edit. */ updating?: boolean }) {
+  if (items.length === 0 && beforeApplying.length === 0 && !updating) return null;
   return (
     <section aria-label="Suggestions for this job" className="flex flex-col gap-2.5 rounded-card border border-line bg-card p-4 text-sm">
       <h2 className="flex items-center gap-2 font-medium text-ink">
         <Lightbulb size={15} aria-hidden="true" className="text-warning" />
         Suggestions for this job
       </h2>
+      {updating && (
+        <p role="status" className="flex items-center gap-2 text-meta text-primary-text">
+          <span aria-hidden="true" className="size-3 flex-none animate-spin rounded-full border-2 border-current border-t-transparent" />
+          Updating for your latest change…
+        </p>
+      )}
       <p className="text-meta text-muted">Nothing here is on your resume. Keep only what&apos;s true for you, then ask for it in the chat, or add it yourself.</p>
       {beforeApplying.length > 0 && (
         <div className="flex flex-col gap-1 rounded-control bg-warning-surface px-3 py-2 text-meta text-warning">

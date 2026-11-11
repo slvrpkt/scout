@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Tone } from "@/generated/prisma/enums";
 
 import type { Match, Requirement } from "@/lib/application-data";
 
@@ -53,5 +54,13 @@ describe("refineSuggestions (E8-5)", () => {
       letter: ["Make it warmer", "Shorter, under 200 words"],
       email: ["Shorter, under 100 words", "Make it warmer", "Make the subject line stand out"],
     });
+  });
+});
+
+describe("chips from the resume as it is now", () => {
+  it("suggest what's still missing from the resume, and stop once it's there", () => {
+    const base = { match: null, requirements: [], tone: Tone.FORMAL, hasSummary: false };
+    expect(refineSuggestions({ ...base, live: { missing: ["Linear"], covered: ["Sprint planning"] } }).resume).toEqual(["Emphasize Sprint planning", "Mention Linear"]);
+    expect(refineSuggestions({ ...base, live: { missing: [], covered: ["Linear", "Sprint planning"] } }).resume).not.toContain("Mention Linear");
   });
 });
