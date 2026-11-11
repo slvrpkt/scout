@@ -18,7 +18,9 @@ const now = new Date(Date.UTC(2026, 10, 3, 12));
 
 describe("sample data", () => {
   it("fills in every part of Scout", async () => {
-    expect(await sampleDataState(db)).toEqual({ loaded: false, loadedAt: null, canLoad: true });
+    expect(await sampleDataState(db)).toEqual({ loaded: false, loadedAt: null, canLoad: true, connected: false });
+    // Once an LLM or a job source is connected, it stays off.
+    expect(await sampleDataState(db, true)).toMatchObject({ canLoad: false, connected: true });
     expect(await loadSampleData(db, now, "Europe/Amsterdam")).toEqual({ applications: 12 });
 
     const applications = await db.application.findMany({ include: { documents: true, sentDocuments: true, notes: true } });

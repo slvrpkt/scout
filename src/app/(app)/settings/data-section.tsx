@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type ReactNode } from "react";
 
@@ -86,7 +87,7 @@ export function DataSection({
   /** When archived agent jobs are deleted; 0 is never. */
   archiveClearDays: number;
   /** Whether the sample job search is in, and whether it can be. */
-  sampleData: { loaded: boolean; loadedAt: string | null; canLoad: boolean };
+  sampleData: { loaded: boolean; loadedAt: string | null; canLoad: boolean; connected?: boolean };
 }) {
   const [includeKey, setIncludeKey] = useState(false);
   const router = useRouter();
@@ -360,7 +361,7 @@ const CONFIRMATION = "DELETE";
 
 /** "Delete everything" (E10-8, SET-11): typed confirmation, then gone for good. */
 /** Sample data: a whole job search to look around in, loaded and removed with a click. */
-function SampleData({ state }: { state: { loaded: boolean; loadedAt: string | null; canLoad: boolean } }) {
+function SampleData({ state }: { state: { loaded: boolean; loadedAt: string | null; canLoad: boolean; connected?: boolean } }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"load" | "remove" | null>(null);
   const run = async (what: "load" | "remove") => {
@@ -379,8 +380,15 @@ function SampleData({ state }: { state: { loaded: boolean; loadedAt: string | nu
             ? "The sample job search is loaded: Jane Doe's profile, nine applications with their documents and history, the job agent's searches and finds, kept postings and startups. Remove it before you start with your own; anything you added yourself stays."
             : "Try every part of Scout with a sample job search: a profile, applications at every stage with tailored documents, what was sent, calls and interviews, the job agent's searches and finds, kept postings and startups. It doesn't touch your settings."}
         </p>
+        {/* What it's for, and when it's off. */}
+        <p className="text-meta text-muted">
+          It&apos;s here so you can try Scout before you hook everything up. Once you connect an LLM or a job source, or add your own profile or
+          applications, it switches off, so sample and real data never mix. It comes back only when Scout is empty again.
+        </p>
         {!state.loaded && !state.canLoad && (
-          <p className="text-meta text-muted">It needs an empty Scout, and this one already has a profile or applications.</p>
+          <p className="text-meta font-medium text-ink">
+            {state.connected ? "Off: an LLM or a job source is connected." : "Off: this Scout already has a profile or applications."}
+          </p>
         )}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -510,13 +518,22 @@ function BackupToDrive({ drive }: { drive: BackupStatus["drive"] }) {
         disabled={!drive.allowed}
         onCheckedChange={change}
       />
+      {/* Two different things go to Drive: say which is which. */}
+      <p role="note" className="rounded-control bg-surface px-3 py-2 text-meta text-muted">
+        <b className="text-ink">This is a full backup:</b> everything Scout needs to be restored on another computer. It&apos;s different from{" "}
+        <Link href="/settings?section=google" className="underline underline-offset-2 hover:text-ink">
+          Save What I Send To Google Drive
+        </Link>{" "}
+        in Settings → Google, which only keeps the jobs you applied to: a folder for each, with the resume and cover letter you sent.
+      </p>
       {drive.problem && on && (
         <p role="alert" className="rounded-control bg-danger-surface px-3 py-2 text-meta text-error">
           The last copy to Google Drive failed: {drive.problem}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="secondary" size="sm" aria-disabled={busy || undefined} onClick={() => !busy && void now()}>
+        {/* Back up now goes with the copy to Drive: off while the copy is off. */}
+        <Button variant="secondary" size="sm" disabled={!(on && drive.allowed)} aria-disabled={busy || undefined} onClick={() => !busy && void now()}>
           {busy ? "Backing up…" : "Back up now"}
         </Button>
         {drive.folderUrl && (

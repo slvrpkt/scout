@@ -252,7 +252,8 @@ describe("sample data", () => {
   it("can't be loaded over the user's own data", () => {
     render(<DataSection sampleData={{ loaded: false, loadedAt: null, canLoad: false }} jobRetentionHours={24} archiveClearDays={90} hasApiKey={false} exportName="x.json" backups={backups} />);
     expect(screen.getByRole("button", { name: "Load sample data" })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByText("It needs an empty Scout, and this one already has a profile or applications.")).toBeInTheDocument();
+    expect(screen.getByText("Off: this Scout already has a profile or applications.")).toBeInTheDocument();
+    expect(screen.getByText(/so you can try Scout before you hook everything up/)).toBeInTheDocument();
   });
 });
 
@@ -266,5 +267,25 @@ describe("the backups on this computer", () => {
     await userEvent.click(screen.getByRole("button", { name: "Delete older backups" }));
     expect(clearOldBackups).toHaveBeenCalledWith({ keepDays: 30 });
     expect(await screen.findByText(/2 backups on this computer, 2 KB in all/)).toBeInTheDocument();
+  });
+});
+
+describe("the copy of backups to Google Drive", () => {
+  it("says it's a full backup, turns Back up now off with the copy, and links the folder only once it exists", () => {
+    const { unmount } = render(<DataSection sampleData={noSample} jobRetentionHours={24} archiveClearDays={90} hasApiKey={false} exportName="x.json" backups={{ ...backups, drive: { on: false, allowed: true, folderUrl: null, copies: 0, problem: null } }} />);
+    expect(screen.getByText(/This is a full backup:/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back up now" })).toBeDisabled();
+    expect(screen.queryByRole("link", { name: /Open .Scout backups. in Google Drive/ })).not.toBeInTheDocument();
+    unmount();
+    render(<DataSection sampleData={noSample} jobRetentionHours={24} archiveClearDays={90} hasApiKey={false} exportName="x.json" backups={{ ...backups, drive: { on: true, allowed: true, folderUrl: "https://drive.google.com/drive/folders/f1", copies: 6, problem: null } }} />);
+    expect(screen.getByRole("button", { name: "Back up now" })).toBeEnabled();
+    expect(screen.getByRole("link", { name: /Open .Scout backups. in Google Drive/ })).toHaveAttribute("href", "https://drive.google.com/drive/folders/f1");
+  });
+});
+
+describe("sample data once an LLM or job source is connected", () => {
+  it("says it's off, and why", () => {
+    render(<DataSection sampleData={{ loaded: false, loadedAt: null, canLoad: false, connected: true }} jobRetentionHours={24} archiveClearDays={90} hasApiKey={false} exportName="x.json" backups={backups} />);
+    expect(screen.getByText("Off: an LLM or a job source is connected.")).toBeInTheDocument();
   });
 });

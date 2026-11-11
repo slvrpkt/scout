@@ -72,12 +72,17 @@ async function readManifest(db: PrismaClient): Promise<Manifest | null> {
   }
 }
 
-export type SampleDataState = { loaded: boolean; loadedAt: string | null; canLoad: boolean };
+export type SampleDataState = { loaded: boolean; loadedAt: string | null; canLoad: boolean; /** An LLM or a job source is connected: real use has begun. */ connected?: boolean };
 
-/** Whether sample data is in, and whether it can be loaded (it needs an empty profile and no applications). */
-export async function sampleDataState(db: PrismaClient): Promise<SampleDataState> {
+/**
+ * Whether sample data is in, and whether it can be loaded: it's for trying
+ * Scout before it's set up, so it needs an empty profile, no applications,
+ * and no LLM or job source connected (`connected`), so sample and real data
+ * never mix.
+ */
+export async function sampleDataState(db: PrismaClient, connected = false): Promise<SampleDataState> {
   const manifest = await readManifest(db);
-  return { loaded: manifest !== null, loadedAt: manifest?.loadedAt ?? null, canLoad: manifest === null && !(await hasUserData(db)) };
+  return { loaded: manifest !== null, loadedAt: manifest?.loadedAt ?? null, canLoad: manifest === null && !connected && !(await hasUserData(db)), connected };
 }
 
 /** Loads the sample job search; refuses when it's already in or the user has a profile or applications of their own. */

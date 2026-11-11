@@ -290,7 +290,7 @@ export function GoogleSection({
               label="Save What I Send To Google Drive"
               description={
                 connection.canUseDrive
-                  ? "Each application you mark Sent gets a folder named Company – Role, with the posting as a Word file and the resume and cover letter exactly as they went out, PDF or Word."
+                  ? "Each job you mark Applied gets a folder named Company – Role, with the posting as a Word file and the resume and cover letter exactly as they went out, PDF or Word. Only the jobs you applied to; a full backup of everything is Copy backups to Google Drive, in Settings → Your data."
                   : "Allow Google Drive above first. Scout only sees the folders and files it makes, never the rest of your Drive."
               }
               checked={settings.driveBackup && connection.canUseDrive}

@@ -8,7 +8,7 @@ import { AiProvider, Creativity, DateFormat, JobStatus, PaperSize, Tone } from "
 import { action, ActionError } from "@/lib/action";
 import { AiError, createProvider } from "@/lib/ai";
 import { applyApiKeyChange } from "@/lib/ai/api-key";
-import { keyStateOf, loadAiConfig, resolveAiConfig } from "@/lib/ai/config";
+import { isAiUsable, keyStateOf, loadAiConfig, resolveAiConfig } from "@/lib/ai/config";
 import type { KeyState } from "@/lib/ai/provider-options";
 import { DOCUMENT_LANGUAGES } from "@/lib/document-language";
 import { backupUsage, clearBackups, deleteAllBackups, KEEP_BACKUPS } from "@/lib/backups";
@@ -400,6 +400,10 @@ export const removeConnectorRedirect = action(z.object({ uri: z.string().max(200
  * It needs an empty Scout; removing it takes only the sample rows away.
  */
 export const loadSample = action(z.object({}), async (_input, { toast }) => {
+  // Sample data is for trying Scout before it's set up; once an LLM or a job source is connected, it stays out.
+  if ((await isAiUsable()) || (await loadJobSearchConfig()).source !== null) {
+    throw new ActionError("Sample data is off once an LLM or a job source is connected, so it never mixes with your real data.");
+  }
   try {
     const { applications } = await loadSampleData(prisma, new Date(), await lastKnownTimeZone());
     revalidatePath("/", "layout");

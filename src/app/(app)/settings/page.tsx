@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { loadAgentSearches, MAX_AGENT_PAGES, MAX_AGENT_SEARCHES } from "@/lib/agent/searches";
-import { loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
+import { isAiUsable, loadAiConfig, loadAiSettingsView } from "@/lib/ai/config";
 import { jobSearchView, loadJobSearchConfig } from "@/lib/job-search/config";
 import { COUNTRIES } from "@/lib/job-search/countries";
 import { loadSearch } from "@/lib/posting-searches";
@@ -31,7 +31,7 @@ import { availableUpdate } from "@/lib/update-check";
 import { AgentSection } from "./agent-section";
 import { AiBehaviour } from "./ai-behaviour";
 import { sheetReady } from "@/lib/applications-sheet";
-import { folderUrl } from "@/lib/google/drive";
+import { folderUrl, stillThere } from "@/lib/google/drive";
 import { JEV_WEIGHTS } from "@/lib/scoring/jev";
 
 import { AiProviderSection } from "./ai-provider-section";
@@ -153,14 +153,15 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             drive: {
               on: settings.backupToDrive,
               allowed: await sheetReady(),
-              folderUrl: settings.driveBackupFolder ? folderUrl(settings.driveBackupFolder) : null,
+              // The link only while the folder is really there in Drive (it may have been deleted there).
+              folderUrl: settings.driveBackupFolder && (await stillThere(settings.driveBackupFolder).catch(() => false)) ? folderUrl(settings.driveBackupFolder) : null,
               copies: settings.driveBackupFiles.length,
               problem: settings.driveBackupProblem,
             },
           }}
           jobRetentionHours={settings.jobRetentionHours}
           archiveClearDays={settings.archiveClearDays}
-          sampleData={await sampleDataState(prisma)}
+          sampleData={await sampleDataState(prisma, (await isAiUsable()) || (await loadJobSearchConfig()).source !== null)}
         />
       ) : section === "documents" ? (
         <DocumentsSection
