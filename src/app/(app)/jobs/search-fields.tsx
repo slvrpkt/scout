@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { Country } from "@/lib/job-search/countries";
-import { POSTED_WITHIN, RADII_KM, type JobSource, type RadiusKm, type SearchQuery } from "@/lib/job-search/search";
+import { POSTED_WITHIN, RADII_KM, radiusLabel, type JobSource, type RadiusKm, type SearchQuery } from "@/lib/job-search/search";
 import { SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
 
 // A search's fields, as Find jobs asks them (E14-6) and Settings → Job agent
@@ -81,7 +81,7 @@ export function SearchFields({
       >
         {RADII_KM.map((km) => (
           <option key={km} value={km}>
-            {km} km
+            {radiusLabel(km)}
           </option>
         ))}
       </Select>

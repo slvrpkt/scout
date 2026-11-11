@@ -24,6 +24,14 @@ export type JSearchHost = (typeof JSEARCH_HOSTS)[number];
 /** How far from the place to look, in km (E14-6). */
 export const RADII_KM = [10, 25, 50, 100, 200] as const;
 export type RadiusKm = (typeof RADII_KM)[number];
+
+/** Each radius in miles, rounded, as Scout shows it (US job seekers think in miles; the sources take km). */
+const MILES_FOR_KM: Record<RadiusKm, number> = { 10: 6, 25: 15, 50: 30, 100: 60, 200: 125 };
+
+/** "15 miles" for 25 km. */
+export function radiusLabel(km: RadiusKm): string {
+  return `${MILES_FOR_KM[km]} miles`;
+}
 export const DEFAULT_RADIUS_KM: RadiusKm = 25;
 /** How many locations a job agent search may have. */
 export const MAX_SEARCH_PLACES = 10;
@@ -161,9 +169,9 @@ export type PastSearchDay = {
   searches: { id: string; source: JobSource; query: SearchQuery; found: number; time: string }[];
 };
 
-/** "product designer · Hamburg, 25 km · Remote only · Past week": a search in a line, without the km for a source that has no radius. */
+/** "product designer · Arlington, VA, 15 miles · Remote only · Past week": a search in a line, without the distance for a source that has no radius. */
 export function describeSearch(query: SearchQuery, countryName: string, source?: JobSource | null): string {
-  const where = query.place ? (query.anyDistance || (source && !SOURCE_INFO[source].radius) ? query.place : `${query.place}, ${query.radiusKm} km`) : countryName;
+  const where = query.place ? (query.anyDistance || (source && !SOURCE_INFO[source].radius) ? query.place : `${query.place}, ${radiusLabel(query.radiusKm)}`) : countryName;
   const posted = POSTED_WITHIN.find((option) => option.value === query.postedWithin);
   const modes = (query.workModes ?? []).map((mode) => ({ remote: "Remote", hybrid: "Hybrid", onsite: "On-site" })[mode]).join(" or ");
   return [

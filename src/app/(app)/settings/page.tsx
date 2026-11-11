@@ -26,7 +26,6 @@ import { scoringProblem } from "@/lib/scoring";
 import { loadScoringConfig, scoringView } from "@/lib/scoring/config";
 import { loadSettings } from "@/lib/settings-data";
 import { availableUpdate } from "@/lib/update-check";
-import { USAGE_PING_HOST, usagePingChoice } from "@/lib/usage-ping";
 
 import { AgentSection } from "./agent-section";
 import { AiBehaviour } from "./ai-behaviour";
@@ -48,7 +47,7 @@ import { TimeZoneSection } from "./time-zone-section";
 import { GoogleNotice } from "./google-notice";
 import { JobSearchSection } from "./job-search-section";
 import { ScoringSection } from "./scoring-section";
-import { AboutSection, type AboutFacts, type UsagePingView } from "./about-section";
+import { AboutSection, type AboutFacts } from "./about-section";
 import { ConnectorSection } from "./connector-section";
 import { settingsSectionFromParam } from "./sections";
 import { SettingsScreen } from "./settings-screen";
@@ -181,7 +180,6 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       ) : (
         <AboutSection
           facts={await aboutFacts()}
-          usagePing={await usagePingView()}
           updates={{ daily: settings.updateCheck, available: availableUpdate(settings) }}
         />
       )}
@@ -270,10 +268,4 @@ async function aboutFacts(): Promise<AboutFacts> {
     { label: "AI", value: [providerOption(ai.provider).name, ai.model].filter(Boolean).join(" · ") },
     { label: "Applications", value: String(applications) },
   ];
-}
-
-/** The usage ping's switch in About (#172): the answer in effect, who gave it, and the install ID. */
-async function usagePingView(): Promise<UsagePingView> {
-  const settings = await loadSettings();
-  return { host: USAGE_PING_HOST, ...usagePingChoice(settings), id: settings.usagePingId, production: process.env.NODE_ENV === "production" };
 }

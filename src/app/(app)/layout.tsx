@@ -15,13 +15,11 @@ import { checkForUpdatesDaily, updateNotice } from "@/lib/update-check";
 import { overLimitBlock } from "@/lib/cost-rates";
 import { costLimitsPassed } from "@/lib/costs";
 import { findUnfinishedJobs } from "@/lib/jobs/runner";
-import { askForUsagePing, notePageLoad, USAGE_PING_HOST } from "@/lib/usage-ping";
 import { appVersion } from "@/lib/version";
 
 import { CostLimitDialog } from "./cost-limit-dialog";
 import { GoogleExpiredDialog } from "./google-expired-dialog";
 import { Sidebar } from "./sidebar";
-import { UsagePingDialog } from "./usage-ping-dialog";
 
 /**
  * The signed-in shell: sidebar on the left, the screen on the right. Routes
@@ -31,8 +29,7 @@ import { UsagePingDialog } from "./usage-ping-dialog";
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   // Proxy already redirects signed-out visitors; this is the check next to the data.
   await verifySession();
-  // The day's usage ping and update check, if they haven't run yet: after the page, so they never slow one down.
-  after(notePageLoad);
+  // The day's update check, if it's on and hasn't run yet: after the page, so it never slows one down.
   after(checkForUpdatesDaily);
   // The browser's zone, for the inbox check, which runs without a request.
   const zone = await userTimeZone();
@@ -84,8 +81,6 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           {children}
         </main>
       </div>
-      {/* Asked once, until answered (#172); nothing is sent before a yes. */}
-      {askForUsagePing(settings) && <UsagePingDialog host={USAGE_PING_HOST} />}
       {google?.expiredAt && <GoogleExpiredDialog email={google.email} />}
       {overLimits.length > 0 && <CostLimitDialog limits={overLimits.map((over) => overLimitBlock(over, new Date(), timeZone))} />}
     </div>

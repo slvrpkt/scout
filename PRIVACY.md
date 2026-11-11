@@ -2,7 +2,7 @@
 
 Scout is a single-user app you run on your own server. This page is for whoever runs it: what Scout keeps and for how long, what leaves your server and who receives it, and what deleting something removes. For how the data is protected, see [SECURITY.md](SECURITY.md).
 
-In short: everything you enter is kept in your own PostgreSQL database and data directory. What leaves your server goes to the AI provider and job source you choose, to Google if you connect Gmail and Calendar, to Hacker News and startups' own sites once you use Startups, to TypeSafe if you choose Jev for scoring, to Anthropic through Claude, or another app you connect, if you turn on the MCP connector, plus an update check you can turn off and a daily usage ping, only if you agree to it. With a local model, your profile, postings and documents never leave your server. With a hosted one, keeping the database on your server covers only part of where your data goes.
+In short: everything you enter is kept in your own PostgreSQL database and data directory. What leaves your server goes to the AI provider and job source you choose, to Google if you connect Gmail and Calendar, to Hacker News and startups' own sites once you use Startups, to TypeSafe if you choose Jev for scoring, to Anthropic through Claude, or another app you connect, if you turn on the MCP connector, and to GitHub only if you switch on the update check (it's off to start with). Scout has no telemetry and no usage ping. With a local model, your profile, postings and documents never leave your server. With a hosted one, keeping the database on your server covers only part of where your data goes.
 
 ## What Scout keeps
 
@@ -47,7 +47,7 @@ Exports you download and database dumps you take are copies outside Scout's reac
 | Anthropic, through Claude | Only while the MCP connector is on (Settings → MCP connector, off by default), and only for the Claude you signed in and allowed: each time Claude uses one of Scout's tools | What that tool answers. See [MCP connector](#mcp-connector) |
 | Another MCP app you connect, such as n8n | Only while the MCP connector is on, only for an app whose callback address you added in Settings → MCP connector, and only after you signed in and allowed it: each time it uses one of Scout's tools | What that tool answers, to whoever runs the app. See [MCP connector](#mcp-connector) |
 | The site a posting is on | When you press **Fetch** on a new application, and for a Find jobs posting that came with only its start | A request for the posting's page, from your server, never to an address on your own network |
-| GitHub | Once on each day Scout is used, while **Check for updates daily** is on in Settings → About (it is by default), and when you press **Check for updates** | A request for the latest release, from your server. Nothing about you or your install, though GitHub sees your server's address, as with any request |
+| GitHub | Once on each day Scout is used, while **Check for updates daily** is on in Settings → About (it's off until you switch it on), and when you press **Check for updates** | A request for the latest release, from your server. Nothing about you or your install, though GitHub sees your server's address, as with any request |
 
 Nothing else is sent. Your browser loads nothing from other sites (the Content-Security-Policy forbids it), and Next.js telemetry is off in the image.
 
@@ -78,8 +78,6 @@ TypeSafe's [privacy policy](https://typesafe.ai/legal/privacy-policy) says it do
 ### Usage ping
 
 Scout has no telemetry and sends no usage ping. Nothing about you or your install goes to the Scout project: the only things that leave your server are the ones on this page that you switch on yourself (your AI provider, your job source, Google, the update check and the MCP connector).
-
-The code for an opt-in ping is still there, from the project Scout is built on, but it's dormant: it's never asked about or sent unless whoever runs a server sets `SCOUT_TELEMETRY_HOST` to a telemetry server of their own, and even then only after a yes.
 
 ### Startups
 

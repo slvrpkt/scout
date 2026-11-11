@@ -338,7 +338,7 @@ describe("the results", () => {
 
   it("says when nothing was found", () => {
     renderScreen({ search: stored([]) });
-    expect(screen.getByText("No postings for “product designer” within 25 km of Hamburg. Try a bigger radius or fewer words.")).toBeInTheDocument();
+    expect(screen.getByText("No postings for “product designer” within 15 miles of Hamburg. Try a bigger radius or fewer words.")).toBeInTheDocument();
   });
 
   it("says when nothing was found on a source without a radius", () => {
@@ -433,10 +433,10 @@ describe("past searches (E14-10)", () => {
     expect(screen.queryByRole("search")).not.toBeInTheDocument();
     const today = screen.getByRole("region", { name: "Today" });
     expect(within(today).getAllByRole("link").map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
-      ["product designer · Hamburg, 50 km · Remote only · Past week14:32 · 16 postings · JSearch", "/jobs?search=s1"],
+      ["product designer · Hamburg, 30 miles · Remote only · Past week14:32 · 16 postings · JSearch", "/jobs?search=s1"],
       ["researcher · Germany09:05 · 1 posting · JSearch", "/jobs?search=s2"],
     ]);
-    expect(within(screen.getByRole("region", { name: "Mon 28 Sep" })).getByRole("link")).toHaveTextContent("writer · Hamburg, 25 km10:00 · 0 postings · Adzuna");
+    expect(within(screen.getByRole("region", { name: "Mon 28 Sep" })).getByRole("link")).toHaveTextContent("writer · Hamburg, 15 miles10:00 · 0 postings · Adzuna");
   });
 
   it("removes a search", async () => {

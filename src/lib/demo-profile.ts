@@ -3,7 +3,7 @@ import type { Unit } from "@/lib/application-data";
 import { publicationLabel } from "@/lib/citation";
 import { LANGUAGE_LEVELS, type DateSpan, type ProfileData } from "@/lib/profile";
 
-import sample from "../../prisma/seed/prototype-sample.json";
+import { sample } from "../../prisma/seed/sample";
 
 // The prototype's sample profile (Jane Doe), shared by the demo seed
 // (prisma/seed/demo.ts), document previews on /dev/documents and tests.
@@ -48,8 +48,8 @@ export function demoProfile(): ProfileData {
       website: basics.website,
       address: basics.address,
       city: basics.city,
-      state: "",
-      zip: "",
+      state: basics.state ?? "",
+      zip: basics.zip ?? "",
       country: basics.country,
       linkedin: basics.linkedin,
       summary: basics.summary,

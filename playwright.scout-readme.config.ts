@@ -10,7 +10,9 @@ import { APP_PORT, STORAGE_STATE } from "./e2e/support";
 //
 //   npx playwright test --config playwright.scout-readme.config.ts
 //
-// The screenshots land in docs/images/.
+// The screenshots land in docs/images/. Scout is made for US job seekers, so
+// the demo data is the US version (prisma/seed/prototype-sample.us.json).
+process.env.DOSSIER_DEMO_REGION ??= "us";
 export default defineConfig({
   testDir: "e2e",
   outputDir: "test-results/scout-readme",

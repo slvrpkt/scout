@@ -39,7 +39,7 @@ describe("stored settings", () => {
       strict: true,
       humanize: true,
       showDiff: true,
-      paper: "A4",
+      paper: "LETTER",
       dateFormat: "MONTH_DAY_YEAR",
       defaultTone: "WARM",
       docLanguage: null,
@@ -138,11 +138,6 @@ describe("stored settings", () => {
       driveBackupFolder: null,
       driveBackupFiles: [],
       driveBackupProblem: null,
-      usagePingId: null,
-      usagePingDay: null,
-      usagePingChoice: null,
-      usagePingChoiceAt: null,
-      usagePingChoiceText: null,
       connectorEnabledAt: null,
       connectorRedirects: [],
       browserTimeZone: null,
@@ -177,7 +172,7 @@ describe("stored settings", () => {
       { key: "jobRetentionHours", value: "5" },
       { key: "theme", value: "dark" },
     ]);
-    expect(settings).toMatchObject({ provider: null, paper: "A4", strict: true, customLanguages: [], quietDays: 7, jobRetentionHours: 24 });
+    expect(settings).toMatchObject({ provider: null, paper: "LETTER", strict: true, customLanguages: [], quietDays: 7, jobRetentionHours: 24 });
     expect(settings).not.toHaveProperty("theme");
   });
 

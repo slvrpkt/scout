@@ -23,7 +23,7 @@
 
 Job hunting is exhausting. You read the same kinds of postings over and over, rewrite your resume for each one, and wonder whether an applicant tracking system (ATS) will even read it properly. Scout takes on the repetitive parts, so you can spend your energy on the jobs and the people that matter.
 
-I built Scout for my own job search and I'm sharing it for free, for **anyone looking for work**. If it helps you land your next role, that's all I hoped for. Use it as it is, change it, make it yours.
+Scout is my adaptation of [Dossier](https://github.com/AienTech/dossier), an open-source job application tracker by AienTech, reshaped for my own job search in the US. I'm passing it on for free, for **anyone looking for work**. If it helps you land your next role, that's all I hoped for. Use it as it is, change it, make it yours.
 
 > **Scout never applies for you.** Its agents search, read and score postings and prepare drafts. Nothing is sent, submitted or applied for until you do it yourself.
 
@@ -35,8 +35,8 @@ Ten things Scout does, and [many more](#and-much-more):
 
 **Find**
 
-1. **Agentic job search.** Save up to 20 searches. Each has a job title, up to 5 alternative titles (like "TPM" or "AI Program Manager"), up to 10 locations or "Anywhere", and filters for work mode, seniority, job type and minimum salary. Or follow up to 10 companies: Scout looks for the title at each one across your whole country and keeps only their jobs. The agent runs your searches at the times you pick, skips what you've already seen, and keeps the best matches for you to review, with filters by company and location.
-2. **Manual job search.** Search postings yourself through JSearch (Google for Jobs, which covers LinkedIn, Indeed, Glassdoor and many company sites), with the same filters and an optional company, and start an application from any result in one click.
+1. **A robust agentic job search.** Save up to 20 searches, each with plenty of ways to aim it: a job title and up to 5 alternative titles (like "TPM" or "AI Program Manager"); up to 10 locations, or anywhere in your country; work mode, seniority, job type, how recently it was posted and a minimum salary; words to skip; or up to 10 companies to follow, searched across the whole country. The agent runs your searches at the times you pick, skips what you've already seen, and ranks the best matches for you to review, with filters by company and location. Each job card tells you when the job was posted and when Scout found it, the deadline to apply when the posting gives one, and how and where to apply: on the employer's own site, or through Workday, Greenhouse, LinkedIn and others.
+2. **A robust manual job search.** Search postings yourself through JSearch (Google for Jobs, which covers LinkedIn, Indeed, Glassdoor and many company sites) by title, company, location and distance in miles, with the same filters as the agent. The cards give the same detail (when it was posted, and how and where to apply), and any result becomes an application in one click.
 
 **Score**
 
@@ -53,15 +53,15 @@ Ten things Scout does, and [many more](#and-much-more):
 **Track**
 
 9. **Your job application log.** A board from draft to offer, a dashboard with your funnel and weekly activity, an archive, and a warning when you're about to apply to the same job twice.
-10. **Your data, on your computer.** Scout runs on your own machine with your own database. You choose the AI provider and bring your own keys, and you can export everything at any time.
+10. **Your data stays mostly on your computer.** Scout runs on your own machine with your own database, and you can export everything at any time. The exception is the AI: to write or score, Scout sends the AI provider you choose the parts of your profile and the posting it needs. With a local model (Ollama or LM Studio), even that stays on your computer.
 
 ### And much more
 
-Read your existing resume (PDF or Word) to fill in your profile · Gmail and Google Calendar integration (optional) · startups that are hiring, from Hacker News and YC · a Claude connector (MCP) · cost estimates and spending limits for your API keys · resume themes and a theme builder · application history and undo · dark mode · and plenty of small touches.
+Read your existing resume (PDF or Word) to fill in your profile · Gmail and Google Calendar integration (optional) · a Claude connector (MCP) · cost estimates and spending limits for your API keys · resume themes and a theme builder · application history and undo · dark mode · and plenty of small touches.
 
 ## Screenshots
 
-<sub>All screenshots use made-up demo data (Jane Doe and her companies are fictional).</sub>
+<sub>All screenshots use made-up demo data (Jane Doe, in Arlington, Virginia, and her companies are fictional).</sub>
 
 **The agentic job search.** Scored postings with the reasons behind each score, fresh postings first.
 
@@ -93,6 +93,19 @@ Read your existing resume (PDF or Word) to fill in your profile · Gmail and Goo
 ## Getting started
 
 Scout runs on your own computer, for one person. You'll need about 15 minutes and two API keys.
+
+### The easy way: let an AI coding assistant set it up
+
+If you use [Claude Code](https://claude.com/claude-code), OpenAI's Codex or a similar AI coding assistant, it can do the installing for you:
+
+1. Open an empty folder in your editor (for example Visual Studio Code) and start the assistant there, or open it in a terminal in that folder.
+2. Paste this:
+
+   > Set up Scout from https://github.com/slvrpkt/scout on this computer, following its README. Run it locally only, at http://localhost:3000. Tell me before you install anything, and help me choose my sign-in password.
+
+3. Answer its questions as it goes. It will install what's missing (Node.js, PostgreSQL), fill in `.env`, set up the database and start Scout.
+
+Don't paste your API keys into the chat. Once Scout is running, add them in Scout's own Settings (step 3 below). The steps it follows are the ones below, if you'd rather do them yourself.
 
 ### 1. Get your keys
 
@@ -175,7 +188,7 @@ Something not working? Search the [issues](https://github.com/slvrpkt/scout/issu
 
 ## Privacy
 
-Your profile, documents and applications stay in your own database. What leaves your computer is only what you turn on: the text your AI provider needs to write or score, your searches to JSearch, and, if you connect them, Google and the Claude connector. Scout has no telemetry and sends nothing to me. [PRIVACY.md](PRIVACY.md) has the details.
+Your profile, documents and applications are kept in your own database. What leaves your computer is only what you turn on: the parts of your profile and the posting that your AI provider needs to write or score (unless you use a local model), your searches to JSearch, and, if you connect them, Google and the Claude connector. Scout has no telemetry and sends nothing to me. [PRIVACY.md](PRIVACY.md) has the details.
 
 ## Use at your own risk
 
@@ -191,9 +204,9 @@ You're always the one who decides what gets sent, and responsible for it. [LICEN
 
 Scout stands on the shoulders of others, with thanks:
 
-- **[Dossier](https://github.com/AienTech/dossier) by AienTech.** Scout began as Dossier, a self-hosted job application tracker and resume writer, and is built on top of it. The profile, resume themes, application tracking, PDF rendering and much of the foundation are Dossier's work. Scout adds the agentic job search, fit scoring, ATS-criteria checks, page-exact tailored resumes and more.
-- **avinashbatchala's fork**, whose job agent and scoring ideas Scout's agent was adapted from.
-- **The humanizer skill by Siqi Chen**, which Scout's writing guidance is adapted from.
+- **[Dossier](https://github.com/AienTech/dossier) by AienTech.** Scout began as Dossier, a self-hosted job application tracker and resume writer, and is built on top of it. The profile, resume themes, application tracking, PDF rendering and much of the foundation are Dossier's work. Scout adds the agentic job search, fit scoring, ATS-criteria checks, page-exact tailored resumes and more, and is tailored entirely to job hunting in the US: no profile photos (US employers don't expect them), distances in miles from a US ZIP code, pay in US dollars, US resume conventions, and searches across the US by default.
+- **[avinashbatchala's fork of Dossier](https://github.com/avinashbatchala/dossier)**, whose job agent and scoring ideas Scout's agent was adapted from, and which Scout has since built on and enhanced considerably.
+- **[The humanizer skill](https://github.com/blader/humanizer) by Siqi Chen**, which Scout's writing guidance is adapted from.
 - **Built with [Claude Code](https://claude.com/claude-code)** and its skills, including the floorplan and Claude API skills.
 - **Open-source software:** [Next.js](https://nextjs.org/), [React](https://react.dev/), [Prisma](https://www.prisma.io/), [PostgreSQL](https://www.postgresql.org/), [Playwright](https://playwright.dev/), [docx](https://docx.js.org/), [pdf-lib](https://pdf-lib.js.org/), [Tailwind CSS](https://tailwindcss.com/) and many more, plus open fonts from Google Fonts and IBM Plex.
 - **Data:** ZIP code locations from the US Census Bureau (public domain). Job listings come through [JSearch by OpenWeb Ninja](https://www.openwebninja.com/api/jsearch).

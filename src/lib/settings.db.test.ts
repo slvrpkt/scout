@@ -39,24 +39,24 @@ describe("settings and themes", () => {
       { key: "provider", value: "LOCAL" },
       { key: "strict", value: "false" },
     ]);
-    expect(await loadSettings()).toMatchObject({ provider: "LOCAL", strict: false, customLanguages: ["Farsi"], docLanguage: "Dutch", paper: "A4" });
+    expect(await loadSettings()).toMatchObject({ provider: "LOCAL", strict: false, customLanguages: ["Farsi"], docLanguage: "Dutch", paper: "LETTER" });
   });
 
   it("removes a setting saved as null, so it reads as not set", async () => {
-    await saveSettings({ docLanguage: "Dutch", paper: "LETTER" });
+    await saveSettings({ docLanguage: "Dutch", paper: "A4" });
     await saveSettings({ docLanguage: null });
-    expect(await loadSettings()).toMatchObject({ docLanguage: null, paper: "LETTER" });
+    expect(await loadSettings()).toMatchObject({ docLanguage: null, paper: "A4" });
     expect(await prisma().setting.count()).toBe(1);
   });
 
   it("saves as part of a transaction it's given", async () => {
     await expect(
       prisma().$transaction(async (tx) => {
-        await saveSettings({ paper: "LETTER" }, tx);
+        await saveSettings({ paper: "A4" }, tx);
         throw new Error("Rolled back");
       }),
     ).rejects.toThrow("Rolled back");
-    expect((await loadSettings()).paper).toBe("A4");
+    expect((await loadSettings()).paper).toBe("LETTER");
   });
 
   it("falls back to Standard when the custom base theme is deleted", async () => {

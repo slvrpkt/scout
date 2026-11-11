@@ -15,7 +15,7 @@ import { openPendingTab, sendPendingTab } from "@/lib/claude-tab";
 import { cn } from "@/lib/cn";
 import type { PostingFit } from "@/lib/fit";
 import type { JobView } from "@/lib/jobs/runner";
-import { postedAgo, postingKey, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
+import { postedAgo, postingKey, radiusLabel, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
 import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
 
 import { dismissFoundPosting, loadFullText, restorePosting, savePostingForLater, showMorePostings, startScoringPosting, unsavePosting } from "./actions";
@@ -170,7 +170,7 @@ export function PostingResults(props: PostingResultsProps) {
         : postings.length > 0 || !searched
           ? "You've dismissed every posting here."
           : radius
-            ? `No postings for “${searched.keywords}”${searched.place ? ` within ${searched.radiusKm} km of ${searched.place}` : ""}. Try a bigger radius or fewer words.`
+            ? `No postings for “${searched.keywords}”${searched.place ? ` within ${radiusLabel(searched.radiusKm)} of ${searched.place}` : ""}. Try a bigger radius or fewer words.`
             : `No postings for “${searched.keywords}”${searched.place ? ` in ${searched.place}` : ""}. Try fewer words.`;
 
   return (

@@ -14,7 +14,7 @@ const start = (name: string, args: string[], env: Record<string, string>) => {
 
 const children = [
   start("fake AI", ["e2e/fake-ai.mts"], { FAKE_AI_PORT: String(FAKE_AI_PORT) }),
-  start("fake jobs", ["e2e/fake-jobs.mts"], { FAKE_JOBS_PORT: String(FAKE_JOBS_PORT) }),
+  start("fake jobs", ["e2e/fake-jobs.mts"], { FAKE_JOBS_PORT: String(FAKE_JOBS_PORT), FAKE_JOBS_REGION: "us" }),
   start("fake Google", ["e2e/fake-google.mts"], { FAKE_GOOGLE_PORT: String(FAKE_GOOGLE_PORT) }),
   start("app", [".next/standalone/server.js"], { ...appEnv(), HOSTNAME: "127.0.0.1", DOSSIER_DATA_DIR: process.env.SCOUT_DEMO_DATA_DIR ?? appEnv().DOSSIER_DATA_DIR }),
 ];

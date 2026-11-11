@@ -125,7 +125,7 @@ describe("testAiConnection and listAiModels", () => {
 describe("updateSettings (E10-2, E10-3)", () => {
   it("saves only the settings given", async () => {
     expect(await updateSettings({ creativity: "EXPRESSIVE", strict: false })).toEqual({ ok: true, data: null });
-    expect(await settings()).toMatchObject({ creativity: "EXPRESSIVE", strict: false, showDiff: true, paper: "A4" });
+    expect(await settings()).toMatchObject({ creativity: "EXPRESSIVE", strict: false, showDiff: true, paper: "LETTER" });
   });
 
   it("goes back to the posting's language with null", async () => {

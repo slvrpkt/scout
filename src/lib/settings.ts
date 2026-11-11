@@ -166,7 +166,7 @@ export const settingsSchema = z.object({
   atsOptimize: flag(true),
   /** "Show what changed" (SET-5). */
   showDiff: flag(true),
-  paper: z.enum(PaperSize).catch(PaperSize.A4),
+  paper: z.enum(PaperSize).catch(PaperSize.LETTER),
   /** One of DATE_FORMATS; a day-first style chosen before they were dropped reads as "September 27, 2026". */
   dateFormat: z
     .enum(DateFormat)
@@ -355,17 +355,6 @@ export const settingsSchema = z.object({
   driveBackupFolder: z.string().nullable().catch(null),
   driveBackupFiles: json(z.array(z.object({ id: z.string(), name: z.string() }))).catch([]),
   driveBackupProblem: z.string().nullable().catch(null),
-  // The usage ping (usage-ping.ts): this install's random ID, made by its
-  // first ping, and the UTC day of the last one. They belong to the install,
-  // not its data, so exports leave them out (INSTALL_SETTINGS).
-  usagePingId: z.string().nullable().catch(null),
-  usagePingDay: z.string().nullable().catch(null),
-  // Whether the operator agreed to the usage ping (#172), when, and which
-  // version of the question they answered (USAGE_PING_TEXT_VERSION), so the
-  // consent can be shown. Null: not answered yet, and nothing is sent.
-  usagePingChoice: z.enum(["on", "off"]).nullable().catch(null),
-  usagePingChoiceAt: z.string().nullable().catch(null),
-  usagePingChoiceText: z.coerce.number().int().nullable().catch(null),
   // The Claude connector (#221): when it was turned on, or Claude was last
   // disconnected; null while it's off, and then its addresses answer 404.
   // Every connector token carries it, so a new value signs Claude out. It

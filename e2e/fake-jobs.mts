@@ -26,12 +26,24 @@ const job = (id: string, title: string, company: string, extra: Record<string, u
   ...extra,
 });
 
-const firstPage = [
-  job("e2e-ledgerly", "Senior Product Designer, Payments", "Ledgerly", { job_min_salary: 75000, job_max_salary: 90000, job_salary_currency: "EUR", job_salary_period: "YEAR" }),
-  job("e2e-harbour", "Product Designer, Logistics", "Harbour Freight", { job_publisher: "Indeed" }),
-  job("e2e-tulip", "UX Designer", "Tulip Health", { job_is_remote: true, job_location: "Anywhere  •  via Indeed" }),
-];
-const secondPage = [job("e2e-canal", "Design Systems Designer", "Canal Software")];
+/** Scout's README screenshots ask for US postings (FAKE_JOBS_REGION=us); Dossier's own tests keep Rotterdam. */
+const US = process.env.FAKE_JOBS_REGION === "us";
+const usd = (min: number, max: number) => ({ job_min_salary: min, job_max_salary: max, job_salary_currency: "USD", job_salary_period: "YEAR" });
+const inUs = (city: string, state: string) => ({ job_location: `${city}, ${state}  •  via LinkedIn`, job_city: city, job_state: state, job_country: "US" });
+
+const firstPage = US
+  ? [
+      job("e2e-ledgerly", "Senior Product Designer, Payments", "Ledgerly", { ...usd(130000, 150000), ...inUs("Washington", "DC") }),
+      job("e2e-harbour", "Product Designer, Logistics", "Harbor Freight Lines", { job_publisher: "Indeed", ...inUs("Arlington", "VA"), ...usd(115000, 135000) }),
+      job("e2e-tulip", "UX Designer", "Bluebonnet Health", { job_is_remote: true, job_location: "United States  •  via Indeed", job_country: "US" }),
+      job("e2e-potomac", "Lead Product Designer", "Potomac Analytics", { job_publisher: "Glassdoor", ...inUs("Reston", "VA"), ...usd(145000, 170000) }),
+    ]
+  : [
+      job("e2e-ledgerly", "Senior Product Designer, Payments", "Ledgerly", { job_min_salary: 75000, job_max_salary: 90000, job_salary_currency: "EUR", job_salary_period: "YEAR" }),
+      job("e2e-harbour", "Product Designer, Logistics", "Harbour Freight", { job_publisher: "Indeed" }),
+      job("e2e-tulip", "UX Designer", "Tulip Health", { job_is_remote: true, job_location: "Anywhere  •  via Indeed" }),
+    ];
+const secondPage = [job("e2e-canal", "Design Systems Designer", "Canal Software", US ? inUs("Bethesda", "MD") : {})];
 
 function send(response: ServerResponse, status: number, body: unknown) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -86,25 +98,13 @@ function startups(path: string, request: IncomingMessage, response: ServerRespon
 
 /** How many JSearch searches were asked for, so a spec can tell a kept search came from the database. */
 let searches = 0;
-/** The usage pings the app sent here (DOSSIER_USAGE_PING_TEST_URL), so a spec can tell whether one went (#172). */
-const pings: unknown[] = [];
 
 createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://localhost:${port}`);
   if (url.pathname === "/health") return send(response, 200, { ok: true });
   if (url.pathname === "/searches") return send(response, 200, { searches });
-  if (url.pathname === "/pings") return send(response, 200, { pings });
   if (url.pathname === "/startup-requests") return send(response, 200, { requests: siteRequests });
   if (url.pathname.startsWith("/startups/")) return startups(url.pathname, request, response);
-  if (url.pathname === "/ping" && request.method === "POST") {
-    let body = "";
-    request.on("data", (chunk: Buffer) => (body += chunk.toString()));
-    request.on("end", () => {
-      pings.push(JSON.parse(body));
-      response.writeHead(204).end();
-    });
-    return;
-  }
   // Jev (DOSSIER_TYPESAFE_TEST_BASE_URL, #274): each question answered from
   // its id and line, so a spec knows the score: every Score at its top level
   // but past work one below, a line with "years", "skills" or "experience"

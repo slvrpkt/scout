@@ -10,7 +10,7 @@ import { dateSpan, demoLetterUnits, demoProfile, demoResumeUnits, LEVELS_BY_LABE
 import { basicsFromFields, fieldsFromBasics } from "@/lib/profile";
 import { advance, type StatusFields } from "@/lib/status";
 
-import sample from "./prototype-sample.json";
+import { sample } from "./sample";
 
 // The prototype's sample data (Jane Doe and her applications), for
 // development and demos. It's only loaded with `prisma db seed -- --demo`.

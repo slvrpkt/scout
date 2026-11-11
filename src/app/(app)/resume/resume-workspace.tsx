@@ -203,7 +203,16 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
     <>
       <PageHeader
         title="Base resume"
-        description="Built straight from your profile. Every new application starts from this one, then gets tailored to the job."
+        description={
+          <>
+            Built straight from your profile. Every new application starts from this one, then gets tailored to the job.
+            <span className="mt-1.5 block">
+              <strong className="font-medium text-ink">Think of it as your knowledge base, not the resume you send.</strong> Scout tailors a resume to each job, at the number of
+              pages you ask for, and picks from everything here. So put in every detail you might want to use: it&apos;s fine for this to run five, six or even ten pages.
+              The two- and three-page versions here, and every tailored resume, are made from it.
+            </span>
+          </>
+        }
         actions={
           <>
             <Link href="/profile" className={buttonClassName("secondary")}>
