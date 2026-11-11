@@ -18,10 +18,11 @@ import { collectBatch, startDueScoring } from "./score-queue";
 
 // The job agent's runs (E16-4): a timer in this process, like the nightly
 // backups and the inbox check, so it's only right with one instance. Every
-// 15 minutes it starts a run once one of the chosen times has come, in the
-// user's time zone, not the server's (usually UTC in Docker).
+// minute it starts a run once one of the chosen times has come, in the
+// user's time zone, not the server's (usually UTC in Docker): a run starts
+// within a minute of its time, however long ago Scout was started.
 
-const EVERY_MS = 15 * 60 * 1000;
+const EVERY_MS = 60 * 1000;
 const BATCH_CHECK_MS = 2 * 60 * 1000;
 /** After a start, this long before catching up, so a restart settles first. */
 export const CATCH_UP_MS = 3 * 60 * 1000;
@@ -56,10 +57,9 @@ export function scheduledRunDue(now: Date, times: readonly string[], timeZone: s
   return since.length < TRIES && since.every((run) => run.failed);
 }
 
-/** When the next scheduled run starts: soon when one is overdue, else the next time today, else tomorrow's first. */
+/** When the next scheduled run starts: the time it was due when one is overdue (the next minute's check starts it), else the next time today, else tomorrow's first. */
 export function nextAgentRun(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null): Date {
-  // Overdue: the next check starts it.
-  if (scheduledRunDue(now, times, timeZone, runs, onSince)) return new Date(Math.ceil(now.getTime() / EVERY_MS) * EVERY_MS);
+  if (scheduledRunDue(now, times, timeZone, runs, onSince)) return slotsOn(dayOf(now, timeZone), times, timeZone).findLast((slot) => slot <= now)!;
   const today = dayOf(now, timeZone);
   return slotsOn(today, times, timeZone).find((slot) => slot > now) ?? slotsOn(addDays(today, 1), times, timeZone)[0];
 }

@@ -1159,3 +1159,14 @@ model CostEvent {
 
   @@index([at])
 }
+
+/// A job the Archive's clearing deleted (Settings → Your data → Clear the
+/// Archive): only its keys ("source:externalId", the dedupe key, "job:" and the
+/// job key), so the agent still knows it saw it and doesn't pay to score it
+/// again. Kept 180 days.
+model ClearedJob {
+  key       String   @id
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

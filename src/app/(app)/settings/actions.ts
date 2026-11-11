@@ -33,7 +33,7 @@ import { askJev } from "@/lib/scoring/typesafe";
 import { applySecretChange, JOB_SOURCE_KEY, TYPESAFE_KEY } from "@/lib/secrets";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
-import { isJobRetention } from "@/lib/settings";
+import { isArchiveClear, isJobRetention } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
 // Settings → AI provider (E6-3). Every field saves on its own, so a test
@@ -262,6 +262,7 @@ export const updateSettings = action(
     nightlyBackup: z.boolean().optional(),
     backupToDrive: z.boolean().optional(),
     jobRetentionHours: z.number().refine(isJobRetention).optional(),
+    archiveClearDays: z.number().refine(isArchiveClear).optional(),
     updateCheck: z.boolean().optional(),
   }),
   async (changes) => {

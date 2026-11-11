@@ -4,7 +4,7 @@ import { dayOf } from "@/lib/calendar-view";
 import { zonedTime } from "@/lib/google/slots";
 import { AgentCandidateStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { settingsFromRows, type AgentUsage } from "@/lib/settings";
+import { settingsFromRows, type AgentUsage, type ClearedTally } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
 import { archiveReasonOf } from "./archive-reasons";
@@ -78,6 +78,32 @@ export async function lastRunResults(since: Date, minScore: number): Promise<Run
     else results.below += 1;
   }
   return results;
+}
+
+/**
+ * Every run's new postings since the first, the way the tiles count a run's:
+ * what's here now, plus what clearing the Archive deleted (its tally), so the
+ * totals never go down. `since` is when the first of them was found.
+ */
+export async function allTimeResults(minScore: number, cleared: ClearedTally): Promise<RunResults & { since: string | null }> {
+  const [here, first] = await Promise.all([
+    lastRunResults(new Date(0), minScore),
+    prisma.agentCandidate.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+  ]);
+  const deleted = cleared.setAside + cleared.skipped + cleared.archived;
+  const found = first?.createdAt.toISOString() ?? null;
+  return {
+    found: here.found + deleted,
+    waiting: here.waiting,
+    scored: here.scored + cleared.skipped + cleared.archived,
+    setAside: here.setAside + cleared.setAside,
+    atMin: here.atMin,
+    below: here.below,
+    drafted: here.drafted,
+    skipped: here.skipped + cleared.skipped,
+    archived: here.archived + cleared.archived,
+    since: [found, cleared.since].filter((date): date is string => Boolean(date)).sort()[0] ?? null,
+  };
 }
 
 /** What today's scores became: still in the list, or archived by a rule that needed the AI to read the posting. */

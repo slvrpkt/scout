@@ -114,7 +114,16 @@ export async function newPostings(postings: readonly FoundPosting[], now = new D
     select: { source: true, externalId: true, dedupeKey: true, jobKey: true },
   });
   const waiting = await prisma.queuedPosting.findMany({ where: { jobKey: { in: jobs } }, select: { jobKey: true } });
-  const seen = new Set([...known.flatMap((candidate) => [postingKey(candidate), candidate.dedupeKey, ...(candidate.jobKey ? [candidate.jobKey] : [])]), ...waiting.map((row) => row.jobKey)]);
+  // Jobs the Archive's clearing deleted: still seen, so they aren't scored again.
+  const cleared = await prisma.clearedJob.findMany({
+    where: { key: { in: [...unseen.map(postingKey), ...keys, ...jobs.map((key) => `job:${key}`)] } },
+    select: { key: true },
+  });
+  const seen = new Set([
+    ...known.flatMap((candidate) => [postingKey(candidate), candidate.dedupeKey, ...(candidate.jobKey ? [candidate.jobKey] : [])]),
+    ...waiting.map((row) => row.jobKey),
+    ...cleared.map((row) => row.key.replace(/^job:/, "")),
+  ]);
   // The same job twice in one page counts once too, the employer's own link first.
   const order = unseen.map((_, index) => index).toSorted((a, b) => Number(isEmployerLink(unseen[b].url)) - Number(isEmployerLink(unseen[a].url)));
   const kept = new Set<number>();

@@ -117,7 +117,7 @@ describe("when the daily run is due (E16-4)", () => {
 
   it("says the next run is today's while it's still to come, and soon when it's overdue", () => {
     expect(nextAgentRun(new Date("2026-10-20T03:00:00Z"), ["07:00"], "Europe/Berlin", []).toISOString()).toBe("2026-10-20T05:00:00.000Z");
-    expect(nextAgentRun(new Date("2026-10-20T05:07:00Z"), ["07:00"], "Europe/Berlin", []).toISOString()).toBe("2026-10-20T05:15:00.000Z");
+    expect(nextAgentRun(new Date("2026-10-20T05:07:00Z"), ["07:00"], "Europe/Berlin", []).toISOString()).toBe("2026-10-20T05:00:00.000Z");
   });
 });
 

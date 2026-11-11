@@ -5,6 +5,8 @@ import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
 
+import { clearArchive } from "@/lib/agent/clear-archive";
+
 import { removeOldZips } from "./zip-pdfs";
 
 // A finished job is only needed for a while: for a reload to find it again,
@@ -38,7 +40,11 @@ const globalForSweep = globalThis as unknown as { jobSweepTimer?: ReturnType<typ
 /** Sweeps now and every 15 minutes, once per process (dev reloads keep the timer they have). */
 export function startJobSweep(): void {
   if (globalForSweep.jobSweepTimer) return;
-  const sweep = () => void sweepFinishedJobs().catch((error: unknown) => logServerError("job sweep", error));
+  const sweep = () => {
+    void sweepFinishedJobs().catch((error: unknown) => logServerError("job sweep", error));
+    // Clear the Archive (Settings → Your data): archived agent jobs past their time.
+    void clearArchive().catch((error: unknown) => logServerError("archive clearing", error));
+  };
   globalForSweep.jobSweepTimer = setInterval(sweep, EVERY_MS);
   // Don't keep the process alive just for this.
   globalForSweep.jobSweepTimer.unref?.();

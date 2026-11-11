@@ -7,6 +7,7 @@ import { useEffect, useState, useTransition, type ReactNode } from "react";
 
 import { DuplicateBadge, DuplicateNote } from "@/components/duplicate-note";
 import { FitSummary } from "@/components/fit-summary";
+import { WorkModeBadge } from "@/components/work-mode-badge";
 import { SaveForLaterButton } from "@/components/save-for-later-button";
 import { PageHeader } from "@/components/page-header";
 import { ScoreBadge } from "@/components/score-badge";
@@ -19,6 +20,7 @@ import {
 import { toast, toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useJob } from "@/hooks/use-job";
 import type { RunResults } from "@/lib/agent/budget";
 import type { AgentCandidateView, AgentView } from "@/lib/agent/view";
@@ -69,8 +71,13 @@ type Today = {
   skipped: number;
   waiting: number;
   scoring: boolean;
+  /** A run is searching right now. */
+  running?: boolean;
   results: RunResults | null;
+  all: RunResults & { since: string | null };
 };
+
+const SINCE = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
 
 export function AgentScreen({
   view,
@@ -136,8 +143,14 @@ export function AgentScreen({
           skipped: view.budget.skipped,
           waiting: view.waiting,
           scoring: view.batchOut || Boolean(view.runJobId),
+          running: Boolean(view.runJobId),
           results: view.lastResults,
+          all: view.allResults,
         };
+  // The tiles: the last run's postings, or every run's since the first.
+  const [range, setRange] = useState<"last" | "all">("last");
+  const shownResults = range === "last" ? today.results : today.all;
+  const searching = running || Boolean(today.running);
 
   const runNow = () =>
     startTransition(async () => {
@@ -257,9 +270,39 @@ export function AgentScreen({
 
         {/* The agent at a glance: the last run, the next one, and what the last run's postings became. Searches are in Settings → Job agent. */}
         <Card padding="none" className="flex flex-col gap-4 px-6 py-5">
+          {/* Last run, or every run since the first: deleted Archive records still count in All time. */}
+          <div className="flex items-center justify-end">
+            <SegmentedControl<"last" | "all">
+              aria-label="Show"
+              size="sm"
+              options={[
+                { value: "last", label: "Last run" },
+                { value: "all", label: "All time" },
+              ]}
+              value={range}
+              onValueChange={setRange}
+            />
+          </div>
           <dl className="grid gap-3 lg:grid-cols-[1fr_1fr_2fr]">
-            <Stat label="Last run">
-              {view.lastRun ? (
+            <Stat label={range === "last" ? "Last run" : "All runs"}>
+              {searching && (
+                // While a run searches: so it's plain nothing is stuck.
+                <span className="mb-2 flex items-center gap-2 rounded-control bg-selected px-2.5 py-1.5 text-meta text-primary-text">
+                  <span aria-hidden="true" className="size-3.5 flex-none animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Hang tight: the job search just started. It takes a few minutes.
+                </span>
+              )}
+              {range === "all" ? (
+                <>
+                  <span className="block text-meta text-muted">
+                    {today.all.since ? `Since ${SINCE.format(new Date(today.all.since))}` : "Since the first run"}
+                  </span>
+                  <Big value={today.all.found} label={today.all.found === 1 ? "posting found" : "postings found"} />
+                  <span className="block text-meta text-muted">
+                    {today.all.scored.toLocaleString("en-US")} scored · {today.all.setAside.toLocaleString("en-US")} set aside by your settings before scoring
+                  </span>
+                </>
+              ) : view.lastRun ? (
                 <>
                   <span className="block text-meta text-muted">
                     {view.lastRun.at}
@@ -296,8 +339,7 @@ export function AgentScreen({
               {view.nextRun ? (
                 <>
                   <span className="block text-meta text-muted">
-                    {view.nextRun.split(", ").slice(0, -1).join(", ") ||
-                      "Today"}
+                    {view.nextRunDue ? "Starting now" : view.nextRun.split(", ").slice(0, -1).join(", ") || "Today"}
                   </span>
                   <span className="mt-1 block text-[44px] leading-none font-bold tracking-tight tabular-nums">
                     {view.nextRun.split(", ").at(-1)}
@@ -307,20 +349,20 @@ export function AgentScreen({
                 <span className="mt-1 block text-lg font-semibold">Off</span>
               )}
             </Stat>
-            <Stat label="Last run's scores">
-              {today.results ? (
+            <Stat label={range === "last" ? "Last run's scores" : "All runs' scores"}>
+              {shownResults ? (
                 <span className="mt-1 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                   <Big
-                    value={today.results.atMin}
+                    value={shownResults.atMin}
                     label={`${view.minScore} and up`}
                   />
                   <Big
-                    value={today.results.below}
+                    value={shownResults.below}
                     label={`Below ${view.minScore}`}
                   />
-                  <Big value={today.results.drafted} label="Drafted" />
+                  <Big value={shownResults.drafted} label="Drafted" />
                   <Big
-                    value={today.results.skipped}
+                    value={shownResults.skipped}
                     label="Skipped by your rules"
                   />
                 </span>
@@ -511,6 +553,7 @@ export function AgentScreen({
                           .filter(Boolean)
                           .join(" · ")}
                       </span>
+                      <WorkModeBadge posting={candidate} className="mt-0.5" />
                       <FoundDates candidate={candidate} />
                       {candidate.fresh && <Fresh label={candidate.fresh} />}
                       {candidate.wasArchived && <WasArchived />}
@@ -740,6 +783,7 @@ export function CandidateCard({
           {candidate.company && (
             <p className="text-sm text-ink">{candidate.company}</p>
           )}
+          <WorkModeBadge posting={candidate} className="my-1" />
           {candidate.facts && (
             <p className="text-meta text-muted">{candidate.facts}</p>
           )}

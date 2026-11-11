@@ -9,7 +9,7 @@ import { storePosting, unmarkPosting } from "@/lib/postings";
 import { AGENT_JOB_KEY, agentScanJob, agentScoreNowJob } from "@/lib/agent/jobs";
 import { agentSetupProblem } from "@/lib/agent/run";
 import { runLimitProblem } from "@/lib/agent/runs";
-import { lastRunResults, scoredToday, usageOn } from "@/lib/agent/budget";
+import { allTimeResults, lastRunResults, scoredToday, usageOn } from "@/lib/agent/budget";
 import { dayOf } from "@/lib/calendar-view";
 import { lastKnownTimeZone } from "@/lib/time-zone";
 import { MAX_SKIP_RULES_LENGTH } from "@/lib/scoring/rubric";
@@ -130,7 +130,7 @@ export const agentToday = action(z.object({}), async () => {
   const usage = usageOn(settings.agentUsage, dayOf(now, timeZone));
   const last = settings.agentRuns[0];
   const results = last ? await lastRunResults(new Date(last.at), settings.agentMinScore) : null;
-  return { scored: usage.scored, drafted: usage.drafted, ...(await scoredToday(now, timeZone)), waiting, scoring: Boolean(settings.agentBatchId) || unfinished.length > 0, results };
+  return { scored: usage.scored, drafted: usage.drafted, ...(await scoredToday(now, timeZone)), waiting, scoring: Boolean(settings.agentBatchId) || unfinished.length > 0, running: unfinished.some((job) => job.type === "agent-scan"), results, all: await allTimeResults(settings.agentMinScore, settings.agentClearedTally) };
 });
 
 const candidateId = z.string().min(1).max(100);

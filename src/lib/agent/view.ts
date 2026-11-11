@@ -21,7 +21,7 @@ import { dayOf } from "@/lib/calendar-view";
 
 import type { SearchQuery } from "@/lib/job-search/search";
 import { skipRuleList } from "@/lib/scoring/rubric";
-import { lastRunResults, scoredToday, usageOn, type RunResults } from "./budget";
+import { allTimeResults, lastRunResults, scoredToday, usageOn, type RunResults } from "./budget";
 import { freshFirst, freshLabel, withoutStaleBonus } from "@/lib/freshness";
 
 import { stringsOf } from "./candidates";
@@ -30,7 +30,7 @@ import { AGENT_JOB_KEY } from "./jobs";
 import { agentSetupProblem } from "./run";
 import { loadAgentSearches } from "./searches";
 import { agentRunsPerDay, runsInPastDay } from "./runs";
-import { nextAgentRun } from "./schedule";
+import { nextAgentRun, scheduledRunDue } from "./schedule";
 
 // What the Agent screen shows (E16-6).
 
@@ -110,6 +110,8 @@ export type AgentView = {
   waiting: number;
   /** What the last run's new postings became; null before the first run. */
   lastResults: RunResults | null;
+  /** Every run's, since the first; deleted Archive records still count. */
+  allResults: RunResults & { since: string | null };
   /** How many runs it may make in any 24 hours. */
   runsPerDay: number;
   /** When it runs, "04:00", in the user's zone. */
@@ -117,6 +119,8 @@ export type AgentView = {
   lastRun: { at: string; message: string | null } | null;
   /** In the user's zone; null while the agent is off. */
   nextRun: string | null;
+  /** Its time has come: the next minute's check starts it. */
+  nextRunDue: boolean;
   /** A run queued or running, to follow. */
   runJobId: string | null;
   drafts: AgentCandidateView[];
@@ -203,9 +207,11 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     /** Postings waiting for a score, in a batch or not yet sent. */
     waiting: await prisma.queuedPosting.count(),
     lastResults: last ? await lastRunResults(new Date(last.at), settings.agentMinScore) : null,
+    allResults: await allTimeResults(settings.agentMinScore, settings.agentClearedTally),
     runsPerDay: agentRunsPerDay(settings.agentTimes),
     times: settings.agentTimes,
     lastRun: last ? { at: formatDateTime12(new Date(last.at), timeZone, now), message: last.message } : null,
+    nextRunDue: settings.agentEnabled && scheduledRunDue(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince),
     nextRun: settings.agentEnabled ? formatDateTime12(nextAgentRun(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince), timeZone, now) : null,
     runJobId: runJobs[0]?.id ?? null,
     drafts: highestFirst(drafts),

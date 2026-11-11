@@ -157,6 +157,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             },
           }}
           jobRetentionHours={settings.jobRetentionHours}
+          archiveClearDays={settings.archiveClearDays}
           sampleData={await sampleDataState(prisma)}
         />
       ) : section === "documents" ? (

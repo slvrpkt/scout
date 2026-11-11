@@ -47,6 +47,20 @@ const open = (props: Partial<Parameters<typeof AgentSection>[0]> = {}) =>
 beforeEach(() => vi.clearAllMocks());
 
 describe("Settings → Job agent (E16-7)", () => {
+  it("asks before per-run drafts go past drafts a day, raising it on yes and keeping things on cancel", async () => {
+    const user = userEvent.setup();
+    open({ initial: { ...initial, autoDraft: true, times: ["09:00", "13:00"], draftShares: [20, 10] } });
+    await user.selectOptions(screen.getAllByLabelText("Drafts")[0], "30");
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Your runs now add up to 40 drafts");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(saveAgentSettings).not.toHaveBeenCalledWith(expect.objectContaining({ draftShares: [30, 10] }));
+    expect(screen.getAllByLabelText("Drafts")[0]).toHaveValue("20");
+
+    await user.selectOptions(screen.getAllByLabelText("Drafts")[0], "30");
+    await user.click(screen.getByRole("button", { name: "Raise to 40" }));
+    expect(saveAgentSettings).toHaveBeenLastCalledWith(expect.objectContaining({ draftShares: [30, 10], dailyDrafts: 40 }));
+  });
+
   it("is off until it's turned on", async () => {
     const user = userEvent.setup();
     open();

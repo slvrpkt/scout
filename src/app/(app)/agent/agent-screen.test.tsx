@@ -57,8 +57,10 @@ const view: AgentView = {
   setupSection: null,
   limitReached: false,
   batchOut: false,
+  nextRunDue: false,
   waiting: 0,
   lastResults: { found: 133, waiting: 0, scored: 72, setAside: 61, atMin: 28, below: 35, drafted: 3, skipped: 6, archived: 0 },
+  allResults: { found: 900, waiting: 0, scored: 500, setAside: 400, atMin: 120, below: 300, drafted: 20, skipped: 50, archived: 10, since: "2026-11-10T14:15:00.000Z" },
   runsPerDay: 3,
   times: ["07:00"],
   lastRun: { at: "Tue 20 Oct, 07:00", message: "2 new postings are waiting for a look." },
@@ -90,12 +92,13 @@ describe("jobs waiting for a score", () => {
   it("keeps today's counts and the waiting line up to date without reloading", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      vi.mocked(agentToday).mockResolvedValue({ ok: true, data: { scored: 61, drafted: 2, inList: 54, skipped: 6, waiting: 5, scoring: true, results: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0 } } });
+      vi.mocked(agentToday).mockResolvedValue({ ok: true, data: { scored: 61, drafted: 2, inList: 54, skipped: 6, waiting: 5, scoring: true, running: true, results: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0 }, all: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0, since: null } } });
       open({ waiting: 22 });
       await act(() => vi.advanceTimersByTimeAsync(15_000));
-      expect(screen.getByText("Last run").nextElementSibling).toHaveTextContent("133new postings found61 scored · 5 being scored now");
+      expect(screen.getByText("Last run", { selector: "dt" }).nextElementSibling).toHaveTextContent("133new postings found61 scored · 5 being scored now");
       expect(screen.getByText("Last run's scores").nextElementSibling).toHaveTextContent("Daily limits: 61 of 150 scores used today");
       expect(screen.getByText(/5 jobs are being scored now/)).toBeInTheDocument();
+      expect(screen.getByText("Hang tight: the job search just started. It takes a few minutes.")).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -107,7 +110,7 @@ describe("AgentScreen (E16-6)", () => {
     open();
     expect(screen.getByRole("heading", { level: 1, name: "Agentic job search" })).toBeInTheDocument();
     expect(screen.queryByText(/^Searches/)).not.toBeInTheDocument();
-    expect(screen.getByText("Last run").nextElementSibling).toHaveTextContent("Tue 20 Oct, 07:00133new postings found72 scored · 61 set aside by your settings before scoring");
+    expect(screen.getByText("Last run", { selector: "dt" }).nextElementSibling).toHaveTextContent("Tue 20 Oct, 07:00133new postings found72 scored · 61 set aside by your settings before scoring");
     expect(screen.getByText("Next run").nextElementSibling).toHaveTextContent("Wed 21 Oct07:00");
     expect(screen.getByText("Last run's scores").nextElementSibling).toHaveTextContent("2870 and up35Below 703Drafted6Skipped by your rules");
   });
@@ -200,6 +203,22 @@ describe("AgentScreen (E16-6)", () => {
     expect(found().some((text) => text?.includes("Posting s1"))).toBe(true);
   });
 
+  it("switches the tiles between the last run and every run since the first", async () => {
+    open();
+    await userEvent.click(screen.getByRole("radio", { name: "All time" }));
+    expect(screen.getByText("All runs").nextElementSibling).toHaveTextContent("Since Tue, Nov 10, 2026900postings found500 scored · 400 set aside by your settings before scoring");
+    expect(screen.getByText("All runs' scores").nextElementSibling).toHaveTextContent("12070 and up300Below 7020Drafted50Skipped by your rules");
+    await userEvent.click(screen.getByRole("radio", { name: "Last run" }));
+    expect(screen.getByText("Last run's scores")).toBeInTheDocument();
+  });
+
+  it("shows how the job works, Remote, Hybrid or On-site, on its list card and its big card", () => {
+    open({ scored: [card("s1", 84, { remote: true }), card("s2", 72, { description: "Hybrid: 3 days a week in the office." })] }, "s1");
+    expect(within(screen.getByRole("list", { name: "What it found" })).getAllByText("Remote")).toHaveLength(1);
+    expect(within(screen.getByRole("list", { name: "What it found" })).getByText("Hybrid")).toBeInTheDocument();
+    expect(screen.getAllByText("Remote")).toHaveLength(2);
+  });
+
   it("lists the highest score first under All, drafts or not", () => {
     open({ drafts: [card("d1", 81, { applicationId: "app-1" })], scored: [card("s1", 95), card("s2", 72)], belowMinimum: [card("b1", 40)] });
     expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["s1", "d1", "s2", "b1"]);
@@ -283,6 +302,6 @@ describe("AgentScreen (E16-6)", () => {
   it("says when there's nothing yet", () => {
     open({ drafts: [], scored: [], belowMinimum: [], lastRun: null, autoDraft: true });
     expect(screen.getByText("Nothing waiting yet. A run puts the postings that fit you best here.")).toBeInTheDocument();
-    expect(screen.getByText("Last run").nextElementSibling).toHaveTextContent("Not yet");
+    expect(screen.getByText("Last run", { selector: "dt" }).nextElementSibling).toHaveTextContent("Not yet");
   });
 });

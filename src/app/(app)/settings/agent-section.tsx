@@ -15,7 +15,7 @@ import { twelveHour } from "@/lib/dates";
 import type { Country } from "@/lib/job-search/countries";
 import type { JobSource, SearchQuery } from "@/lib/job-search/search";
 import type { Scorer } from "@/lib/scoring/scorers";
-import { MAX_AGENT_TIMES, sortedTimes } from "@/lib/settings";
+import { AGENT_DAILY_DRAFTS, MAX_AGENT_TIMES, sortedTimes } from "@/lib/settings";
 
 import { saveAgentSettings } from "../agent/actions";
 import { AgentSearches, type AgentSearchSetting, type HomeCountry } from "./agent-searches";
@@ -281,6 +281,15 @@ function RunTimes({ settings, timeZone, onChange }: { settings: AgentSettings; t
     onChange({ times: sorted.map((row) => row.time), scoreShares: sorted.map((row) => row.score), draftShares: sorted.map((row) => row.draft) });
   };
   const set = (index: number, change: Partial<(typeof rows)[number]>) => save(rows.map((row, at) => (at === index ? { ...row, ...change } : row)));
+  // Drafts across the runs past "Drafts a day, at most": ask whether to raise it, or keep things as they were.
+  const [overDrafts, setOverDrafts] = useState<{ next: typeof rows; total: number } | null>(null);
+  const setDrafts = (index: number, draft: number) => {
+    const next = rows.map((row, at) => (at === index ? { ...row, draft } : row));
+    const total = next.reduce((sum, row) => sum + row.draft, 0);
+    if (total > dailyDrafts) setOverDrafts({ next, total });
+    else save(next);
+  };
+  const raiseTo = overDrafts ? Math.min(overDrafts.total, AGENT_DAILY_DRAFTS.max) : 0;
   // The next free hour after the last time, so a new one doesn't repeat it; it gets no share until you give it one.
   const add = () => {
     const last = Number(times[times.length - 1]?.slice(0, 2) ?? 7);
@@ -315,7 +324,7 @@ function RunTimes({ settings, timeZone, onChange }: { settings: AgentSettings; t
               ))}
             </Select>
             {autoDraft && (
-              <Select label="Drafts" value={String(row.draft)} onChange={(event) => set(index, { draft: Number(event.target.value) })}>
+              <Select label="Drafts" value={String(row.draft)} onChange={(event) => setDrafts(index, Number(event.target.value))}>
                 {withValue(SHARE_STEPS.filter((count) => count <= 100), row.draft).map((count) => (
                   <option key={count} value={count}>
                     {count}
@@ -338,6 +347,23 @@ function RunTimes({ settings, timeZone, onChange }: { settings: AgentSettings; t
       <Button variant="secondary" size="sm" className="self-start" aria-disabled={times.length >= MAX_AGENT_TIMES || undefined} onClick={() => times.length < MAX_AGENT_TIMES && add()}>
         Add a run time
       </Button>
+      <ConfirmDialog
+        open={overDrafts !== null}
+        onOpenChange={(open) => !open && setOverDrafts(null)}
+        title={`Raise drafts a day to ${raiseTo}?`}
+        description={
+          overDrafts
+            ? `Your runs now add up to ${overDrafts.total} drafts, more than "Drafts a day, at most" (${dailyDrafts}), which would stop them first. Raise it to ${raiseTo}${overDrafts.total > raiseTo ? ", the most allowed" : ""} so the runs can use what you picked? Cancel keeps everything as it was.`
+            : ""
+        }
+        confirmLabel={`Raise to ${raiseTo}`}
+        onConfirm={() => {
+          if (!overDrafts) return;
+          const sorted = overDrafts.next.toSorted((a, b) => a.time.localeCompare(b.time));
+          onChange({ times: sorted.map((row) => row.time), scoreShares: sorted.map((row) => row.score), draftShares: sorted.map((row) => row.draft), dailyDrafts: raiseTo });
+          setOverDrafts(null);
+        }}
+      />
     </Card>
   );
 }

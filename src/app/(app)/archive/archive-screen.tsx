@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
@@ -8,12 +9,14 @@ import { toast, toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ARCHIVE_REASONS } from "@/lib/agent/archive-reasons";
+import { archiveClearPeriod } from "@/lib/settings";
 import type { ArchiveRow } from "@/lib/archive-data";
 import { DEFAULT_ARCHIVE_SORT, filterArchive, NO_ARCHIVE_FILTERS, sortArchive, type ArchiveFilters, type ArchiveSort, type ArchiveSortKey } from "@/lib/archive-view";
 import { setArchived } from "@/lib/application-actions";
 import { cn } from "@/lib/cn";
 
 import { restoreAgentCandidate } from "../agent/actions";
+import { ArchiveCharts } from "./archive-charts";
 
 /** Rows on a page of the table. */
 export const ARCHIVE_PAGE = 50;
@@ -45,7 +48,7 @@ const numberOf = (text: string) => {
  * to sort by any column and filter, 50 rows a page. Put back returns a row
  * where it came from, with a link there, and it carries a "Was archived" label.
  */
-export function ArchiveScreen({ rows: initial }: { rows: ArchiveRow[] }) {
+export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: ArchiveRow[]; clearDays?: number }) {
   const router = useRouter();
   const [rows, setRows] = useState(initial);
   const [filters, setFilters] = useState<ArchiveFilters>(NO_ARCHIVE_FILTERS);
@@ -82,12 +85,29 @@ export function ArchiveScreen({ rows: initial }: { rows: ArchiveRow[] }) {
 
   return (
     <div className="flex flex-col">
-      <PageHeader
-        title="Archive"
-        description="Jobs set aside so they stay out of your way. Most are postings the agentic job search filtered out because they didn't meet the criteria you set: job titles to skip, words that rule a job out, distance, your minimum score or a search's own skip rules. The rest are jobs and applications you archived yourself, for example after looking one up and deciding not to apply. Put back returns any of them to where it came from."
-      />
+      <PageHeader title="Archive" />
+      {/* Across the page, so it takes two lines rather than six. */}
+      <div className="flex flex-col gap-1.5 px-10 pt-1 pb-6 text-pretty">
+        <p className="text-lead text-muted">
+          Jobs set aside so they stay out of your way: mostly postings the agentic job search filtered out by the criteria you set (job titles to skip, words that rule a job out, distance, your minimum score
+          or a search&apos;s skip rules), plus jobs and applications you archived yourself. Put back returns any of them to where it came from.
+        </p>
+        {/* How long they're kept: said plainly, with where to change it. */}
+        <p role="note" className="text-meta text-muted">
+          {clearDays > 0
+            ? `Jobs the agentic job search set aside, or that you archived, are deleted automatically ${archiveClearPeriod(clearDays)} after they were archived. Applications you archived are never deleted. `
+            : "Nothing here is deleted automatically. "}
+          To {clearDays > 0 ? "keep them longer, or never delete them" : "clear old jobs automatically"}, change it in{" "}
+          <Link href="/settings?section=data" className="underline underline-offset-2 hover:text-ink">
+            Settings → Your data → Clear the Archive
+          </Link>
+          .
+        </p>
+      </div>
       <div className="flex flex-col gap-4 px-10 pb-16">
-        <Card padding="none" className="flex flex-wrap items-end gap-4 px-6 py-4">
+        <ArchiveCharts rows={rows} now={now} />
+        {/* The filters in an even grid: one row on a wide screen, even rows on a narrower one. */}
+        <Card padding="none" className="grid grid-cols-2 items-end gap-x-3 gap-y-4 px-6 py-4 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9">
           <Field label="When archived">
             <select aria-label="When archived" value={filters.when} onChange={(event) => set({ when: event.target.value as ArchiveFilters["when"] })} className={control}>
               <option value="all">Any time</option>
@@ -128,16 +148,16 @@ export function ArchiveScreen({ rows: initial }: { rows: ArchiveRow[] }) {
             <input type="search" aria-label="Title" placeholder="Title, or the word that archived it" value={filters.title} onChange={(event) => set({ title: event.target.value })} className={control} />
           </Field>
           <Field label="Company" grow>
-            <input type="search" aria-label="Company" value={filters.company} onChange={(event) => set({ company: event.target.value })} className={control} />
+            <input type="search" aria-label="Company" placeholder="Company name, e.g. Accenture" value={filters.company} onChange={(event) => set({ company: event.target.value })} className={control} />
           </Field>
           <Field label="Location" grow>
             <input type="search" aria-label="Location" placeholder="City, state or Remote" value={filters.location} onChange={(event) => set({ location: event.target.value })} className={control} />
           </Field>
           <Field label="Salary at least">
-            <input inputMode="numeric" aria-label="Salary at least" placeholder="$110,000" value={filters.minPay?.toLocaleString("en-US") ?? ""} onChange={(event) => set({ minPay: numberOf(event.target.value) })} className={cn(control, "w-32")} />
+            <input inputMode="numeric" aria-label="Salary at least" placeholder="$110,000" value={filters.minPay?.toLocaleString("en-US") ?? ""} onChange={(event) => set({ minPay: numberOf(event.target.value) })} className={control} />
           </Field>
           <Field label="Score at least">
-            <input inputMode="numeric" aria-label="Score at least" placeholder="60" value={filters.minScore ?? ""} onChange={(event) => set({ minScore: numberOf(event.target.value) })} className={cn(control, "w-24")} />
+            <input inputMode="numeric" aria-label="Score at least" placeholder="60" value={filters.minScore ?? ""} onChange={(event) => set({ minScore: numberOf(event.target.value) })} className={control} />
           </Field>
           {finders.length > 0 && (
             <Field label="Found by">
@@ -151,13 +171,13 @@ export function ArchiveScreen({ rows: initial }: { rows: ArchiveRow[] }) {
               </select>
             </Field>
           )}
-          {filtered && (
-            <Button variant="text" size="sm" onClick={() => set(NO_ARCHIVE_FILTERS)}>
-              Clear filters
-            </Button>
-          )}
-          <p className="basis-full text-meta text-muted">
+          <p className="col-span-full flex flex-wrap items-center gap-x-3 text-meta text-muted">
             {shown.length === rows.length ? `${rows.length} archived.` : `${shown.length} of ${rows.length} match.`} Click a column&apos;s name to sort by it; click again to reverse.
+            {filtered && (
+              <Button variant="text" size="sm" onClick={() => set(NO_ARCHIVE_FILTERS)}>
+                Clear filters
+              </Button>
+            )}
           </p>
         </Card>
 
@@ -242,6 +262,7 @@ export function ArchiveScreen({ rows: initial }: { rows: ArchiveRow[] }) {
   );
 }
 
-function Field({ label, grow, children }: { label: string; grow?: boolean; children: ReactNode }) {
-  return <div className={cn("flex flex-col gap-1.5 text-label text-muted", grow ? "min-w-[160px] flex-[1_1_180px]" : "min-w-[120px]")}>{label}{children}</div>;
+function Field({ label, children }: { label: string; grow?: boolean; children: ReactNode }) {
+  // Each filter fills its grid cell, so they line up evenly.
+  return <div className="flex min-w-0 flex-col gap-1.5 text-label text-muted [&>*:last-child]:w-full">{label}{children}</div>;
 }

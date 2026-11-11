@@ -51,6 +51,27 @@ export const JOB_RETENTION_OPTIONS: readonly { hours: number; label: string }[] 
   { hours: 24 * 30, label: "30 days" },
 ];
 export const DEFAULT_JOB_RETENTION_HOURS = 24;
+
+/** Clear the Archive: archived agent jobs are deleted this many days after they were archived; 0 is never. */
+export const ARCHIVE_CLEAR_OPTIONS: readonly { days: number; label: string }[] = [
+  { days: 2, label: "After 48 hours" },
+  { days: 7, label: "After 7 days" },
+  { days: 30, label: "After 30 days" },
+  { days: 90, label: "After 90 days" },
+  { days: 0, label: "Never" },
+];
+export const DEFAULT_ARCHIVE_CLEAR_DAYS = 90;
+const clearedTallySchema = z.object({
+  setAside: z.number().int().min(0).catch(0),
+  skipped: z.number().int().min(0).catch(0),
+  archived: z.number().int().min(0).catch(0),
+  since: z.string().nullable().catch(null),
+});
+export type ClearedTally = z.infer<typeof clearedTallySchema>;
+export const EMPTY_CLEARED_TALLY: ClearedTally = { setAside: 0, skipped: 0, archived: 0, since: null };
+export const isArchiveClear = (days: number) => ARCHIVE_CLEAR_OPTIONS.some((option) => option.days === days);
+/** "48 hours", "90 days"; for the Archive's note. */
+export const archiveClearPeriod = (days: number) => (days === 2 ? "48 hours" : `${days} days`);
 export const isJobRetention = (hours: number) => JOB_RETENTION_OPTIONS.some((option) => option.hours === hours);
 /** "24 hours" */
 export const jobRetentionLabel = (hours: number) =>
@@ -216,6 +237,10 @@ export const settingsSchema = z.object({
   nightlyBackup: flag(true),
   /** Finished background jobs are deleted after this many hours (JOB_RETENTION_OPTIONS). */
   jobRetentionHours: z.coerce.number().refine(isJobRetention).catch(DEFAULT_JOB_RETENTION_HOURS),
+  /** Archived agent jobs are deleted this many days after they were archived (ARCHIVE_CLEAR_OPTIONS); 0 keeps them. Applications are never deleted. */
+  archiveClearDays: z.coerce.number().refine(isArchiveClear).catch(DEFAULT_ARCHIVE_CLEAR_DAYS),
+  /** The archived agent jobs the clearing deleted, by kind, and the oldest one's date: the agent's all-time totals add them back. */
+  agentClearedTally: json(clearedTallySchema).catch(EMPTY_CLEARED_TALLY),
   /** A theme's id. loadSettings() reads a deleted one as Editorial. */
   baseThemeId: z.string().catch(DEFAULT_BASE_THEME),
   /** The Applications screen as last left (LST-7): view, filter and sort, e.g. "-match". */

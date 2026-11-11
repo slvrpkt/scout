@@ -14,6 +14,7 @@ import {
 
 import { DuplicateBadge, DuplicateNote } from "@/components/duplicate-note";
 import { FitSummary } from "@/components/fit-summary";
+import { WorkModeBadge } from "@/components/work-mode-badge";
 import { SaveForLaterButton } from "@/components/save-for-later-button";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScoreExplainer } from "@/components/score-explainer";
@@ -526,6 +527,7 @@ function PostingList({
                   .filter(Boolean)
                   .join(" · ")}
               </span>
+              <WorkModeBadge posting={posting} />
               <span className="flex items-center justify-between gap-3">
                 <span className="min-w-0 truncate text-xs text-muted">
                   {[
@@ -716,6 +718,7 @@ function PostingDetail({
           {posting.company && (
             <p className="text-sm text-ink">{posting.company}</p>
           )}
+          <WorkModeBadge posting={posting} className="my-1" />
           {facts && <p className="text-meta text-muted">{facts}</p>}
           <p className="text-xs text-muted">
             {(posting.pasted

@@ -81,6 +81,18 @@
   --color-saved-hover: light-dark(#e6a52c, #c98b20);
   --color-saved-line: light-dark(#d9962a, #b07a1c);
   --color-on-saved: light-dark(#3d2a05, #1f1503);
+  /* Work mode capsules on job cards: bright, with white text that stays readable */
+  --color-mode-remote: light-dark(#047857, #059669);
+  --color-mode-hybrid: light-dark(#1d5fb8, #2a78d6);
+  --color-mode-onsite: light-dark(#b45309, #c2410c);
+  /* Categorical colors for charts, in a fixed order (Archive donut) */
+  --color-chart-1: light-dark(#2a78d6, #3987e5);
+  --color-chart-2: light-dark(#eb6834, #d95926);
+  --color-chart-3: light-dark(#1baf7a, #199e70);
+  --color-chart-4: light-dark(#eda100, #c98500);
+  --color-chart-5: light-dark(#e87ba4, #d55181);
+  --color-chart-6: light-dark(#008300, #008300);
+  --color-chart-7: light-dark(#6250d6, #9085e9);
   --color-info: light-dark(#1f3a5f, #a9c3e8); /* the match summary's title */
   --color-info-surface: light-dark(oklch(0.96 0.02 250), rgb(96 165 250 / 0.12));
   --color-info-line: light-dark(oklch(0.87 0.04 250), rgb(96 165 250 / 0.35));

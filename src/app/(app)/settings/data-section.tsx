@@ -16,7 +16,7 @@ import { useJob } from "@/hooks/use-job";
 import { IMPORT_MAX_BYTES, IMPORT_TOO_BIG } from "@/lib/import-limits";
 import type { JobView } from "@/lib/jobs/runner";
 import { downloadFrom } from "@/lib/save-file";
-import { JOB_RETENTION_OPTIONS } from "@/lib/settings";
+import { ARCHIVE_CLEAR_OPTIONS, JOB_RETENTION_OPTIONS } from "@/lib/settings";
 
 import { backUpNow, deleteEverything, loadSample, removeSample, startZippingPdfs, updateSettings } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
@@ -73,6 +73,7 @@ export function DataSection({
   exportName,
   backups,
   jobRetentionHours,
+  archiveClearDays,
   sampleData,
 }: {
   hasApiKey: boolean;
@@ -80,6 +81,8 @@ export function DataSection({
   backups: BackupStatus;
   /** How long finished background jobs are kept. */
   jobRetentionHours: number;
+  /** When archived agent jobs are deleted; 0 is never. */
+  archiveClearDays: number;
   /** Whether the sample job search is in, and whether it can be. */
   sampleData: { loaded: boolean; loadedAt: string | null; canLoad: boolean };
 }) {
@@ -88,6 +91,7 @@ export function DataSection({
   const track = useTrackSave();
   const [nightly, setNightly] = useState(backups.on);
   const [retention, setRetention] = useState(jobRetentionHours);
+  const [clearDays, setClearDays] = useState(archiveClearDays);
   const fileInput = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [importing, setImporting] = useState(false);
@@ -143,6 +147,17 @@ export function DataSection({
     void track(updateSettings({ jobRetentionHours: hours })).then((result) => {
       if (!result.ok) {
         setRetention(before);
+        toast(result.error);
+      }
+    });
+  };
+
+  const changeClearDays = (days: number) => {
+    const before = clearDays;
+    setClearDays(days);
+    void track(updateSettings({ archiveClearDays: days })).then((result) => {
+      if (!result.ok) {
+        setClearDays(before);
         toast(result.error);
       }
     });
@@ -246,6 +261,19 @@ export function DataSection({
             >
               {JOB_RETENTION_OPTIONS.map((option) => (
                 <option key={option.hours} value={option.hours}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          }
+        />
+        <DataRow
+          title="Clear the Archive"
+          description="Jobs the agentic job search set aside, or that you archived, are deleted this long after they were archived, so the Archive doesn't keep growing. Applications you archived are never deleted, and the agent still remembers a deleted job, so it isn't scored again."
+          action={
+            <Select aria-label="Clear the Archive" value={clearDays} onChange={(event) => changeClearDays(Number(event.target.value))}>
+              {ARCHIVE_CLEAR_OPTIONS.map((option) => (
+                <option key={option.days} value={option.days}>
                   {option.label}
                 </option>
               ))}
