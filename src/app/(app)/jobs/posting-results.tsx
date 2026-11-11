@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type Ref,
+} from "react";
 
 import { DuplicateBadge, DuplicateNote } from "@/components/duplicate-note";
 import { FitSummary } from "@/components/fit-summary";
@@ -10,7 +18,10 @@ import { SaveForLaterButton } from "@/components/save-for-later-button";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScoreExplainer } from "@/components/score-explainer";
 import { HowToApply } from "@/components/how-to-apply";
-import { linksAttribution, SourceAttribution } from "@/components/source-attribution";
+import {
+  linksAttribution,
+  SourceAttribution,
+} from "@/components/source-attribution";
 import { toast, toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { useJob } from "@/hooks/use-job";
@@ -18,10 +29,26 @@ import { openPendingTab, sendPendingTab } from "@/lib/claude-tab";
 import { cn } from "@/lib/cn";
 import type { PostingFit } from "@/lib/fit";
 import type { JobView } from "@/lib/jobs/runner";
-import { postedAgo, postingKey, radiusLabel, type FoundPosting, type PostingState, type ShownPosting, type StoredSearch } from "@/lib/job-search/search";
+import {
+  postedAgo,
+  postingKey,
+  radiusLabel,
+  type FoundPosting,
+  type PostingState,
+  type ShownPosting,
+  type StoredSearch,
+} from "@/lib/job-search/search";
 import { arbeitsagenturPage, SOURCE_INFO } from "@/lib/job-search/sources";
 
-import { dismissFoundPosting, loadFullText, restorePosting, savePostingForLater, showMorePostings, startScoringPosting, unsavePosting } from "./actions";
+import {
+  dismissFoundPosting,
+  loadFullText,
+  restorePosting,
+  savePostingForLater,
+  showMorePostings,
+  startScoringPosting,
+  unsavePosting,
+} from "./actions";
 import { useStartApplication } from "./use-start-application";
 
 /** Narrow windows show the posting above the list. */
@@ -43,7 +70,8 @@ export type PostingResultsProps = {
   | { mode: "saved" | "dismissed"; postings: ShownPosting[] }
 );
 
-const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
 
 /**
  * Postings in a list, and the selected one's whole text beside it, or above
@@ -54,28 +82,59 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
 export function PostingResults(props: PostingResultsProps) {
   const { mode } = props;
   const router = useRouter();
-  const [postings, setPostings] = useState(mode === "search" ? props.search.postings : props.postings);
-  const [next, setNext] = useState(mode === "search" ? props.search.next : null);
+  const [postings, setPostings] = useState(
+    mode === "search" ? props.search.postings : props.postings,
+  );
+  const [next, setNext] = useState(
+    mode === "search" ? props.search.next : null,
+  );
   const [loadingMore, setLoadingMore] = useState(false);
   const [showDismissed, setShowDismissed] = useState(false);
-  const inView = ({ state }: ShownPosting) => (mode === "saved" ? state.saved : mode === "dismissed" ? state.dismissed : showDismissed || !state.dismissed);
+  const inView = ({ state }: ShownPosting) =>
+    mode === "saved"
+      ? state.saved
+      : mode === "dismissed"
+        ? state.dismissed
+        : showDismissed || !state.dismissed;
   // The same job from another board, already in the log, stays out of the list.
-  const visible = postings.filter(inView).filter((posting) => mode !== "search" || posting.state.duplicate?.kind !== "duplicate");
-  const hidden = mode === "search" ? postings.filter((posting) => posting.state.dismissed).length : 0;
-  const [selectedKey, setSelectedKey] = useState(visible[0] ? postingKey(visible[0]) : null);
-  const selected = visible.find((posting) => postingKey(posting) === selectedKey) ?? visible[0] ?? null;
+  const visible = postings
+    .filter(inView)
+    .filter(
+      (posting) =>
+        mode !== "search" || posting.state.duplicate?.kind !== "duplicate",
+    );
+  const hidden =
+    mode === "search"
+      ? postings.filter((posting) => posting.state.dismissed).length
+      : 0;
+  const [selectedKey, setSelectedKey] = useState(
+    visible[0] ? postingKey(visible[0]) : null,
+  );
+  const selected =
+    visible.find((posting) => postingKey(posting) === selectedKey) ??
+    visible[0] ??
+    null;
   const detail = useRef<HTMLElement>(null);
   const now = new Date(props.today);
   const { starting, start } = useStartApplication();
   // Postings being scored (#208), with the step under way, by postingKey.
-  const [scoring, setScoring] = useState<Record<string, { jobId: string; step: string | null }>>({});
+  const [scoring, setScoring] = useState<
+    Record<string, { jobId: string; step: string | null }>
+  >({});
 
   const updateState = (key: string, change: Partial<PostingState>) =>
-    setPostings((list) => list.map((posting) => (postingKey(posting) === key ? { ...posting, state: { ...posting.state, ...change } } : posting)));
+    setPostings((list) =>
+      list.map((posting) =>
+        postingKey(posting) === key
+          ? { ...posting, state: { ...posting.state, ...change } }
+          : posting,
+      ),
+    );
 
   const select = (key: string, { reveal = false } = {}) => {
     setSelectedKey(key);
-    if (reveal && window.matchMedia?.(NARROW).matches) detail.current?.scrollIntoView({ block: "start" });
+    if (reveal && window.matchMedia?.(NARROW).matches)
+      detail.current?.scrollIntoView({ block: "start" });
   };
 
   /** Changes a posting's state; when that takes it out of the list, the next one takes its place. */
@@ -84,36 +143,58 @@ export function PostingResults(props: PostingResultsProps) {
     const index = visible.findIndex((entry) => postingKey(entry) === key);
     const after = visible[index + 1] ?? visible[index - 1];
     updateState(key, state);
-    if (!inView({ ...posting, state: { ...posting.state, ...state } }) && after) setSelectedKey(postingKey(after));
+    if (!inView({ ...posting, state: { ...posting.state, ...state } }) && after)
+      setSelectedKey(postingKey(after));
   };
 
   const save = async (posting: ShownPosting) => {
-    const result = toastResult(await savePostingForLater({ posting: withoutState(posting) }));
+    const result = toastResult(
+      await savePostingForLater({ posting: withoutState(posting) }),
+    );
     if (!result.ok) return;
-    change(posting, { saved: true, dismissed: false, postingId: result.data.postingId });
+    change(posting, {
+      saved: true,
+      dismissed: false,
+      postingId: result.data.postingId,
+    });
     setSelectedKey(postingKey(posting));
     router.refresh();
   };
 
   const unsave = async (posting: ShownPosting) => {
-    const result = await unsavePosting({ source: posting.source, externalId: posting.externalId });
+    const result = await unsavePosting({
+      source: posting.source,
+      externalId: posting.externalId,
+    });
     if (!result.ok) return void toast(result.error);
     change(posting, { saved: false });
     // On Saved for later, the posting leaves the list: Undo puts it back.
-    if (mode === "saved") toast("Taken off Saved for later.", { action: { label: "Undo", onClick: () => void save(posting) } });
+    if (mode === "saved")
+      toast("Taken off Saved for later.", {
+        action: { label: "Undo", onClick: () => void save(posting) },
+      });
     else toastResult(result);
     router.refresh();
   };
 
   const restore = async (posting: ShownPosting, saved: boolean) => {
-    const result = toastResult(await restorePosting({ source: posting.source, externalId: posting.externalId, saved }));
+    const result = toastResult(
+      await restorePosting({
+        source: posting.source,
+        externalId: posting.externalId,
+        saved,
+      }),
+    );
     if (!result.ok) return;
     change(posting, { dismissed: false, saved });
-    if (mode === "dismissed") toast("Put back. It'll show in your searches again.");
+    if (mode === "dismissed")
+      toast("Put back. It'll show in your searches again.");
   };
 
   const dismiss = async (posting: ShownPosting) => {
-    const result = await dismissFoundPosting({ posting: withoutState(posting) });
+    const result = await dismissFoundPosting({
+      posting: withoutState(posting),
+    });
     if (!result.ok) return void toast(result.error);
     change(posting, { dismissed: true, saved: false });
     toast("Archived. It won't show in your searches; find it under Archived.", {
@@ -133,25 +214,38 @@ export function PostingResults(props: PostingResultsProps) {
     setScoring((current) => ({ ...current, [key]: { jobId: "", step: null } }));
     // Opened now, while the click still counts: a tab opened after waiting is blocked as a pop-up (#221).
     const chat = props.scoreInClaude ? openPendingTab() : null;
-    const result = toastResult(await startScoringPosting({ posting: withoutState(posting) }));
+    const result = toastResult(
+      await startScoringPosting({ posting: withoutState(posting) }),
+    );
     if (result.ok && "handoff" in result.data) {
       sendPendingTab(chat, result.data.handoff);
       setScoring((current) => without(current, key));
-      toast("Scoring it in Claude. Reload this page once Claude has saved the score.");
+      toast(
+        "Scoring it in Claude. Reload this page once Claude has saved the score.",
+      );
       return;
     }
     chat?.close();
-    setScoring((current) => (result.ok && "jobId" in result.data ? { ...current, [key]: { jobId: result.data.jobId, step: null } } : without(current, key)));
+    setScoring((current) =>
+      result.ok && "jobId" in result.data
+        ? { ...current, [key]: { jobId: result.data.jobId, step: null } }
+        : without(current, key),
+    );
   };
 
   const scoringChanged = (key: string, job: JobView<PostingFit>) => {
     if (job.status === "DONE" || job.status === "FAILED") {
       setScoring((current) => without(current, key));
-      if (job.status === "DONE" && job.result) updateState(key, { score: job.result });
+      if (job.status === "DONE" && job.result)
+        updateState(key, { score: job.result });
       else toast(job.error ?? "The posting couldn't be scored. Try again.");
       return;
     }
-    setScoring((current) => (current[key] ? { ...current, [key]: { ...current[key], step: job.step } } : current));
+    setScoring((current) =>
+      current[key]
+        ? { ...current, [key]: { ...current[key], step: job.step } }
+        : current,
+    );
   };
 
   const showMore = async () => {
@@ -162,12 +256,18 @@ export function PostingResults(props: PostingResultsProps) {
     if (!result.ok) return void toast(result.error);
     if (!result.data.ok) return void toast(result.data.message);
     const seen = new Set(postings.map(postingKey));
-    setPostings([...postings, ...result.data.postings.filter((posting) => !seen.has(postingKey(posting)))]);
+    setPostings([
+      ...postings,
+      ...result.data.postings.filter(
+        (posting) => !seen.has(postingKey(posting)),
+      ),
+    ]);
     setNext(result.data.next);
   };
 
   const searched = props.mode === "search" ? props.search.query : null;
-  const radius = props.mode === "search" && SOURCE_INFO[props.search.source].radius;
+  const radius =
+    props.mode === "search" && SOURCE_INFO[props.search.source].radius;
   const empty =
     mode === "saved"
       ? "Nothing here. Click Save for later on a job in Agentic or Manual job search and it shows up here."
@@ -182,10 +282,21 @@ export function PostingResults(props: PostingResultsProps) {
   return (
     <div className="flex flex-wrap items-start gap-6 px-10 pb-16">
       {Object.entries(scoring).map(([key, { jobId }]) =>
-        jobId ? <ScoreWatcher key={jobId} jobId={jobId} onChange={(job) => scoringChanged(key, job)} /> : null,
+        jobId ? (
+          <ScoreWatcher
+            key={jobId}
+            jobId={jobId}
+            onChange={(job) => scoringChanged(key, job)}
+          />
+        ) : null,
       )}
       <div className="flex min-w-0 flex-[1_1_340px] flex-col gap-3">
-        <p className={cn("flex flex-wrap items-baseline gap-x-3 gap-y-1 text-meta text-muted", mode !== "search" && visible.length === 0 && "hidden")}>
+        <p
+          className={cn(
+            "flex flex-wrap items-baseline gap-x-3 gap-y-1 text-meta text-muted",
+            mode !== "search" && visible.length === 0 && "hidden",
+          )}
+        >
           <span>
             {props.mode === "search"
               ? `${plural(postings.length, "posting", "postings")} from ${SOURCE_INFO[props.search.source].name}${next ? ", more to come" : ""} · searched ${props.search.ranAt}`
@@ -210,13 +321,18 @@ export function PostingResults(props: PostingResultsProps) {
               onClick={() => setShowDismissed(!showDismissed)}
               className="underline-offset-3 hover:text-ink aria-pressed:text-ink aria-pressed:underline"
             >
-              {hidden === 1 ? "1 archived posting hidden" : `${hidden} archived postings hidden`} · {showDismissed ? "Hide" : "Show"}
+              {hidden === 1
+                ? "1 archived posting hidden"
+                : `${hidden} archived postings hidden`}{" "}
+              · {showDismissed ? "Hide" : "Show"}
             </button>
           )}
         </p>
 
         {visible.length === 0 ? (
-          <div className="rounded-panel border border-line-card bg-card px-5 py-9 text-center text-sm text-muted">{empty}</div>
+          <div className="rounded-panel border border-line-card bg-card px-5 py-9 text-center text-sm text-muted">
+            {empty}
+          </div>
         ) : (
           <PostingList
             updated={mode === "search" ? props.search.ranAt : null}
@@ -230,7 +346,12 @@ export function PostingResults(props: PostingResultsProps) {
         )}
 
         {next && (
-          <Button variant="secondary" className="self-start" onClick={() => void showMore()} aria-disabled={loadingMore || undefined}>
+          <Button
+            variant="secondary"
+            className="self-start"
+            onClick={() => void showMore()}
+            aria-disabled={loadingMore || undefined}
+          >
             {loadingMore ? "Loading more…" : "Show more"}
           </Button>
         )}
@@ -248,12 +369,21 @@ export function PostingResults(props: PostingResultsProps) {
           onRestore={() => void restore(selected, false)}
           scoring={scoring[postingKey(selected)] ?? null}
           onScore={() => void score(selected)}
-          onOpen={selected.state.dismissed ? undefined : () => void start(withoutState(selected), postingKey(selected))}
+          onOpen={
+            selected.state.dismissed
+              ? undefined
+              : () => void start(withoutState(selected), postingKey(selected))
+          }
           opening={starting === postingKey(selected)}
           foundOn={mode === "search" ? props.search.ranAt : null}
         >
           {!selected.state.dismissed && (
-            <StartButton starting={starting === postingKey(selected)} onClick={() => void start(withoutState(selected), postingKey(selected))} />
+            <StartButton
+              starting={starting === postingKey(selected)}
+              onClick={() =>
+                void start(withoutState(selected), postingKey(selected))
+              }
+            />
           )}
         </PostingDetail>
       )}
@@ -269,15 +399,31 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
 }
 
 /** Follows a posting's scoring job (#208). */
-function ScoreWatcher({ jobId, onChange }: { jobId: string; onChange: (job: JobView<PostingFit>) => void }) {
+function ScoreWatcher({
+  jobId,
+  onChange,
+}: {
+  jobId: string;
+  onChange: (job: JobView<PostingFit>) => void;
+}) {
   useJob<PostingFit>(jobId, 0, onChange);
   return null;
 }
 
 /** Review Opportunity on a posting (E14-8), as on Agentic job search: New application, with the posting filled in. */
-export function StartButton({ starting, onClick }: { starting: boolean; onClick: () => void }) {
+export function StartButton({
+  starting,
+  onClick,
+}: {
+  starting: boolean;
+  onClick: () => void;
+}) {
   return (
-    <Button size="sm" aria-disabled={starting || undefined} onClick={starting ? undefined : onClick}>
+    <Button
+      size="sm"
+      aria-disabled={starting || undefined}
+      onClick={starting ? undefined : onClick}
+    >
       {starting ? "Opening…" : "Review Opportunity"}
     </Button>
   );
@@ -315,7 +461,11 @@ function PostingList({
   // Up and down move through the list, as in a mail inbox.
   const move = (event: KeyboardEvent<HTMLUListElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button[data-posting]")];
+    const buttons = [
+      ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
+        "button[data-posting]",
+      ),
+    ];
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
     if (index < 0) return;
     const target = buttons[index + (event.key === "ArrowDown" ? 1 : -1)];
@@ -333,7 +483,13 @@ function PostingList({
         const title = posting.title || "Untitled posting";
         const pillLabel = scoring[key] ? "Scoring…" : "Score";
         return (
-          <li key={key} className={cn("group relative", posting.state.dismissed && "opacity-60")}>
+          <li
+            key={key}
+            className={cn(
+              "group relative",
+              posting.state.dismissed && "opacity-60",
+            )}
+          >
             <button
               type="button"
               data-posting={key}
@@ -341,11 +497,15 @@ function PostingList({
               onClick={() => onSelect(key, { reveal: true })}
               className={cn(
                 "flex w-full flex-col gap-1 rounded-card border bg-card px-4 py-3.5 text-left group-hover:border-line-strong",
-                current ? "border-primary bg-selected shadow-[0_0_0_1px_var(--color-primary)]" : "border-line-card",
+                current
+                  ? "border-primary bg-selected shadow-[0_0_0_1px_var(--color-primary)]"
+                  : "border-line-card",
               )}
             >
               <span className="flex items-start justify-between gap-3">
-                <span className="text-field font-medium text-pretty">{title}</span>
+                <span className="text-field font-medium text-pretty">
+                  {title}
+                </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <StateBadges state={posting.state} />
                   {posting.state.score ? (
@@ -357,12 +517,31 @@ function PostingList({
                   )}
                 </span>
               </span>
-              <span className="text-meta text-muted">{[posting.company, posting.place, posting.remote ? "Remote" : ""].filter(Boolean).join(" · ")}</span>
+              <span className="text-meta text-muted">
+                {[
+                  posting.company,
+                  posting.place,
+                  posting.remote ? "Remote" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
               <span className="flex items-center justify-between gap-3">
                 <span className="min-w-0 truncate text-xs text-muted">
-                  {[postedAgo(posting.postedAt, now), posting.via && `via ${posting.via}`, posting.salary, updated && `Last updated ${updated}`].filter(Boolean).join(" · ")}
+                  {[
+                    postedAgo(posting.postedAt, now),
+                    posting.via && `via ${posting.via}`,
+                    posting.salary,
+                    updated && `Last updated ${updated}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </span>
-                <SourceAttribution source={posting.source} url={posting.url} placeholder />
+                <SourceAttribution
+                  source={posting.source}
+                  url={posting.url}
+                  placeholder
+                />
               </span>
             </button>
             {/* A button can't hold another, so the pill lies over the room the card keeps for it, with the card's border and padding. */}
@@ -385,7 +564,11 @@ function PostingList({
             {/* Adzuna's label is a link, so it lies over room the card keeps too (E14-2). */}
             {linksAttribution(posting.source) && (
               <span className="pointer-events-none absolute inset-0 flex items-end justify-end border border-transparent px-4 py-3.5">
-                <SourceAttribution source={posting.source} url={posting.url} className="pointer-events-auto" />
+                <SourceAttribution
+                  source={posting.source}
+                  url={posting.url}
+                  className="pointer-events-auto"
+                />
               </span>
             )}
           </li>
@@ -397,13 +580,20 @@ function PostingList({
 
 function StateBadges({ state }: { state: PostingState }) {
   // A duplicate says it instead of Applied, with the application it matches (#43).
-  const badges = [!state.duplicate && state.applicationId && "Applied", state.saved && "Saved", state.dismissed && "Archived"].filter(Boolean) as string[];
+  const badges = [
+    !state.duplicate && state.applicationId && "Applied",
+    state.saved && "Saved",
+    state.dismissed && "Archived",
+  ].filter(Boolean) as string[];
   if (badges.length === 0 && !state.duplicate) return null;
   return (
     <span className="flex shrink-0 gap-1.5">
       {state.duplicate && <DuplicateBadge match={state.duplicate} />}
       {badges.map((badge) => (
-        <span key={badge} className="rounded-full bg-track px-2 py-0.5 text-xs text-ink">
+        <span
+          key={badge}
+          className="rounded-full bg-track px-2 py-0.5 text-xs text-ink"
+        >
           {badge}
         </span>
       ))}
@@ -412,11 +602,20 @@ function StateBadges({ state }: { state: PostingState }) {
 }
 
 /** The Agentic card's date capsules: posted in green, found in blue. */
-const capsule = "rounded-full px-2 py-[2px] text-xs font-medium whitespace-nowrap";
+const capsule =
+  "rounded-full px-2 py-[2px] text-xs font-medium whitespace-nowrap";
 // A posting's date has no time of day: read in UTC, it stays that day wherever you are.
-const POSTED_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const POSTED_DATE = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
 
-type Text = { status: "ready"; text: string } | { status: "loading" } | { status: "partial"; text: string };
+type Text =
+  | { status: "ready"; text: string }
+  | { status: "loading" }
+  | { status: "partial"; text: string };
 
 /** The selected posting: its facts, what to do with it, and its whole text. */
 function PostingDetail({
@@ -456,7 +655,11 @@ function PostingDetail({
   const sourcePage = arbeitsagenturPage(posting);
   // The posting as first shown; the component is keyed by it.
   const [initial] = useState(posting);
-  const [text, setText] = useState<Text>(initial.complete ? { status: "ready", text: initial.description } : { status: "loading" });
+  const [text, setText] = useState<Text>(
+    initial.complete
+      ? { status: "ready", text: initial.description }
+      : { status: "loading" },
+  );
 
   // A source that only sent the start: ask for the rest (E14-2, E14-3).
   useEffect(() => {
@@ -465,7 +668,11 @@ function PostingDetail({
     void loadFullText({ posting: withoutState(initial) }).then((result) => {
       if (!current) return;
       const full = result.ok ? result.data.text : null;
-      setText(full ? { status: "ready", text: full } : { status: "partial", text: initial.description });
+      setText(
+        full
+          ? { status: "ready", text: full }
+          : { status: "partial", text: initial.description },
+      );
     });
     return () => {
       current = false;
@@ -474,8 +681,12 @@ function PostingDetail({
 
   const { state } = posting;
   const ago = postedAgo(posting.postedAt, now);
-  const facts = [posting.place, posting.remote ? "Remote" : "", posting.salary].filter(Boolean).join(" · ");
-  const posted = posting.postedAt ? POSTED_DATE.format(new Date(posting.postedAt)) : null;
+  const facts = [posting.place, posting.remote ? "Remote" : "", posting.salary]
+    .filter(Boolean)
+    .join(" · ");
+  const posted = posting.postedAt
+    ? POSTED_DATE.format(new Date(posting.postedAt))
+    : null;
 
   return (
     <section
@@ -484,7 +695,8 @@ function PostingDetail({
       className="flex min-w-0 flex-[999_1_420px] scroll-mt-[121px] flex-col gap-4 rounded-panel border border-line-card bg-card p-7 max-lg:order-first max-lg:max-h-[75vh] lg:sticky lg:top-[121px] lg:max-h-[calc(100dvh-145px)]"
     >
       {/* As on Agentic job search: the facts, and the score in its circle at the top right. */}
-      <div className="flex items-start justify-between gap-4">
+      {/* The actions in a row of their own at the top (shown first), the posting's details under them. */}
+      <div className="flex flex-col-reverse gap-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <h2 id={headingId} className="font-serif text-section text-pretty">
             {onOpen ? (
@@ -501,81 +713,122 @@ function PostingDetail({
             )}
           </h2>
           {/* As on Agentic job search: the company, the facts, where it's from, and when it was posted and found. */}
-          {posting.company && <p className="text-sm text-ink">{posting.company}</p>}
+          {posting.company && (
+            <p className="text-sm text-ink">{posting.company}</p>
+          )}
           {facts && <p className="text-meta text-muted">{facts}</p>}
-          <p className="text-xs text-muted">{(posting.pasted ? ["Pasted into New application"] : [posting.via && `via ${posting.via}`, `on ${SOURCE_INFO[posting.source].name}`]).filter(Boolean).join(" ")}</p>
+          <p className="text-xs text-muted">
+            {(posting.pasted
+              ? ["Pasted into New application"]
+              : [
+                  posting.via && `via ${posting.via}`,
+                  `on ${SOURCE_INFO[posting.source].name}`,
+                ]
+            )
+              .filter(Boolean)
+              .join(" ")}
+          </p>
           <span className="mt-1.5 flex flex-wrap gap-1.5">
-            <span className={`${capsule} bg-success-surface text-success`} title={ago || undefined}>
+            <span
+              className={`${capsule} bg-success-surface text-success`}
+              title={ago || undefined}
+            >
               {posted ? `Posted ${posted}` : "Posted date not given"}
             </span>
-            {foundOn && <span className={`${capsule} bg-selected text-primary-text`}>Last updated {foundOn}</span>}
+            {foundOn && (
+              <span className={`${capsule} bg-selected text-primary-text`}>
+                Last updated {foundOn}
+              </span>
+            )}
           </span>
           <span className="mt-1.5">
             <HowToApply url={posting.url} />
           </span>
         </div>
-        <div className="flex flex-none items-start gap-3">
-        {!state.dismissed && <SaveForLaterButton saved={state.saved} onToggle={state.saved ? onUnsave : onSave} />}
-        {state.score && !scoring ? (
-          <ScoreExplainer
-            score={state.score.score}
-            title={[posting.title, posting.company].filter(Boolean).join(" at ")}
-            reasons={state.score.reasons}
-            redFlags={state.score.redFlags}
-            breakdown={state.score.breakdown}
-            onRescore={onScore}
-          />
-        ) : (
-          // Not scored yet: Manual job search scores on request, so the circle starts it.
-          <button
-            type="button"
-            aria-disabled={scoring ? true : undefined}
-            onClick={scoring ? undefined : onScore}
-            className="grid size-11 flex-none place-items-center rounded-full border border-dashed border-line-strong text-xs text-muted hover:border-muted hover:text-ink aria-disabled:cursor-default aria-disabled:hover:border-line-strong aria-disabled:hover:text-muted motion-safe:aria-disabled:animate-pulse"
-          >
-            {scoring ? "Scoring…" : "Score"}
-          </button>
-        )}
+        {/* The actions at the top, so they're there without scrolling: all one height, the score centered on them. */}
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
+          <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
+            {children}
+            {state.dismissed && (
+              <Button variant="secondary" size="sm" onClick={onRestore}>
+                Put back
+              </Button>
+            )}
+            {posting.url && (
+              <a
+                href={posting.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClassName("secondary", "sm")}
+              >
+                Open posting<span aria-hidden>↗</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            )}
+            {/* A BA posting with a link of its own still links to its ad on arbeitsagentur.de (#223). */}
+            {sourcePage && sourcePage !== posting.url && (
+              <a
+                href={sourcePage}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClassName("secondary", "sm")}
+              >
+                On arbeitsagentur.de<span aria-hidden>↗</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            )}
+            {!state.dismissed && (
+              <Button variant="danger-outline" size="sm" onClick={onDismiss}>
+                Archive
+              </Button>
+            )}
+          </div>
+          {!state.dismissed && (
+            <SaveForLaterButton
+              saved={state.saved}
+              onToggle={state.saved ? onUnsave : onSave}
+            />
+          )}
+          {state.score && !scoring ? (
+            <ScoreExplainer
+              score={state.score.score}
+              title={[posting.title, posting.company]
+                .filter(Boolean)
+                .join(" at ")}
+              reasons={state.score.reasons}
+              redFlags={state.score.redFlags}
+              breakdown={state.score.breakdown}
+              onRescore={onScore}
+            />
+          ) : (
+            // Not scored yet: Manual job search scores on request, so the circle starts it.
+            <button
+              type="button"
+              aria-disabled={scoring ? true : undefined}
+              onClick={scoring ? undefined : onScore}
+              className="grid size-11 flex-none place-items-center rounded-full border border-dashed border-line-strong text-xs text-muted hover:border-muted hover:text-ink aria-disabled:cursor-default aria-disabled:hover:border-line-strong aria-disabled:hover:text-muted motion-safe:aria-disabled:animate-pulse"
+            >
+              {scoring ? "Scoring…" : "Score"}
+            </button>
+          )}
         </div>
       </div>
 
       {state.duplicate ? (
         <DuplicateNote match={state.duplicate} />
-      ) : state.applicationId && (
-        <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
-          You&apos;ve applied for this.{" "}
-          <Link href={`/applications/${state.applicationId}`} className="underline underline-offset-2">
-            Open the application
-          </Link>
-        </p>
+      ) : (
+        state.applicationId && (
+          <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
+            You&apos;ve applied for this.{" "}
+            <Link
+              href={`/applications/${state.applicationId}`}
+              className="underline underline-offset-2"
+            >
+              Open the application
+            </Link>
+          </p>
+        )
       )}
-
-      <div className="flex flex-wrap items-center gap-2">
-        {children}
-        {state.dismissed && (
-          <Button variant="secondary" size="sm" onClick={onRestore}>
-            Put back
-          </Button>
-        )}
-        {posting.url && (
-          <a href={posting.url} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>
-            Open posting<span aria-hidden>↗</span>
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-        )}
-        {/* A BA posting with a link of its own still links to its ad on arbeitsagentur.de (#223). */}
-        {sourcePage && sourcePage !== posting.url && (
-          <a href={sourcePage} target="_blank" rel="noopener noreferrer" className={buttonClassName("secondary", "sm")}>
-            On arbeitsagentur.de<span aria-hidden>↗</span>
-            <span className="sr-only"> (opens in a new tab)</span>
-          </a>
-        )}
-        {!state.dismissed && (
-          <Button variant="danger-outline" size="sm" onClick={onDismiss}>
-            Archive
-          </Button>
-        )}
-      </div>
 
       {scoring ? (
         <p role="status" className="text-meta text-muted">
@@ -600,7 +853,12 @@ function PostingDetail({
       )}
 
       {/* Only the text scrolls, so the title and actions stay in view; focusable, so it scrolls from the keyboard too. */}
-      <div tabIndex={0} role="region" aria-label="Posting text" className="-mx-1 min-h-0 flex-1 overflow-y-auto border-t border-line px-1 pt-4">
+      <div
+        tabIndex={0}
+        role="region"
+        aria-label="Posting text"
+        className="-mx-1 min-h-0 flex-1 overflow-y-auto border-t border-line px-1 pt-4"
+      >
         {text.status === "loading" ? (
           <p role="status" className="text-sm text-muted">
             Getting the whole posting…
@@ -609,15 +867,23 @@ function PostingDetail({
           <>
             {text.status === "partial" && (
               <p className="mb-3 rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
-                This is only the start of the posting. When you start an application, you can paste the rest from the posting&apos;s page.
+                This is only the start of the posting. When you start an
+                application, you can paste the rest from the posting&apos;s
+                page.
               </p>
             )}
-            <div className="text-sm leading-relaxed whitespace-pre-line">{text.text || "The source didn't send a description."}</div>
+            <div className="text-sm leading-relaxed whitespace-pre-line">
+              {text.text || "The source didn't send a description."}
+            </div>
           </>
         )}
       </div>
       {/* As the source's terms ask (E14-2, E14-3). */}
-      <SourceAttribution source={posting.source} url={posting.url} className="self-start" />
+      <SourceAttribution
+        source={posting.source}
+        url={posting.url}
+        className="self-start"
+      />
     </section>
   );
 }
