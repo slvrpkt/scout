@@ -174,10 +174,6 @@ Scout is then at [http://localhost:3000](http://localhost:3000), with its databa
 4. **Settings → Scoring:** your ZIP code, how far you'll travel, your pay range and what matters to you.
 5. **Settings → Job agent:** add a search, pick the times it runs, and switch it on. Results appear under **Agentic job search**.
 
-### Hosting it yourself (entirely optional)
-
-Scout is made to run on your own computer, and that's all most people need. If you'd like it reachable from anywhere, you can put it on a small server of your own, for example an AWS EC2 or Lightsail instance with Docker Compose and a reverse proxy such as Caddy for HTTPS. Give it at least 2 vCPUs and 2 GB of memory, keep your `.env` private, and use a strong password. Scout also supports signing in through Amazon Cognito (`DOSSIER_AUTH=cognito`, see `.env.example`).
-
 ### Updating
 
 From your Scout folder: `git pull`, then `yarn install`, `yarn prisma migrate deploy --config prisma7.config.ts` and start it again (or `docker compose -f compose.production.yml build` and `up -d`). Settings → About can check for new versions of Scout; that check is off until you switch it on.

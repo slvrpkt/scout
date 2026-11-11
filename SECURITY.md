@@ -1,6 +1,6 @@
 # Security
 
-Scout is a single-user app you run on your own server. It holds your career history, your job applications and, if you use a hosted model, an AI provider's API key. This page covers what protects that data, what it expects from your setup, and how to report a problem. What Scout keeps, for how long and who receives what is in [PRIVACY.md](PRIVACY.md).
+Scout is a single-user app you run on your own computer. It holds your career history, your job applications and, if you use a hosted model, an AI provider's API key. This page covers what protects that data, what it expects from your setup, and how to report a problem. What Scout keeps, for how long and who receives what is in [PRIVACY.md](PRIVACY.md).
 
 ## Reporting a vulnerability
 
@@ -31,14 +31,16 @@ So the worst a hostile posting or mail can do is get odd wording into its own dr
 
 ## Running it safely
 
+Scout is meant to run on your own computer. If you put it on a server anyway, reachable from other machines, it expects this:
+
 - **Use HTTPS.** Put Scout behind a reverse proxy that ends TLS (Caddy, Traefik, nginx). Set `Strict-Transport-Security` there. Scout adds `upgrade-insecure-requests` to its policy when the proxy says the request came over HTTPS (`X-Forwarded-Proto`).
 - **Don't expose port 3000 directly.** Rate limiting trusts the last `X-Forwarded-For` entry, which is only the real client behind a proxy.
 - **Pick a long `DOSSIER_SECRET`** and keep it with your backups: without it, saved API keys can't be read. Changing it or the password signs out every session.
-- **Keep it updated.** Settings → About tells you when a new version is out.
+- **Keep it updated.** Switch on the update check in Settings → About and it tells you when a new version is out.
 
 ## Dependencies
 
-Dependabot proposes updates once a week, for the npm packages, GitHub Actions and Docker images. Advisories that `yarn npm audit --all --recursive` still reports, checked on 28 September 2026:
+Dependency updates are checked by hand before a release. Advisories that `yarn npm audit --all --recursive` still reports, checked on 28 September 2026:
 
 | Package | Advisory | Why it's accepted |
 |---|---|---|
