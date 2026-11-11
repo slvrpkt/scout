@@ -2,11 +2,20 @@
 
 import type { ReactNode } from "react";
 
+import { cn } from "@/lib/cn";
+
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import type { Country } from "@/lib/job-search/countries";
-import { POSTED_WITHIN, RADII_KM, radiusLabel, type JobSource, type RadiusKm, type SearchQuery } from "@/lib/job-search/search";
+import {
+  POSTED_WITHIN,
+  RADII_KM,
+  radiusLabel,
+  type JobSource,
+  type RadiusKm,
+  type SearchQuery,
+} from "@/lib/job-search/search";
 import { SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
 
 // A search's fields, as Find jobs asks them (E14-6) and Settings → Job agent
@@ -15,9 +24,16 @@ import { SOURCE_INFO, sourceCovers } from "@/lib/job-search/sources";
 export type SearchFieldErrors = { keywords?: string; country?: string };
 
 /** Why `source` can't search the country, in words, or undefined. */
-export function uncoveredCountry(source: JobSource | null, query: SearchQuery, countries: readonly Country[]): string | undefined {
-  if (!source || !query.country || sourceCovers(source, query.country)) return undefined;
-  const name = countries.find((country) => country.code === query.country)?.name ?? query.country.toUpperCase();
+export function uncoveredCountry(
+  source: JobSource | null,
+  query: SearchQuery,
+  countries: readonly Country[],
+): string | undefined {
+  if (!source || !query.country || sourceCovers(source, query.country))
+    return undefined;
+  const name =
+    countries.find((country) => country.code === query.country)?.name ??
+    query.country.toUpperCase();
   return `${SOURCE_INFO[source].name} doesn't list jobs in ${name}.`;
 }
 
@@ -32,6 +48,8 @@ export function SearchFields({
   where,
   agent = false,
   underWhat,
+  afterWhat,
+  cells = {},
 }: {
   value: SearchQuery;
   onChange: (patch: Partial<SearchQuery>) => void;
@@ -46,12 +64,23 @@ export function SearchFields({
   agent?: boolean;
   /** Under What, e.g. the job agent's other titles. */
   underWhat?: ReactNode;
+  /** Next to What, in its own cell: Manual job search's Company and Search button. */
+  afterWhat?: ReactNode;
+  /** Each field's grid cell, for a layout of its own (Manual job search's two rows). */
+  cells?: Partial<
+    Record<"what" | "where" | "country" | "within" | "posted", string>
+  >;
 }) {
   const uncovered = uncoveredCountry(source, value, countries);
   const noRadius = source !== null && !SOURCE_INFO[source].radius;
   return (
     <>
-      <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-1">
+      <div
+        className={cn(
+          "flex flex-col gap-1.5",
+          cells.what ?? "sm:col-span-2 lg:col-span-1",
+        )}
+      >
         <Input
           label="What"
           value={value.keywords}
@@ -62,8 +91,26 @@ export function SearchFields({
         />
         {underWhat}
       </div>
-      {where ? <div className="sm:col-span-2">{where}</div> : <Input label="Where" value={value.place} placeholder="City or region" onChange={(event) => onChange({ place: event.target.value })} onBlur={onBlur} />}
-      <Select label="Country" value={value.country} error={errors.country ?? uncovered} onChange={(event) => onChange({ country: event.target.value })}>
+      {afterWhat}
+      {where ? (
+        <div className="sm:col-span-2">{where}</div>
+      ) : (
+        <Input
+          label="Where"
+          className={cells.where}
+          value={value.place}
+          placeholder="City or region"
+          onChange={(event) => onChange({ place: event.target.value })}
+          onBlur={onBlur}
+        />
+      )}
+      <Select
+        label="Country"
+        className={cells.country}
+        value={value.country}
+        error={errors.country ?? uncovered}
+        onChange={(event) => onChange({ country: event.target.value })}
+      >
         <option value="">Choose a country</option>
         {countries.map((country) => (
           <option key={country.code} value={country.code}>
@@ -72,27 +119,47 @@ export function SearchFields({
         ))}
       </Select>
       {!where && (
-      <Select
-        label="Within"
-        value={String(value.radiusKm)}
-        disabled={noRadius || !value.place.trim()}
-        hint={noRadius ? `${SOURCE_INFO[source].name} has no distance filter` : value.place.trim() ? undefined : "Add a place first"}
-        onChange={(event) => onChange({ radiusKm: Number(event.target.value) as RadiusKm })}
-      >
-        {RADII_KM.map((km) => (
-          <option key={km} value={km}>
-            {radiusLabel(km)}
-          </option>
-        ))}
-      </Select>
+        <Select
+          label="Within"
+          className={cells.within}
+          value={String(value.radiusKm)}
+          disabled={noRadius || !value.place.trim()}
+          hint={
+            noRadius
+              ? `${SOURCE_INFO[source].name} has no distance filter`
+              : value.place.trim()
+                ? undefined
+                : "Add a place first"
+          }
+          onChange={(event) =>
+            onChange({ radiusKm: Number(event.target.value) as RadiusKm })
+          }
+        >
+          {RADII_KM.map((km) => (
+            <option key={km} value={km}>
+              {radiusLabel(km)}
+            </option>
+          ))}
+        </Select>
       )}
       {agent ? (
         <div className="flex flex-col gap-1.5 text-label text-muted">
           Posted
-          <span className="rounded-control border border-line-field bg-sunken px-3 py-2 text-sm text-ink">Automatic (new since last run)</span>
+          <span className="rounded-control border border-line-field bg-sunken px-3 py-2 text-sm text-ink">
+            Automatic (new since last run)
+          </span>
         </div>
       ) : (
-        <Select label="Date posted" value={value.postedWithin} onChange={(event) => onChange({ postedWithin: event.target.value as SearchQuery["postedWithin"] })}>
+        <Select
+          label="Date posted"
+          className={cells.posted}
+          value={value.postedWithin}
+          onChange={(event) =>
+            onChange({
+              postedWithin: event.target.value as SearchQuery["postedWithin"],
+            })
+          }
+        >
           {POSTED_WITHIN.map((option) => (
             <option key={option.value} value={option.value}>
               {option.value === "day" ? "Past 24 hours" : option.label}

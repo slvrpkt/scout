@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { PrismaClient, StatusEvent } from "@/generated/prisma/client";
+import type { Prisma, PrismaClient, StatusEvent } from "@/generated/prisma/client";
 import type { ApplicationStatus, FileFormat } from "@/generated/prisma/enums";
 
 import { saveSentCopies } from "./sent-documents";
@@ -43,6 +43,8 @@ export async function applyStatusChange(
     const event = await tx.statusEvent.create({ data: { applicationId, ...change.event } });
     // The first time it counts as sent, what was sent is kept (application history).
     if (!application.sentAt && change.update.sentAt) copies = await saveSentCopies(tx, applicationId, change.update.sentAt, event.id, sentFormat);
+    // Applied: it's in the Job application log now, so it comes off Saved for later.
+    if (change.update.sentAt) await unsaveApplied(tx, applicationId);
     return { outcome: "changed", event };
   });
   // Loaded on use: the backup brings in the job runner and Google.
@@ -78,4 +80,11 @@ export async function undoStatusChange(db: PrismaClient, eventId: string): Promi
     await tx.statusEvent.delete({ where: { id: event.id } });
     return { outcome: "undone", status: restored.status };
   });
+}
+
+/** Takes the job an application was made from off Saved for later: the posting it started from, or the agent's job it drafted. */
+async function unsaveApplied(tx: Prisma.TransactionClient, applicationId: string): Promise<void> {
+  await tx.posting.updateMany({ where: { applicationId, savedAt: { not: null } }, data: { savedAt: null } });
+  const candidate = await tx.agentCandidate.findUnique({ where: { applicationId }, select: { source: true, externalId: true } });
+  if (candidate) await tx.posting.updateMany({ where: { source: candidate.source, externalId: candidate.externalId, savedAt: { not: null } }, data: { savedAt: null } });
 }

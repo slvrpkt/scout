@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { isAiUsable } from "@/lib/ai/config";
 import { handsOffToClaude } from "@/lib/connector/handoff";
@@ -24,6 +25,8 @@ export const metadata: Metadata = { title: "Manual job search" };
 export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   const params = await searchParams;
   const view = viewFromParams(params);
+  // Saved jobs have their own page now.
+  if (params.view === "saved") redirect("/saved");
   const typed = queryFromParams(params);
   const searchId = typeof params.search === "string" ? params.search : undefined;
   const [config, timeZone, postingCounts, searches, scoreInClaude] = await Promise.all([

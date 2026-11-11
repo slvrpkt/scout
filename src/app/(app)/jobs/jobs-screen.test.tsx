@@ -88,9 +88,9 @@ beforeEach(() => {
 });
 
 describe("the page bar", () => {
-  it("offers New application at the top right, as the other pages do", () => {
+  it("offers New manual application at the top right, the only page that does", () => {
     renderScreen();
-    expect(screen.getByRole("link", { name: "+ New application" })).toHaveAttribute("href", "/new?fresh=1");
+    expect(screen.getByRole("link", { name: "+ New manual application" })).toHaveAttribute("href", "/new?fresh=1");
   });
 });
 
@@ -217,20 +217,26 @@ describe("the results", () => {
     expect(screen.getByRole("button", { name: "Archive" })).toBeInTheDocument();
   });
 
-  it("shows when it was posted and found, as on Agentic job search, with Remove from Saved last", () => {
+  it("shows when it was posted and found, as on Agentic job search, and Save for later lit up when saved", () => {
     renderScreen({ search: stored([posting("a", { state: { ...state, saved: true } })]) });
     expect(screen.getByText(/^Posted 30 Sept? 2026$/)).toBeInTheDocument();
     expect(screen.getByText("Last updated today at 14:32")).toBeInTheDocument();
-    const row = screen.getByRole("button", { name: "Archive" }).parentElement!;
-    expect(within(row).getAllByRole("button").at(-1)).toHaveTextContent("Remove from Saved");
+    expect(screen.getByRole("button", { name: "Saved" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: "Remove from Saved" })).not.toBeInTheDocument();
   });
 
-  it("shows the Saved tab only while something is saved", () => {
-    const { unmount } = renderScreen({ search: stored([posting("a")]), counts: { searches: 1, saved: 0, dismissed: 0 } });
-    expect(screen.queryByRole("link", { name: /^Saved/ })).not.toBeInTheDocument();
-    unmount();
+  it("saves a posting for later and keeps it in the list", async () => {
+    vi.mocked(savePostingForLater).mockResolvedValue({ ok: true, data: { postingId: "p-1" } });
+    renderScreen({ search: stored([posting("a"), posting("b")]) });
+    await userEvent.click(screen.getByRole("button", { name: "Save for later" }));
+    expect(savePostingForLater).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Saved" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(screen.getByRole("list", { name: "Postings" })).getByRole("button", { name: /^Designer a/ })).toBeInTheDocument();
+  });
+
+  it("has no Saved tab: saved jobs have their own page", () => {
     renderScreen({ search: stored([posting("a")]), counts: { searches: 1, saved: 2, dismissed: 0 } });
-    expect(screen.getByRole("link", { name: /^Saved/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Saved/ })).not.toBeInTheDocument();
   });
 
   it("dismisses a posting, with Undo, and can show the dismissed ones", async () => {
@@ -467,7 +473,6 @@ describe("the Saved and Dismissed views (E14-7)", () => {
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute("href"), tab.getAttribute("aria-current")])).toEqual([
       ["Search", "/jobs", "page"],
       ["Past searches4", "/jobs?view=history", null],
-      ["Saved3", "/jobs?view=saved", null],
       ["Archived1", "/jobs?view=dismissed", null],
     ]);
   });
@@ -479,16 +484,15 @@ describe("the Saved and Dismissed views (E14-7)", () => {
     expect(screen.getByText("1 saved posting")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Designer a" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review Opportunity" })).toBeInTheDocument();
-    expect(within(screen.getByRole("navigation", { name: "Manual job search views" })).getByRole("link", { name: /Saved/ })).toHaveAttribute("aria-current", "page");
   });
 
   it("takes an unsaved posting out of Saved, with Undo", async () => {
     renderScreen({ view: "saved", kept: [posting("a", { state: { ...state, saved: true } }), posting("b", { state: { ...state, saved: true } })] });
-    await userEvent.click(screen.getByRole("button", { name: "Remove from Saved" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saved" }));
     expect(unsavePosting).toHaveBeenCalledWith({ source: "JSEARCH", externalId: "a" });
     expect(screen.queryByRole("button", { name: /^Designer a/ })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Designer b" })).toBeInTheDocument();
-    expect(toast).toHaveBeenCalledWith("Removed from Saved.", { action: { label: "Undo", onClick: expect.any(Function) } });
+    expect(toast).toHaveBeenCalledWith("Taken off Saved for later.", { action: { label: "Undo", onClick: expect.any(Function) } });
 
     vi.mocked(toast).mock.calls[0][1]!.action!.onClick();
     expect(await within(screen.getByRole("list", { name: "Postings" })).findByRole("button", { name: /^Designer a/ })).toBeInTheDocument();
@@ -497,7 +501,7 @@ describe("the Saved and Dismissed views (E14-7)", () => {
 
   it("says when there's nothing saved or dismissed", () => {
     const { unmount } = renderScreen({ view: "saved", kept: [] });
-    expect(screen.getByText("Nothing saved.")).toBeInTheDocument();
+    expect(screen.getByText(/^Nothing here\. Click Save for later/)).toBeInTheDocument();
     unmount();
     renderScreen({ view: "dismissed", kept: [] });
     expect(screen.getByText("Nothing archived. Postings you archive stay out of your searches and wait here.")).toBeInTheDocument();

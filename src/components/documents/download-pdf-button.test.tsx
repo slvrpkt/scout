@@ -37,6 +37,22 @@ describe("DownloadPdfButton", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("shows a notice at the top for a slow file, counting down on its OK button, instead of the toast", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    render(
+      <DownloadPdfButton href="/api/docx?doc=base&length=2" notice="Hang tight. I'm rewriting your resume to fit on two pages.">
+        Download Word
+      </DownloadPdfButton>,
+    );
+    await userEvent.click(screen.getByRole("link", { name: "Download Word" }));
+    expect(screen.getByRole("status")).toHaveTextContent("Hang tight. I'm rewriting your resume to fit on two pages.");
+    expect(toast).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "OK (5)" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "OK (4)" })).toBeInTheDocument(), { timeout: 2000 });
+    await userEvent.click(screen.getByRole("button", { name: /^OK/ }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("has the server render and hold the PDF, then downloads it from its link, saying it's on its way", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ url: "/api/pdf/held-1" })));
     render(<DownloadPdfButton href="/api/pdf?doc=base">Download PDF</DownloadPdfButton>);

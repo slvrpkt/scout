@@ -3,9 +3,11 @@
 import { ScoreNow } from "./score-now";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 
 import { DuplicateBadge, DuplicateNote } from "@/components/duplicate-note";
+import { FitSummary } from "@/components/fit-summary";
+import { SaveForLaterButton } from "@/components/save-for-later-button";
 import { PageHeader } from "@/components/page-header";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScoreExplainer } from "@/components/score-explainer";
@@ -15,10 +17,12 @@ import { toast, toastResult } from "@/components/toast";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useJob } from "@/hooks/use-job";
+import type { RunResults } from "@/lib/agent/budget";
 import type { AgentCandidateView, AgentView } from "@/lib/agent/view";
 import { cn } from "@/lib/cn";
+import { atPlace, countsOf, inScoreRange, placeChoices, SCORE_RANGES } from "@/lib/place-filter";
 
-import { dismissAgentCandidate, prepareAgentDraft, restoreAgentCandidate, runAgentNow } from "./actions";
+import { agentToday, dismissAgentCandidate, prepareAgentDraft, restoreAgentCandidate, runAgentNow, saveAgentPosting } from "./actions";
 
 type ScanResult = { message: string };
 type DraftResult = { applicationId: string };
@@ -36,6 +40,10 @@ const SETTINGS: Record<NonNullable<AgentView["setupSection"]>, { href: string; l
  */
 /** How many postings the list shows at a time. */
 const LIST_PAGE = 50;
+/** How often the Today tile and the waiting line check for new counts while the page is open. */
+const TODAY_EVERY_MS = 15_000;
+
+type Today = { scored: number; drafted: number; inList: number; skipped: number; waiting: number; scoring: boolean; results: RunResults | null };
 
 export function AgentScreen({ view, initialSelected = null }: { view: AgentView; initialSelected?: string | null }) {
   const router = useRouter();
@@ -45,7 +53,7 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
   const [query, setQuery] = useState("");
   const [company, setCompany] = useState("");
   const [where, setWhere] = useState("");
-  const [remoteOnly, setRemoteOnly] = useState(false);
+  const [scoreRange, setScoreRange] = useState("");
   const [postedWithin, setPostedWithin] = useState<"any" | "1" | "3" | "7" | "30">("any");
   // 50 at a time.
   const [shown, setShown] = useState(LIST_PAGE);
@@ -61,6 +69,20 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
     router.refresh();
   });
   const running = Boolean(runJobId) && (!run || run.status === "QUEUED" || run.status === "RUNNING");
+
+  // Today's counts, checked every so often while the page is open; a fresh view from the server starts over from its own.
+  const [live, setLive] = useState<{ view: AgentView; today: Today } | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.hidden) return;
+      void agentToday({}).then((result) => result.ok && setLive({ view, today: result.data }));
+    }, TODAY_EVERY_MS);
+    return () => clearInterval(timer);
+  }, [view]);
+  const today: Today =
+    live?.view === view
+      ? live.today
+      : { scored: view.budget.scored, drafted: view.budget.drafted, inList: view.budget.inList, skipped: view.budget.skipped, waiting: view.waiting, scoring: view.batchOut || Boolean(view.runJobId), results: view.lastResults };
 
   const runNow = () =>
     startTransition(async () => {
@@ -108,7 +130,8 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
   const below = view.belowMinimum.filter((candidate) => !hidden.has(candidate.id));
   const empty = drafts.length === 0 && scored.length === 0;
 
-  const lists = { all: [...drafts, ...scored, ...below], drafts, scored, below } as const;
+  // Every tab lists the highest score first (each list comes sorted; All mixes them, so it's sorted again).
+  const lists = { all: [...drafts, ...scored, ...below].sort((a, b) => b.score - a.score), drafts, scored, below } as const;
   // The companies and places in what it found, with how many jobs each, for the Company and Location filters.
   const everything = lists.all;
   const companies = countsOf(everything.map((candidate) => candidate.company.trim()).filter(Boolean));
@@ -122,7 +145,7 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
       matches(`${candidate.title} ${candidate.company} ${candidate.description}`, query) &&
       (!company || candidate.company.trim() === company) &&
       atPlace(candidate, where) &&
-      (!remoteOnly || candidate.remote === true) &&
+      inScoreRange(candidate.score, scoreRange) &&
       within(candidate.postedAt),
   );
   const selected = list.find((candidate) => candidate.id === selectedId) ?? list[0] ?? null;
@@ -141,43 +164,58 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
       />
       <div className="flex flex-col gap-5 px-10 pb-20">
         <Notices view={view} />
-        {view.waiting > 0 && <ScoreNow waiting={view.waiting} />}
+        {today.waiting > 0 && <ScoreNow waiting={today.waiting} scoring={running || today.scoring} onStarted={setRunJobId} />}
 
-        {/* The agent at a glance: the runs in one row, the searches three across. */}
+        {/* The agent at a glance: the last run, the next one, and what the last run's postings became. Searches are in Settings → Job agent. */}
         <Card padding="none" className="flex flex-col gap-4 px-6 py-5">
-          <dl className="grid gap-3 sm:grid-cols-3">
+          <dl className="grid gap-3 lg:grid-cols-[1fr_1fr_2fr]">
             <Stat label="Last run">
               {view.lastRun ? (
                 <>
-                  {view.lastRun.at}
-                  {view.lastRun.message && <span className="block text-meta text-muted">{view.lastRun.message}</span>}
+                  <span className="block text-meta text-muted">{view.lastRun.at}</span>
+                  {today.results && today.results.found > 0 ? (
+                    <>
+                      <Big value={today.results.found} label={today.results.found === 1 ? "new posting found" : "new postings found"} />
+                      <span className="block text-meta text-muted">
+                        {today.waiting > 0
+                          ? `${today.results.scored} scored · ${today.waiting} ${today.scoring ? "being scored now" : "waiting for a score"}`
+                          : `${today.results.scored} scored · ${today.results.setAside} set aside by your settings before scoring`}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="mt-1 block text-sm">{view.lastRun.message ?? "Nothing new."}</span>
+                  )}
                 </>
               ) : (
-                "Not yet"
+                <span className="mt-1 block text-lg font-semibold">Not yet</span>
               )}
             </Stat>
-            <Stat label="Next run">{view.nextRun ?? "Off"}</Stat>
-            <Stat label="Today">
-              {view.budget.scored} of {view.budget.scoreLimit} scored
-              {view.autoDraft && ` · ${view.budget.drafted} of ${view.budget.draftLimit} drafts`}
+            <Stat label="Next run">
+              {view.nextRun ? (
+                <>
+                  <span className="block text-meta text-muted">{view.nextRun.split(", ").slice(0, -1).join(", ") || "Today"}</span>
+                  <span className="mt-1 block text-[44px] leading-none font-bold tracking-tight tabular-nums">{view.nextRun.split(", ").at(-1)}</span>
+                </>
+              ) : (
+                <span className="mt-1 block text-lg font-semibold">Off</span>
+              )}
+            </Stat>
+            <Stat label="Last run's scores">
+              {today.results ? (
+                <span className="mt-1 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                  <Big value={today.results.atMin} label={`${view.minScore} and up`} />
+                  <Big value={today.results.below} label={`Below ${view.minScore}`} />
+                  <Big value={today.results.drafted} label="Drafted" />
+                  <Big value={today.results.skipped} label="Skipped by your rules" />
+                </span>
+              ) : (
+                <span className="mt-1 block text-lg font-semibold">Nothing yet</span>
+              )}
+              <span className="mt-2 block text-meta text-muted">
+                Daily limits: {today.scored} of {view.budget.scoreLimit} scores{view.autoDraft && ` and ${today.drafted} of ${view.budget.draftLimit} drafts`} used today
+              </span>
             </Stat>
           </dl>
-          <div className="flex flex-col gap-2">
-            <p className="text-label text-muted">{view.searches.length === 1 ? "Searches for" : `Searches (${view.searches.length})`}</p>
-            {view.searches.length === 0 ? (
-              <p className="text-sm text-muted">Nothing yet</p>
-            ) : (
-              <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {view.searches.map((search) => (
-                  <li key={search.id} className={cn("rounded-card border border-line-card bg-surface px-3.5 py-2 text-sm", !search.enabled && "text-muted")}>
-                    {search.line}
-                    {!search.enabled && " · off"}
-                    {search.lastMessage && <span className="block text-meta text-muted">Last run: {search.lastMessage}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
           {running && (
             <p role="status" className="border-t border-line pt-3.5 text-sm text-muted">
               {run?.step ?? "Starting the run…"}
@@ -215,7 +253,7 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
           </div>
         </div>
         <Card padding="none" className="flex flex-wrap items-end gap-4 px-6 py-4">
-          <label className="flex min-w-[220px] flex-[2_1_260px] flex-col gap-1.5 text-label text-muted">
+          <label className="flex min-w-[200px] flex-[2_1_220px] flex-col gap-1.5 text-label text-muted">
             What
             <input
               type="search"
@@ -270,9 +308,20 @@ export function AgentScreen({ view, initialSelected = null }: { view: AgentView;
               <option value="30">Past month</option>
             </select>
           </label>
-          <label className="flex items-center gap-2 pb-2 text-sm">
-            <input type="checkbox" checked={remoteOnly} onChange={(event) => setRemoteOnly(event.target.checked)} className="size-4 accent-[var(--color-primary)]" />
-            Remote only
+          <label className="flex min-w-[130px] flex-col gap-1.5 text-label text-muted">
+            Score
+            <select
+              value={scoreRange}
+              onChange={(event) => setScoreRange(event.target.value)}
+              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+            >
+              <option value="">Any score</option>
+              {SCORE_RANGES.map((choice) => (
+                <option key={choice.value} value={choice.value}>
+                  {choice.label}
+                </option>
+              ))}
+            </select>
           </label>
           <p className="basis-full text-meta text-muted">
             Country and distance are set on each saved search in Settings → Job agent. Postings you archive, or the agent skips, are in the <Link href="/archive">Archive</Link>.
@@ -399,10 +448,20 @@ function Notices({ view }: { view: AgentView }) {
 
 function Stat({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-card bg-surface px-4 py-3 text-sm">
-      <dt className="text-label text-muted">{label}</dt>
+    <div className="flex flex-col gap-1 rounded-card bg-surface px-5 py-4 text-sm">
+      <dt className="text-label font-medium text-muted">{label}</dt>
       <dd>{children}</dd>
     </div>
+  );
+}
+
+/** A count as the tiles show it: big and bold, with what it counts under it. */
+function Big({ value, label }: { value: number; label: string }) {
+  return (
+    <span className="flex flex-col">
+      <span className="text-[44px] leading-none font-bold tracking-tight tabular-nums">{value}</span>
+      <span className="mt-1 text-meta text-muted">{label}</span>
+    </span>
   );
 }
 
@@ -469,23 +528,20 @@ export function CandidateCard({ candidate, minScore, full = false, children }: {
           {/* As the source's terms ask (E14-2); the origin names the others. */}
           {linksAttribution(candidate.source) && <SourceAttribution source={candidate.source} url={candidate.url} className="mt-1.5 self-start" />}
         </div>
-        <ScoreExplainer
-          score={candidate.score}
-          title={[candidate.title, candidate.company].filter(Boolean).join(" at ")}
-          reasons={candidate.reasons}
-          redFlags={candidate.redFlags}
-          breakdown={candidate.breakdown}
-          minScore={minScore}
-        />
+        <div className="flex flex-none items-start gap-3">
+          <AgentSaveButton candidateId={candidate.id} saved={candidate.saved ?? false} />
+          <ScoreExplainer
+            score={candidate.score}
+            title={[candidate.title, candidate.company].filter(Boolean).join(" at ")}
+            reasons={candidate.reasons}
+            redFlags={candidate.redFlags}
+            breakdown={candidate.breakdown}
+            minScore={minScore}
+          />
+        </div>
       </div>
       {candidate.duplicate && <DuplicateNote match={candidate.duplicate} />}
-      {candidate.reasons.length > 0 && (
-        <ul aria-label="Why it fits" className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted">
-          {candidate.reasons.map((reason, index) => (
-            <li key={index}>{reason}</li>
-          ))}
-        </ul>
-      )}
+      <FitSummary reasons={candidate.reasons} />
       {candidate.redFlags.length > 0 && (
         <div className="rounded-card bg-warning-surface px-3.5 py-2.5 text-meta text-warning">
           <p className="font-medium">Worth knowing</p>
@@ -568,42 +624,18 @@ export function Fresh({ label }: { label: string }) {
   return <span className="w-fit rounded-chip bg-success-surface px-1.5 py-0.5 text-[11px] font-medium text-success">{label}</span>;
 }
 
-/** Each name and how many times it comes up, the most first, then by name. */
-function countsOf(names: readonly string[]): [string, number][] {
-  const counts = new Map<string, number>();
-  for (const name of names) counts.set(name, (counts.get(name) ?? 0) + 1);
-  return [...counts].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-}
-
-/** "Reston, VA, US" → its state ("VA") and its city ("Reston, VA"); remote jobs as Remote. */
-function placeParts(candidate: { place: string; remote: boolean | null }): { state: string | null; city: string | null; remote: boolean } {
-  const parts = candidate.place.split(",").map((part) => part.trim()).filter(Boolean);
-  // The country at the end, when there is one, isn't a state.
-  if (parts.length >= 3) parts.pop();
-  const state = parts.length >= 2 ? parts[parts.length - 1] : null;
-  const city = parts.length >= 2 ? `${parts[0]}, ${state}` : parts[0] ?? null;
-  return { state, city, remote: candidate.remote === true };
-}
-
-/** The Location filter's choices: Remote, each state, then each city, with how many jobs each. */
-function placeChoices(candidates: readonly { place: string; remote: boolean | null }[]): { value: string; label: string; count: number }[] {
-  const all = candidates.map(placeParts);
-  const remote = all.filter((place) => place.remote).length;
-  const states = countsOf(all.flatMap((place) => (place.state ? [place.state] : [])));
-  const cities = countsOf(all.flatMap((place) => (place.city ? [place.city] : [])));
-  return [
-    ...(remote > 0 ? [{ value: "remote", label: "Remote", count: remote }] : []),
-    ...states.map(([state, count]) => ({ value: `state:${state}`, label: `All of ${state}`, count })),
-    ...cities.map(([city, count]) => ({ value: `city:${city}`, label: city, count })),
-  ];
-}
-
-/** Whether a job is at the place chosen in the Location filter. */
-function atPlace(candidate: { place: string; remote: boolean | null }, where: string): boolean {
-  if (!where) return true;
-  const place = placeParts(candidate);
-  if (where === "remote") return place.remote;
-  if (where.startsWith("state:")) return place.state === where.slice("state:".length);
-  if (where.startsWith("city:")) return place.city === where.slice("city:".length);
-  return true;
+/** Save for later on an agent's job: lights up at once, and the sidebar's count follows. */
+function AgentSaveButton({ candidateId, saved }: { candidateId: string; saved: boolean }) {
+  const router = useRouter();
+  const [on, setOn] = useState(saved);
+  const [busy, setBusy] = useState(false);
+  const toggle = async () => {
+    setBusy(true);
+    setOn(!on);
+    const result = toastResult(await saveAgentPosting({ candidateId, saved: !on }));
+    setBusy(false);
+    if (!result.ok) return setOn(on);
+    router.refresh();
+  };
+  return <SaveForLaterButton saved={on} busy={busy} onToggle={() => void toggle()} />;
 }

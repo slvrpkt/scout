@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { after } from "next/server";
 
 import { AGENT_JOB_KEY } from "@/lib/agent/jobs";
+import { countPostings } from "@/lib/postings";
 import { progressMessage } from "@/lib/agent/progress";
 import { countAgentQueue } from "@/lib/agent/view";
 import { verifySession } from "@/lib/auth/session";
@@ -38,11 +39,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const [name, settings, jar] = await Promise.all([loadProfileName(), loadSettings(), cookies()]);
   const userName = name.trim() || "New user";
   // Replies waiting for an answer or a link, on the Inbox item; the job agent's finds and drafts on its own (E16-6).
-  const [waiting, agent, google, searching] = await Promise.all([
+  const [waiting, agent, google, searching, saved] = await Promise.all([
     inboxCount().catch(() => 0),
     countAgentQueue().catch(() => 0),
     loadGoogleAccount().catch(() => null),
     findUnfinishedJobs(AGENT_JOB_KEY).then((jobs) => jobs.length > 0).catch(() => false),
+    countPostings().then((counts) => counts.saved).catch(() => 0),
   ]);
   const timeZone = zone ?? settings.browserTimeZone ?? "UTC";
   const overLimits = await costLimitsPassed(settings.costLimits, new Date(), timeZone).catch(() => []);
@@ -61,7 +63,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         update={updateNotice(settings)}
         currentVersion={appVersion}
         collapsed={parseSidebarCollapsed(jar.get(SIDEBAR_COOKIE)?.value)}
-        counts={{ ...(waiting > 0 ? { "/inbox": waiting } : {}), ...(agent > 0 ? { "/agent": agent } : {}) }}
+        counts={{ ...(waiting > 0 ? { "/inbox": waiting } : {}), ...(agent > 0 ? { "/agent": agent } : {}), ...(saved > 0 ? { "/saved": saved } : {}) }}
         colorScheme={parseColorScheme(jar.get(COLOR_SCHEME_COOKIE)?.value)}
       />
       {/* The screen sits in a white panel inset from the shell. Each screen

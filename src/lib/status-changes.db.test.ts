@@ -86,3 +86,21 @@ describe("undoStatusChange", () => {
     expect(await undoStatusChange(db, "missing")).toEqual({ outcome: "not-found" });
   });
 });
+
+describe("applying takes the job off Saved for later", () => {
+  it("unsaves the posting it was made from, and the agent's job it drafted, but nothing else", async () => {
+    const fromPosting = await db.application.create({ data: { company: "Ledgerly" } });
+    const fromAgent = await db.application.create({ data: { company: "Northwind" } });
+    const saved = { savedAt: t(0), title: "PM", url: "https://jobs.example/x" };
+    await db.posting.create({ data: { source: "JSEARCH", externalId: "p1", applicationId: fromPosting.id, ...saved } });
+    await db.posting.create({ data: { source: "JSEARCH", externalId: "a1", ...saved } });
+    await db.posting.create({ data: { source: "JSEARCH", externalId: "other", ...saved } });
+    await db.agentCandidate.create({ data: { source: "JSEARCH", externalId: "a1", dedupeKey: "a1", applicationId: fromAgent.id, title: "PM" } });
+
+    await applyStatusChange(db, fromPosting.id, "SENT", t(1));
+    await applyStatusChange(db, fromAgent.id, "SENT", t(1));
+
+    const stillSaved = await db.posting.findMany({ where: { savedAt: { not: null } }, select: { externalId: true } });
+    expect(stillSaved.map((row) => row.externalId)).toEqual(["other"]);
+  });
+});

@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from "react";
 
 import { DuplicateBadge, DuplicateNote } from "@/components/duplicate-note";
+import { FitSummary } from "@/components/fit-summary";
+import { SaveForLaterButton } from "@/components/save-for-later-button";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScoreExplainer } from "@/components/score-explainer";
 import { HowToApply } from "@/components/how-to-apply";
@@ -50,6 +53,7 @@ const plural = (count: number, one: string, many: string) => `${count} ${count =
  */
 export function PostingResults(props: PostingResultsProps) {
   const { mode } = props;
+  const router = useRouter();
   const [postings, setPostings] = useState(mode === "search" ? props.search.postings : props.postings);
   const [next, setNext] = useState(mode === "search" ? props.search.next : null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -88,15 +92,17 @@ export function PostingResults(props: PostingResultsProps) {
     if (!result.ok) return;
     change(posting, { saved: true, dismissed: false, postingId: result.data.postingId });
     setSelectedKey(postingKey(posting));
+    router.refresh();
   };
 
   const unsave = async (posting: ShownPosting) => {
     const result = await unsavePosting({ source: posting.source, externalId: posting.externalId });
     if (!result.ok) return void toast(result.error);
     change(posting, { saved: false });
-    // In Saved, the posting leaves the list: Undo puts it back.
-    if (mode === "saved") toast("Removed from Saved.", { action: { label: "Undo", onClick: () => void save(posting) } });
+    // On Saved for later, the posting leaves the list: Undo puts it back.
+    if (mode === "saved") toast("Taken off Saved for later.", { action: { label: "Undo", onClick: () => void save(posting) } });
     else toastResult(result);
+    router.refresh();
   };
 
   const restore = async (posting: ShownPosting, saved: boolean) => {
@@ -164,7 +170,7 @@ export function PostingResults(props: PostingResultsProps) {
   const radius = props.mode === "search" && SOURCE_INFO[props.search.source].radius;
   const empty =
     mode === "saved"
-      ? "Nothing saved."
+      ? "Nothing here. Click Save for later on a job in Agentic or Manual job search and it shows up here."
       : mode === "dismissed"
         ? "Nothing archived. Postings you archive stay out of your searches and wait here."
         : postings.length > 0 || !searched
@@ -236,6 +242,7 @@ export function PostingResults(props: PostingResultsProps) {
           ref={detail}
           posting={selected}
           now={now}
+          onSave={() => void save(selected)}
           onUnsave={() => void unsave(selected)}
           onDismiss={() => void dismiss(selected)}
           onRestore={() => void restore(selected, false)}
@@ -416,6 +423,7 @@ function PostingDetail({
   ref,
   posting,
   now,
+  onSave,
   onUnsave,
   onDismiss,
   onRestore,
@@ -429,6 +437,7 @@ function PostingDetail({
   ref: Ref<HTMLElement>;
   posting: ShownPosting;
   now: Date;
+  onSave: () => void;
   onUnsave: () => void;
   onDismiss: () => void;
   onRestore: () => void;
@@ -505,6 +514,8 @@ function PostingDetail({
             <HowToApply url={posting.url} />
           </span>
         </div>
+        <div className="flex flex-none items-start gap-3">
+        {!state.dismissed && <SaveForLaterButton saved={state.saved} onToggle={state.saved ? onUnsave : onSave} />}
         {state.score && !scoring ? (
           <ScoreExplainer
             score={state.score.score}
@@ -525,6 +536,7 @@ function PostingDetail({
             {scoring ? "Scoring…" : "Score"}
           </button>
         )}
+        </div>
       </div>
 
       {state.duplicate ? (
@@ -563,12 +575,6 @@ function PostingDetail({
             Archive
           </Button>
         )}
-        {/* Save is gone; what was saved before can still leave Saved, last in the row. */}
-        {!state.dismissed && state.saved && (
-          <Button variant="secondary" size="sm" onClick={onUnsave}>
-            Remove from Saved
-          </Button>
-        )}
       </div>
 
       {scoring ? (
@@ -578,13 +584,7 @@ function PostingDetail({
       ) : (
         state.score && (
           <>
-            {state.score.reasons.length > 0 && (
-              <ul aria-label="Why it fits" className="flex list-disc flex-col gap-1 pl-5 text-sm text-muted">
-                {state.score.reasons.map((reason, index) => (
-                  <li key={index}>{reason}</li>
-                ))}
-              </ul>
-            )}
+            <FitSummary reasons={state.score.reasons} />
             {state.score.redFlags.length > 0 && (
               <div className="rounded-card bg-warning-surface px-3.5 py-2.5 text-meta text-warning">
                 <p className="font-medium">Worth knowing</p>

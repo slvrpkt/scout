@@ -53,6 +53,30 @@ test.beforeAll(async () => {
       [`readme-${posting.id}`, posting.title, posting.company, posting.place, posting.remote, posting.salary, String(posting.hours), `https://example.com/jobs/${posting.id}`, `${posting.company} is hiring a ${posting.title}.`, posting.score, JSON.stringify(posting.reasons), JSON.stringify(posting.flags), JSON.stringify(breakdown), String(index * 3)],
     );
   }
+  // Three it set aside before scoring, by Jane's settings: too far, or a title she skips.
+  for (const [id, title, reason] of [
+    ["s1", "Product Designer", "Set aside before scoring, by your settings: within 30 miles (On-site, about 140 miles from 22209)."],
+    ["s2", "Design Intern", "Skipped by its title: “Intern” is on your Job titles to skip."],
+    ["s3", "Senior Product Designer", "Set aside before scoring, by your settings: within 30 miles (Hybrid, about 95 miles from 22209)."],
+  ]) {
+    await sql(
+      `INSERT INTO "AgentCandidate" (id, source, "externalId", title, company, place, score, "redFlags", status, "dedupeKey", "searchId", "createdAt", "updatedAt")
+       VALUES ($1, 'JSEARCH', $1, $2, 'Elsewhere Co', 'Philadelphia, PA', 0, $3, 'DISMISSED', $1, 'readme-search', now() - interval '50 minutes', now())`,
+      [`readme-${id}`, title, JSON.stringify([reason])],
+    );
+  }
+  // The run that found them, a few minutes before the first: the tiles count what became of its postings.
+  // Timed from the rows themselves, as the database's clock wrote them.
+  const [first] = await sql<{ at: string }>(`SELECT to_char(min("createdAt") - interval '5 minutes', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS at FROM "AgentCandidate"`);
+  await sql(`INSERT INTO "Setting" (key, value, "updatedAt") VALUES ('agentRuns', $1, now()) ON CONFLICT (key) DO UPDATE SET value = $1`, [
+    JSON.stringify([{ at: first.at, manual: false, message: "8 new postings scored." }]),
+  ]);
+  // The top one is on Saved for later, so its card shows the button lit up.
+  await sql(`DELETE FROM "Posting" WHERE "externalId" LIKE 'readme-%'`);
+  await sql(
+    `INSERT INTO "Posting" (id, source, "externalId", title, company, place, url, description, complete, "savedAt", "updatedAt")
+     VALUES ('readme-saved-c1', 'JSEARCH', 'readme-c1', 'Senior Product Designer, Payments', 'Ledgerly', 'Washington, DC', 'https://example.com/jobs/c1', 'Ledgerly is hiring a Senior Product Designer, Payments.', true, now(), now())`,
+  );
 });
 
 test("the agentic job search: found, scored and ranked", async ({ page }) => {

@@ -21,7 +21,14 @@ import type { ResumeTemplate } from "@/lib/resume-template";
 import { parseThemeFile, themeFile, themeFileName } from "@/lib/theme-file";
 import { PAPER_SIZES, RESUME_POINTS, type ThemeData } from "@/lib/themes";
 
-import { deleteTheme, duplicateTheme, importTheme, saveTheme, setBaseLength, setBaseTheme } from "./actions";
+import {
+  deleteTheme,
+  duplicateTheme,
+  importTheme,
+  saveTheme,
+  setBaseLength,
+  setBaseTheme,
+} from "./actions";
 import { draftFrom, ThemeBuilder, type ThemeDraft } from "./theme-builder";
 import { ThemePicker } from "./theme-picker";
 
@@ -57,7 +64,10 @@ export type ResumeWorkspaceProps = {
 type Panel = "themes" | "customize";
 
 /** What happens to unsent drafts when the template changes. */
-const redoingNote = (drafts = 0) => (drafts > 0 ? ` Rewriting ${drafts === 1 ? "1 unsent draft" : `${drafts} unsent drafts`} in the background.` : "");
+const redoingNote = (drafts = 0) =>
+  drafts > 0
+    ? ` Rewriting ${drafts === 1 ? "1 unsent draft" : `${drafts} unsent drafts`} in the background.`
+    : "";
 
 /**
  * The Base resume screen: the preview on the left and the theme panel on the
@@ -65,14 +75,38 @@ const redoingNote = (drafts = 0) => (drafts > 0 ? ` Rewriting ${drafts === 1 ? "
  * shows it right away and saves it in the background; while you customise
  * one, the preview shows the draft.
  */
-export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThemeId, paper, includeReferences, condense, fitNote = null, maxPages, length = "2", dropped = [], language, noRoleSkills = false, hide = [], baseSummary, template: savedTemplate = null }: ResumeWorkspaceProps) {
+/** What the two- and three-page downloads say while the resume is rewritten to fit; the full one needs no rewriting. */
+const fitNotice = (length: BaseLength) =>
+  length === "full"
+    ? undefined
+    : `Hang tight. I'm rewriting your resume to fit on ${length === "2" ? "two" : "three"} pages. It takes about 1 to 2 minutes, and the file downloads by itself when it's done.`;
+
+export function ResumeWorkspace({
+  profile,
+  themes: initialThemes,
+  usage,
+  baseThemeId,
+  paper,
+  includeReferences,
+  condense,
+  fitNote = null,
+  maxPages,
+  length = "2",
+  dropped = [],
+  language,
+  noRoleSkills = false,
+  hide = [],
+  baseSummary,
+  template: savedTemplate = null,
+}: ResumeWorkspaceProps) {
   const [themes, setThemes] = useState(initialThemes);
   const [template, setTemplate] = useState(savedTemplate);
   // The length shows at once, and the page reloads with its version.
   const [shownLength, setShownLength] = useState(length);
   const chooseLength = async (next: BaseLength) => {
     setShownLength(next);
-    if (!toastResult(await setBaseLength({ length: next })).ok) setShownLength(length);
+    if (!toastResult(await setBaseLength({ length: next })).ok)
+      setShownLength(length);
   };
   const [baseId, setBaseId] = useState(baseThemeId);
   const [panel, setPanel] = useState<Panel>("themes");
@@ -85,7 +119,9 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
   const pickedId = useRef(baseThemeId);
 
   const base = themes.find((entry) => entry.id === baseId) ?? themes[0];
-  const theme: ThemeData = draft ? { ...draft, id: draft.id ?? "draft", builtIn: false } : base;
+  const theme: ThemeData = draft
+    ? { ...draft, id: draft.id ?? "draft", builtIn: false }
+    : base;
   const empty =
     !profile.basics.name.trim() &&
     profile.experience.length === 0 &&
@@ -102,7 +138,11 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
     movedPanel.current = false;
     // A frame later: the tab's content mounts after this render.
     const frame = requestAnimationFrame(() =>
-      panelArea.current?.querySelector<HTMLElement>(panel === "customize" ? "input" : "[data-in-use]")?.focus(),
+      panelArea.current
+        ?.querySelector<HTMLElement>(
+          panel === "customize" ? "input" : "[data-in-use]",
+        )
+        ?.focus(),
     );
     return () => cancelAnimationFrame(frame);
   }, [panel]);
@@ -138,27 +178,50 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
   };
 
   const exportFile = () =>
-    saveFile(new Blob([JSON.stringify(themeFile(base), null, 2)], { type: "application/json" }), themeFileName(base));
+    saveFile(
+      new Blob([JSON.stringify(themeFile(base), null, 2)], {
+        type: "application/json",
+      }),
+      themeFileName(base),
+    );
 
   const uploadTemplate = async (file: File) => {
-    const response = await fetch(`/api/resume/template?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file }).catch(() => null);
-    const answer = (await response?.json().catch(() => null)) as { template?: ResumeTemplate; redoing?: number; error?: string } | null;
-    if (!answer?.template) return toast(answer?.error ?? "That file couldn't be read. Try again.");
+    const response = await fetch(
+      `/api/resume/template?name=${encodeURIComponent(file.name)}`,
+      { method: "POST", body: file },
+    ).catch(() => null);
+    const answer = (await response?.json().catch(() => null)) as {
+      template?: ResumeTemplate;
+      redoing?: number;
+      error?: string;
+    } | null;
+    if (!answer?.template)
+      return toast(answer?.error ?? "That file couldn't be read. Try again.");
     setTemplate(answer.template);
-    toast(`Your resumes now follow this template.${redoingNote(answer.redoing)}`);
+    toast(
+      `Your resumes now follow this template.${redoingNote(answer.redoing)}`,
+    );
   };
 
   const removeTemplate = async () => {
-    const response = await fetch("/api/resume/template", { method: "DELETE" }).catch(() => null);
-    if (!response?.ok) return toast("The template couldn't be removed. Try again.");
-    const answer = (await response.json().catch(() => null)) as { redoing?: number } | null;
+    const response = await fetch("/api/resume/template", {
+      method: "DELETE",
+    }).catch(() => null);
+    if (!response?.ok)
+      return toast("The template couldn't be removed. Try again.");
+    const answer = (await response.json().catch(() => null)) as {
+      redoing?: number;
+    } | null;
     setTemplate(null);
-    toast(`Removed. Your resumes use the theme's own layout again.${redoingNote(answer?.redoing)}`);
+    toast(
+      `Removed. Your resumes use the theme's own layout again.${redoingNote(answer?.redoing)}`,
+    );
   };
 
   const importFile = async (file: File) => {
     if (!/\.json$/i.test(file.name)) return uploadTemplate(file);
-    if (file.size > 100_000) return toast("That file is too big to be a Scout theme.");
+    if (file.size > 100_000)
+      return toast("That file is too big to be a Scout theme.");
     let json: unknown;
     try {
       json = JSON.parse(await file.text());
@@ -179,7 +242,9 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
     setBaseId(result.data.baseThemeId);
     savedId.current = pickedId.current = result.data.baseThemeId;
     // Its Delete button is gone with it: focus goes to the theme in use now.
-    requestAnimationFrame(() => panelArea.current?.querySelector<HTMLElement>("[data-in-use]")?.focus());
+    requestAnimationFrame(() =>
+      panelArea.current?.querySelector<HTMLElement>("[data-in-use]")?.focus(),
+    );
   };
 
   const saveDraft = async () => {
@@ -205,11 +270,17 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
         title="Base resume"
         description={
           <>
-            Built straight from your profile. Every new application starts from this one, then gets tailored to the job.
+            Built straight from your profile. Every new application starts from
+            this one, then gets tailored to the job.
             <span className="mt-1.5 block">
-              <strong className="font-medium text-ink">Think of it as your knowledge base, not the resume you send.</strong> Scout tailors a resume to each job, at the number of
-              pages you ask for, and picks from everything here. So put in every detail you might want to use: it&apos;s fine for this to run five, six or even ten pages.
-              The two- and three-page versions here, and every tailored resume, are made from it.
+              <strong className="font-medium text-ink">
+                Think of it as your knowledge base, not the resume you send.
+              </strong>{" "}
+              Scout tailors a resume to each job, at the number of pages you ask
+              for, and picks from everything here. So put in every detail you
+              might want to use: it&apos;s fine for this to run five, six or
+              even ten pages. The two- and three-page versions here, and every
+              tailored resume, are made from it.
             </span>
           </>
         }
@@ -229,10 +300,19 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
               value={shownLength}
               onValueChange={(next) => void chooseLength(next)}
             />
-            <DownloadPdfButton variant="secondary" href={`/api/docx?doc=base&length=${shownLength}`} progress="Building your resume as a Word file and checking its pages in Word…" busyLabel="Building…">
+            <DownloadPdfButton
+              variant="secondary"
+              href={`/api/docx?doc=base&length=${shownLength}`}
+              progress="Building your resume as a Word file and checking its pages in Word…"
+              busyLabel="Building…"
+              notice={fitNotice(shownLength)}
+            >
               Download Word
             </DownloadPdfButton>
-            <DownloadPdfButton href={`/api/pdf?doc=base&length=${shownLength}`}>
+            <DownloadPdfButton
+              href={`/api/pdf?doc=base&length=${shownLength}`}
+              notice={fitNotice(shownLength)}
+            >
               Download PDF
             </DownloadPdfButton>
           </>
@@ -242,28 +322,50 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
         <DocumentPreview
           runningHeader={runningHeader(profile.basics)}
           label={theme.name}
-          meta={(pages) => `${PAPER_SIZES[paper].label} · ${pages} ${pages === 1 ? "page" : "pages"}`}
+          meta={(pages) =>
+            `${PAPER_SIZES[paper].label} · ${pages} ${pages === 1 ? "page" : "pages"}`
+          }
           notice={(pages) =>
             empty ? (
               // E11-4: an empty page needs a way forward.
-              <p role="note" className="rounded-card bg-card px-4 py-2.5 text-meta text-muted">
-                Your resume fills in from your profile. Add your name and a role or two, and it takes shape here.{" "}
-                <Link href="/profile" className="text-ink underline underline-offset-2">
+              <p
+                role="note"
+                className="rounded-card bg-card px-4 py-2.5 text-meta text-muted"
+              >
+                Your resume fills in from your profile. Add your name and a role
+                or two, and it takes shape here.{" "}
+                <Link
+                  href="/profile"
+                  className="text-ink underline underline-offset-2"
+                >
                   Go to your profile
                 </Link>
               </p>
             ) : maxPages !== null && pages > maxPages ? (
-              <p role="note" className="rounded-card bg-warning-surface px-4 py-2.5 text-meta text-warning">
-                The preview runs over {pagesInWords(maxPages)}. Downloading shortens it to fit, older jobs first and the most recent last, and counts the pages of the file you get; you&apos;re told if it still runs over.
+              <p
+                role="note"
+                className="rounded-card bg-warning-surface px-4 py-2.5 text-meta text-warning"
+              >
+                The preview runs over {pagesInWords(maxPages)}. Downloading
+                shortens it to fit, older jobs first and the most recent last,
+                and counts the pages of the file you get; you&apos;re told if it
+                still runs over.
               </p>
             ) : (
               (fitNote || dropped.length > 0) && (
-                <div role="status" className="flex flex-col gap-1.5 rounded-card bg-card px-4 py-2.5 text-meta text-muted">
+                <div
+                  role="status"
+                  className="flex flex-col gap-1.5 rounded-card bg-card px-4 py-2.5 text-meta text-muted"
+                >
                   {fitNote && <p>{fitNote}</p>}
                   {dropped.length > 0 && (
                     <details>
                       <summary className="cursor-pointer text-ink">
-                        Shortened to fit {maxPages ? pagesInWords(maxPages) : "the page"}: {dropped.length === 1 ? "1 change" : `${dropped.length} changes`}
+                        Shortened to fit{" "}
+                        {maxPages ? pagesInWords(maxPages) : "the page"}:{" "}
+                        {dropped.length === 1
+                          ? "1 change"
+                          : `${dropped.length} changes`}
                       </summary>
                       <ul className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
                         {dropped.map((point) => (
@@ -277,14 +379,28 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
             )
           }
         >
-          <ResumeDocument theme={{ ...theme, textPoints: RESUME_POINTS, noRoleSkills, hide }} profile={profile} paper={paper} includeReferences={includeReferences} baseSummary={baseSummary} condense={condense} language={language} template={template} skillsList />
+          <ResumeDocument
+            theme={{ ...theme, textPoints: RESUME_POINTS, noRoleSkills, hide }}
+            profile={profile}
+            paper={paper}
+            includeReferences={includeReferences}
+            baseSummary={baseSummary}
+            condense={condense}
+            language={language}
+            template={template}
+            skillsList
+          />
         </DocumentPreview>
         <aside
           ref={panelArea}
           aria-label="Theme"
           className="flex flex-[1_0_300px] flex-col border-t border-line bg-paper px-7 pt-7 pb-12 @min-[780px]:border-t-0 @min-[780px]:border-l"
         >
-          <Tabs value={panel} onValueChange={(value) => openPanel(value as Panel)} className="flex flex-col gap-6">
+          <Tabs
+            value={panel}
+            onValueChange={(value) => openPanel(value as Panel)}
+            className="flex flex-col gap-6"
+          >
             <TabsList variant="segmented">
               <TabsTrigger value="themes">Themes</TabsTrigger>
               <TabsTrigger value="customize">Customize</TabsTrigger>
@@ -325,7 +441,9 @@ export function ResumeWorkspace({ profile, themes: initialThemes, usage, baseThe
         open={deleting !== null}
         onOpenChange={(open) => !open && setDeleting(null)}
         title={`Delete “${deleting?.name ?? ""}”?`}
-        description={deleteDescription(deleting ? (usage[deleting.id] ?? 0) : 0)}
+        description={deleteDescription(
+          deleting ? (usage[deleting.id] ?? 0) : 0,
+        )}
         confirmLabel="Delete theme"
         onConfirm={() => deleting && void remove(deleting)}
       />
@@ -341,4 +459,3 @@ function deleteDescription(applications: number): string {
       : `${applications === 1 ? "One application uses" : `${applications} applications use`} it; their documents will use your base theme instead.`;
   return `${used} Editorial becomes your base theme. This can't be undone, but you can export the theme first.`;
 }
-

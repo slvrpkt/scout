@@ -45,19 +45,21 @@ const slotsOn = (day: string, times: readonly string[], timeZone: string) => {
  * Whether a run should start now: the latest of today's times has come, and
  * no run, scheduled or Run now, has started since, or only runs that failed or
  * were cut short, up to TRIES. Times missed while the app was off make one
- * run, not one each.
+ * run, not one each. A time from before the agent was switched on (`onSince`)
+ * isn't missed, so it's never caught up.
  */
-export function scheduledRunDue(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[]): boolean {
+export function scheduledRunDue(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null): boolean {
   const latest = slotsOn(dayOf(now, timeZone), times, timeZone).findLast((slot) => slot <= now);
   if (latest === undefined) return false;
+  if (onSince && latest.getTime() < Date.parse(onSince)) return false;
   const since = runs.filter((run) => Date.parse(run.at) >= latest.getTime());
   return since.length < TRIES && since.every((run) => run.failed);
 }
 
 /** When the next scheduled run starts: soon when one is overdue, else the next time today, else tomorrow's first. */
-export function nextAgentRun(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[]): Date {
+export function nextAgentRun(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null): Date {
   // Overdue: the next check starts it.
-  if (scheduledRunDue(now, times, timeZone, runs)) return new Date(Math.ceil(now.getTime() / EVERY_MS) * EVERY_MS);
+  if (scheduledRunDue(now, times, timeZone, runs, onSince)) return new Date(Math.ceil(now.getTime() / EVERY_MS) * EVERY_MS);
   const today = dayOf(now, timeZone);
   return slotsOn(today, times, timeZone).find((slot) => slot > now) ?? slotsOn(addDays(today, 1), times, timeZone)[0];
 }
@@ -66,7 +68,7 @@ export function nextAgentRun(now: Date, times: readonly string[], timeZone: stri
 export async function startDueRun(now = new Date()): Promise<string | null> {
   const settings = await loadSettings();
   if (!settings.agentEnabled) return null;
-  if (!scheduledRunDue(now, settings.agentTimes, await lastKnownTimeZone(), settings.agentRuns)) return null;
+  if (!scheduledRunDue(now, settings.agentTimes, await lastKnownTimeZone(), settings.agentRuns, settings.agentOnSince)) return null;
   if ((await findUnfinishedJobs(AGENT_JOB_KEY)).length > 0) return null;
   return startJob(agentScanJob, { manual: false }, { key: AGENT_JOB_KEY });
 }

@@ -29,6 +29,26 @@ beforeEach(async () => {
 });
 afterAll(() => prisma().$disconnect());
 
+describe("switching the agent on (after a time today has gone by)", () => {
+  const times = ["08:30", "13:00"];
+  const now = new Date("2026-11-11T03:30:00.000Z"); // 10:30 PM in New York
+  const onSince = "2026-11-11T03:29:00.000Z";
+
+  it("doesn't catch up a time from before it was switched on", () => {
+    expect(scheduledRunDue(now, times, "America/New_York", [], onSince)).toBe(false);
+    expect(nextAgentRun(now, times, "America/New_York", [], onSince).toISOString()).toBe("2026-11-11T13:30:00.000Z");
+  });
+
+  it("still catches up a time missed while the app was off, once it was on", () => {
+    // On since the evening before; the app was off at 8:30 AM and is back at 9:00.
+    expect(scheduledRunDue(new Date("2026-11-11T14:00:00.000Z"), times, "America/New_York", [], onSince)).toBe(true);
+  });
+
+  it("catches up as before when it isn't known when it was switched on", () => {
+    expect(scheduledRunDue(now, times, "America/New_York", [], null)).toBe(true);
+  });
+});
+
 describe("runs that failed or were cut short", () => {
   const now = new Date("2026-11-06T14:00:00.000Z");
   const failed = (minutes: number) => ({ at: new Date(now.getTime() - minutes * 60_000).toISOString(), manual: false, message: "No", failed: true });

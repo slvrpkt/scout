@@ -1,12 +1,18 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 
 import { toast } from "@/components/toast";
-import { buttonClassName, type ButtonSize, type ButtonVariant } from "@/components/ui/button";
+import {
+  buttonClassName,
+  type ButtonSize,
+  type ButtonVariant,
+} from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { messages } from "@/lib/messages";
 import { downloadFrom, saveFile } from "@/lib/save-file";
+
+import { WaitNotice } from "./wait-notice";
 
 /** The file name a download response asks for, preferring the UTF-8 one (RFC 6266). */
 export function fileNameFrom(disposition: string | null): string | null {
@@ -26,16 +32,24 @@ export function fileNameFrom(disposition: string | null): string | null {
  * Fetches a file the server renders and holds (POST, then its link), saying
  * so while it renders and showing a failure as a toast; for a menu item.
  */
-export async function downloadHeld(href: string, progress: string): Promise<void> {
+export async function downloadHeld(
+  href: string,
+  progress: string,
+): Promise<void> {
   toast(progress);
   try {
     const response = await fetch(href, { method: "POST" });
     if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { error?: string } | null;
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
       toast(body?.error ?? messages.unexpected);
       return;
     }
-    const { url, note } = (await response.json()) as { url: string; note?: string | null };
+    const { url, note } = (await response.json()) as {
+      url: string;
+      note?: string | null;
+    };
     downloadFrom(url);
     if (note) toast(note);
   } catch {
@@ -57,6 +71,7 @@ export function DownloadPdfButton({
   busyLabel = "Rendering…",
   className,
   onQuestion,
+  notice,
   children,
 }: {
   href: string;
@@ -76,17 +91,25 @@ export function DownloadPdfButton({
   className?: string;
   /** When the server needs an answer first (e.g. a third page for the base resume): ask it, then say whether to try again. */
   onQuestion?: (question: string) => Promise<boolean>;
+  /** For a file that takes a minute or two: a notice at the top of the screen, instead of the toast, saying it's working. */
+  notice?: string;
   children: ReactNode;
 }) {
   const [busy, setBusy] = useState(false);
+  const [noticeShown, setNoticeShown] = useState(false);
+  const closeNotice = useCallback(() => setNoticeShown(false), []);
 
   const download = async () => {
     setBusy(true);
-    toast(progress);
+    if (notice) setNoticeShown(true);
+    else toast(progress);
     try {
       const response = await fetch(href, held ? { method: "POST" } : undefined);
       if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as { error?: string; question?: string } | null;
+        const body = (await response.json().catch(() => null)) as {
+          error?: string;
+          question?: string;
+        } | null;
         if (body?.question && onQuestion) {
           setBusy(false);
           if (await onQuestion(body.question)) await download();
@@ -96,12 +119,19 @@ export function DownloadPdfButton({
         return;
       }
       if (held) {
-        const { url, note } = (await response.json()) as { url: string; note?: string | null };
+        const { url, note } = (await response.json()) as {
+          url: string;
+          note?: string | null;
+        };
         downloadFrom(url);
         // Said plainly when the file couldn't be brought within its page limit, or its pages couldn't be counted.
         if (note) toast(note);
       } else {
-        saveFile(await response.blob(), fileNameFrom(response.headers.get("content-disposition")) ?? "document.pdf");
+        saveFile(
+          await response.blob(),
+          fileNameFrom(response.headers.get("content-disposition")) ??
+            "document.pdf",
+        );
       }
     } catch {
       toast(messages.offline);
@@ -111,16 +141,25 @@ export function DownloadPdfButton({
   };
 
   return (
-    <a
-      href={href}
-      aria-disabled={busy || undefined}
-      onClick={(event) => {
-        event.preventDefault();
-        if (!busy) void download();
-      }}
-      className={buttonClassName(variant, size, cn(variant === "primary" && "hover:text-on-primary", className))}
-    >
-      {busy ? busyLabel : children}
-    </a>
+    <>
+      {noticeShown && notice && (
+        <WaitNotice message={notice} onClose={closeNotice} />
+      )}
+      <a
+        href={href}
+        aria-disabled={busy || undefined}
+        onClick={(event) => {
+          event.preventDefault();
+          if (!busy) void download();
+        }}
+        className={buttonClassName(
+          variant,
+          size,
+          cn(variant === "primary" && "hover:text-on-primary", className),
+        )}
+      >
+        {busy ? busyLabel : children}
+      </a>
+    </>
   );
 }

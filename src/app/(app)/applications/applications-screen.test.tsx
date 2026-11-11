@@ -57,12 +57,12 @@ beforeEach(() => {
 });
 
 describe("the Applications screen (E9-1)", () => {
-  it("has the summary, the views and a way to start a new application", () => {
+  it("has the summary and the views, and no New application (that's on Manual job search)", () => {
     render(<ApplicationsScreen {...props} />);
     expect(screen.getByRole("heading", { level: 1, name: "Job application log" })).toBeInTheDocument();
     expect(screen.getByText(props.summary)).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Board" })).toBeChecked();
-    expect(screen.getByRole("link", { name: "+ New application" })).toHaveAttribute("href", "/new?fresh=1");
+    expect(screen.queryByRole("link", { name: /New application/ })).not.toBeInTheDocument();
     expect(screen.getByText("Drag a card to change its status")).toBeInTheDocument();
   });
 

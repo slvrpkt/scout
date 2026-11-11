@@ -21,7 +21,7 @@ import { dayOf } from "@/lib/calendar-view";
 
 import type { SearchQuery } from "@/lib/job-search/search";
 import { skipRuleList } from "@/lib/scoring/rubric";
-import { usageOn } from "./budget";
+import { lastRunResults, scoredToday, usageOn, type RunResults } from "./budget";
 import { freshFirst, freshLabel, withoutStaleBonus } from "@/lib/freshness";
 
 import { stringsOf } from "./candidates";
@@ -39,6 +39,10 @@ const placed = ({ query, places }: { query: SearchQuery; places: string }) => {
   const list = skipRuleList(places);
   return list.length > 0 ? { ...query, place: list.join(", "), anyDistance: true } : query;
 };
+
+/** The list's order: highest score first, and between equal scores the freshly posted one (sort keeps freshFirst's order for ties). */
+const highestFirst = <T extends { fresh?: string | null; score: number }>(items: readonly T[]): T[] =>
+  freshFirst(items).sort((a, b) => b.score - a.score);
 
 export type AgentCandidateView = {
   id: string;
@@ -67,6 +71,8 @@ export type AgentCandidateView = {
   fresh?: string | null;
   /** Put back from the Archive once: shown with a "Was archived" label. */
   wasArchived?: boolean;
+  /** On Saved for later. */
+  saved?: boolean;
   /** The posting's text, as the source gave it. */
   description: string;
   /** When the job was posted, e.g. "3 Nov 2026"; null when the source doesn't say. */
@@ -88,7 +94,8 @@ export type AgentView = {
   autoDraft: boolean;
   minScore: number;
   /** Today's use of the daily budgets. */
-  budget: { scored: number; scoreLimit: number; drafted: number; draftLimit: number };
+  /** Today's use: scores and drafts against their limits, and what the scores became (in the list, or skipped by a rule). */
+  budget: { scored: number; scoreLimit: number; drafted: number; draftLimit: number; inList: number; skipped: number };
   /** The saved searches, each as "Data scientist · Berlin, 25 km · via JSearch", with how its last run went. */
   searches: { id: string; line: string; enabled: boolean; lastMessage: string | null }[];
   /** Why it can't run: no search, AI provider, source or key; null when it's set up. */
@@ -98,7 +105,11 @@ export type AgentView = {
   /** The daily limit is used up. */
   limitReached: boolean;
   /** Postings waiting for a score. */
+  /** Whether scores are being worked out right now, in a batch the provider has. */
+  batchOut: boolean;
   waiting: number;
+  /** What the last run's new postings became; null before the first run. */
+  lastResults: RunResults | null;
   /** How many runs it may make in any 24 hours. */
   runsPerDay: number;
   /** When it runs, "04:00", in the user's zone. */
@@ -166,7 +177,8 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     }));
   const setupProblem = await agentSetupProblem(searches);
 
-  const view = (candidate: ShownCandidate) => candidateView(candidate, draftJob.get(candidate.id) ?? null, log, timeZone, freshHours, now);
+  const saved = await savedKeys();
+  const view = (candidate: ShownCandidate) => ({ ...candidateView(candidate, draftJob.get(candidate.id) ?? null, log, timeZone, freshHours, now), saved: saved.has(`${candidate.source}:${candidate.externalId}`) });
   const drafts = candidates.filter((candidate) => candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId).map(view);
   const waiting = candidates.filter((candidate) => candidate.status !== AgentCandidateStatus.DRAFTED);
   const last = settings.agentRuns[0];
@@ -180,22 +192,26 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
       scoreLimit: settings.agentDailyScores,
       drafted: usageOn(settings.agentUsage, dayOf(now, timeZone)).drafted,
       draftLimit: settings.agentDailyDrafts,
+      ...(await scoredToday(now, timeZone)),
     },
     searches: searchViews,
     setupProblem,
     setupSection: setupProblem ? sectionOf(setupProblem) : null,
     limitReached: runsInPastDay(settings.agentRuns, now).filter((run) => !run.failed && !run.skipped && !run.retry).length >= agentRunsPerDay(settings.agentTimes),
+    /** Whether scores are being worked out right now, in a batch the provider has. */
+    batchOut: Boolean(settings.agentBatchId),
     /** Postings waiting for a score, in a batch or not yet sent. */
     waiting: await prisma.queuedPosting.count(),
+    lastResults: last ? await lastRunResults(new Date(last.at), settings.agentMinScore) : null,
     runsPerDay: agentRunsPerDay(settings.agentTimes),
     times: settings.agentTimes,
     lastRun: last ? { at: formatDateTime12(new Date(last.at), timeZone, now), message: last.message } : null,
-    nextRun: settings.agentEnabled ? formatDateTime12(nextAgentRun(now, settings.agentTimes, timeZone, settings.agentRuns), timeZone, now) : null,
+    nextRun: settings.agentEnabled ? formatDateTime12(nextAgentRun(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince), timeZone, now) : null,
     runJobId: runJobs[0]?.id ?? null,
-    drafts,
-    // Freshly posted ones first, to apply early, then by score.
-    scored: freshFirst(waiting.filter((candidate) => candidate.score >= settings.agentMinScore).map(view)),
-    belowMinimum: freshFirst(waiting.filter((candidate) => candidate.score < settings.agentMinScore).map(view)),
+    drafts: highestFirst(drafts),
+    // Highest score first; between equal scores, the freshly posted one.
+    scored: highestFirst(waiting.filter((candidate) => candidate.score >= settings.agentMinScore).map(view)),
+    belowMinimum: highestFirst(waiting.filter((candidate) => candidate.score < settings.agentMinScore).map(view)),
   };
 }
 
@@ -212,6 +228,12 @@ function asNow<T extends { score: number; reasons: Prisma.JsonValue; postedAt: D
 }
 
 /** One candidate as the Agent screen and its posting page show it. */
+/** The jobs on Saved for later, as "source:externalId". */
+async function savedKeys(): Promise<Set<string>> {
+  const rows = await prisma.posting.findMany({ where: { savedAt: { not: null } }, select: { source: true, externalId: true } });
+  return new Set(rows.map((row) => `${row.source}:${row.externalId}`));
+}
+
 function candidateView(candidate: ShownCandidate, draftJobId: string | null, log: LogEntry[], timeZone: Parameters<typeof formatDateTime>[1], freshHours = 0, now = new Date()): AgentCandidateView {
   return {
     id: candidate.id,
@@ -269,7 +291,7 @@ export async function loadAgentPosting(id: string): Promise<{ posting: AgentCand
   const hours = settings.scoringPrefs.fresh.hours;
   const now = new Date();
   return {
-    posting: candidateView(asNow(candidate, now, hours), jobs[0]?.id ?? null, log, await lastKnownTimeZone(), hours, now),
+    posting: { ...candidateView(asNow(candidate, now, hours), jobs[0]?.id ?? null, log, await lastKnownTimeZone(), hours, now), saved: (await savedKeys()).has(`${candidate.source}:${candidate.externalId}`) },
     archived: candidate.status === AgentCandidateStatus.DISMISSED,
     // A draft, approved or archived, is opened as its application instead.
     drafted: candidate.applicationId !== null,

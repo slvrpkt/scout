@@ -313,7 +313,7 @@ export async function runAgentScan({ manual, only }: { manual: boolean; only?: R
   await enqueue(fresh.flatMap(({ searchId, postings }) => postings.map((posting) => ({ posting, searchId, rules: rulesFor(posting) }))), now);
   const waitingNow = await countWaiting();
   const room = await roomNow();
-  // By batch, scoring starts half an hour on, once the search is done. Otherwise, now.
+  // By batch, scoring starts about 5 minutes on, once the search is done. Otherwise, now.
   const scoringStopped = await limitReached(await scoringCenter(), now);
   const later = room > 0 && !scoringStopped && (await scoresByBatch(settings));
   if (later && !settings.agentScoreAt) await saveSettings({ agentScoreAt: new Date(now.getTime() + SCORE_WAIT_MS).toISOString() });
@@ -329,7 +329,7 @@ export async function runAgentScan({ manual, only }: { manual: boolean; only?: R
   const waiting = `${queued} new ${queued === 1 ? "posting is" : "postings are"} waiting for a look.`;
   let message: string;
   if (sent > 0) {
-    message = `${postingsInWords(sent)} waiting. Scoring starts in about half an hour, once the search is done.`;
+    message = `${postingsInWords(sent)} waiting. Scoring starts in about 5 minutes, once the search is done.`;
   } else if (freshCount === 0 && scored === 0 && problem) {
     message = problem;
   } else if (freshCount === 0 && scored === 0) {

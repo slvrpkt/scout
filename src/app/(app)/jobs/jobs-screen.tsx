@@ -78,16 +78,26 @@ export function JobsScreen({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   // A search that didn't work, with what was asked, for Try again.
-  const [failed, setFailed] = useState<{ problem: Problem; query: SearchQuery } | null>(null);
+  const [failed, setFailed] = useState<{
+    problem: Problem;
+    query: SearchQuery;
+  } | null>(null);
   const header = (
     <>
       <PageHeader
         title="Manual job search"
         description={`Search ${source ? SOURCE_INFO[source].name : "job postings"} for postings near you, then start an application from the one you like.`}
         actions={
-          // As on the other pages: a posting found elsewhere, pasted or by its link.
-          <Link href="/new?fresh=1" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
-            + New application
+          // Only here: a posting found elsewhere, pasted or by its link.
+          <Link
+            href="/new?fresh=1"
+            className={buttonClassName(
+              "primary",
+              "md",
+              "hover:text-on-primary",
+            )}
+          >
+            + New manual application
           </Link>
         }
       />
@@ -108,7 +118,13 @@ export function JobsScreen({
     return (
       <>
         {header}
-        <PostingResults key={view} mode={view} postings={kept} today={today} scoreInClaude={scoreInClaude} />
+        <PostingResults
+          key={view}
+          mode={view}
+          postings={kept}
+          today={today}
+          scoreInClaude={scoreInClaude}
+        />
       </>
     );
   }
@@ -127,7 +143,8 @@ export function JobsScreen({
     startTransition(async () => {
       const result = await runJobSearch({ query: next });
       if (!result.ok) return void toast(result.error);
-      if (!result.data.ok) return void setFailed({ problem: result.data, query: next });
+      if (!result.data.ok)
+        return void setFailed({ problem: result.data, query: next });
       setFailed(null);
       router.push(searchRunHref(result.data.id), { scroll: false });
     });
@@ -144,15 +161,43 @@ export function JobsScreen({
   return (
     <>
       {header}
-      {arbeitsagenturNote && <ArbeitsagenturNote accepted={false} onAccept={acceptArbeitsagentur} className="mx-10 mb-5 max-w-[760px]" />}
-      <SearchForm source={source} countries={countries} query={query} pending={pending} onSearch={run} />
+      {arbeitsagenturNote && (
+        <ArbeitsagenturNote
+          accepted={false}
+          onAccept={acceptArbeitsagentur}
+          className="mx-10 mb-5 max-w-[760px]"
+        />
+      )}
+      <SearchForm
+        source={source}
+        countries={countries}
+        query={query}
+        pending={pending}
+        onSearch={run}
+      />
       {/* Announces each new set of results; the list itself is replaced. */}
       <p role="status" className="sr-only">
-        {pending ? "Searching…" : failed ? failed.problem.message : search ? `${search.postings.length} postings found${search.hidden ? `, ${search.hidden} hidden by your filters` : ""}.` : ""}
+        {pending
+          ? "Searching…"
+          : failed
+            ? failed.problem.message
+            : search
+              ? `${search.postings.length} postings found${search.hidden ? `, ${search.hidden} hidden by your filters` : ""}.`
+              : ""}
       </p>
-      <div className={cn("flex flex-1 flex-col motion-safe:transition-opacity", pending && "opacity-60")} aria-busy={pending || undefined}>
+      <div
+        className={cn(
+          "flex flex-1 flex-col motion-safe:transition-opacity",
+          pending && "opacity-60",
+        )}
+        aria-busy={pending || undefined}
+      >
         {failed ? (
-          <SearchProblem problem={failed.problem.problem} message={failed.problem.message} onRetry={() => run(failed.query)} />
+          <SearchProblem
+            problem={failed.problem.problem}
+            message={failed.problem.message}
+            onRetry={() => run(failed.query)}
+          />
         ) : search ? (
           <PostingResults
             key={search.id}
@@ -189,7 +234,9 @@ function SearchForm({
   onSearch: (query: SearchQuery) => void;
 }) {
   const [form, setForm] = useState(query);
-  const [errors, setErrors] = useState<{ keywords?: string; country?: string }>({});
+  const [errors, setErrors] = useState<{ keywords?: string; country?: string }>(
+    {},
+  );
   // Back and forward change the URL's search; the form follows.
   const [shown, setShown] = useState(query);
   if (searchHref(query) !== searchHref(shown)) {
@@ -198,20 +245,29 @@ function SearchForm({
     setErrors({});
   }
 
-  const set = (patch: Partial<SearchQuery>) => setForm((current) => ({ ...current, ...patch }));
+  const set = (patch: Partial<SearchQuery>) =>
+    setForm((current) => ({ ...current, ...patch }));
   const uncovered = uncoveredCountry(source, form, countries);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (pending) return;
     const problems = {
-      keywords: form.keywords.trim() || form.company?.trim() ? undefined : "Type what you're looking for, or a company.",
+      keywords:
+        form.keywords.trim() || form.company?.trim()
+          ? undefined
+          : "Type what you're looking for, or a company.",
       country: form.country ? uncovered : "Choose a country.",
     };
     setErrors(problems);
     if (problems.keywords || problems.country) return;
     const company = form.company?.trim();
-    onSearch({ ...form, keywords: form.keywords.trim(), place: form.place.trim(), company: company || undefined });
+    onSearch({
+      ...form,
+      keywords: form.keywords.trim(),
+      place: form.place.trim(),
+      company: company || undefined,
+    });
   };
 
   return (
@@ -220,62 +276,108 @@ function SearchForm({
       aria-label="Search postings"
       noValidate
       onSubmit={submit}
-      className="mx-10 mb-7 grid grid-cols-1 items-start gap-x-4 gap-y-4 rounded-panel border border-line-card bg-card p-6 sm:grid-cols-2 lg:grid-cols-[2fr_1.5fr_1.3fr_1fr_1fr]"
+      className="mx-10 mb-7 flex flex-col gap-5 rounded-panel border border-line-card bg-card p-6"
     >
-      <SearchFields
-        value={form}
-        onChange={set}
-        source={source}
-        countries={countries}
-        errors={errors}
-        underWhat={
-          <Input
-            label="Company (optional)"
-            value={form.company ?? ""}
-            placeholder="e.g. Accenture"
-            hint="Only this company's jobs. Leave What empty to see all of them."
-            onChange={(event) => set({ company: event.target.value })}
-          />
-        }
-      />
-      <div className="sm:col-span-2 lg:col-span-5">
-        <SearchFilters value={form} onChange={set} source={source} />
+      {/* What and where: what you're after, with Search, then the place, each row lined up. */}
+      <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-12">
+        <SearchFields
+          value={form}
+          onChange={set}
+          source={source}
+          countries={countries}
+          errors={errors}
+          cells={{
+            what: "sm:col-span-2 lg:col-span-6",
+            where: "lg:col-span-4",
+            country: "lg:col-span-3",
+            within: "lg:col-span-2",
+            posted: "lg:col-span-3",
+          }}
+          afterWhat={
+            <>
+              <Input
+                label="Company (optional)"
+                className="lg:col-span-4"
+                value={form.company ?? ""}
+                placeholder="Only this company's jobs, e.g. Accenture"
+                onChange={(event) => set({ company: event.target.value })}
+              />
+              <div className="flex items-end sm:col-span-2 lg:col-span-2 lg:h-full lg:pb-px">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  aria-disabled={pending || undefined}
+                >
+                  {pending ? "Searching…" : "Search"}
+                </Button>
+              </div>
+            </>
+          }
+        />
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-4 sm:col-span-2 lg:col-span-5">
-        <Button type="submit" aria-disabled={pending || undefined}>
-          {pending ? "Searching…" : "Search"}
-        </Button>
+      <div className="border-t border-line pt-5">
+        <SearchFilters rows value={form} onChange={set} source={source} />
       </div>
     </form>
   );
 }
 
 /** Search, Past searches (E14-10), Saved and Archived (E14-7), with how many each holds. */
-function ViewTabs({ view, counts }: { view: JobsView; counts: { searches: number; saved: number; dismissed: number } }) {
+function ViewTabs({
+  view,
+  counts,
+}: {
+  view: JobsView;
+  counts: { searches: number; saved: number; dismissed: number };
+}) {
   const tabs = [
     // The latest search, as it was kept.
     { view: "search", label: "Search", href: "/jobs", count: null },
-    { view: "history", label: "Past searches", href: viewHref("history"), count: counts.searches },
-    { view: "saved", label: "Saved", href: viewHref("saved"), count: counts.saved },
-    { view: "dismissed", label: "Archived", href: viewHref("dismissed"), count: counts.dismissed },
+    {
+      view: "history",
+      label: "Past searches",
+      href: viewHref("history"),
+      count: counts.searches,
+    },
+    {
+      view: "saved",
+      label: "Saved",
+      href: viewHref("saved"),
+      count: counts.saved,
+    },
+    {
+      view: "dismissed",
+      label: "Archived",
+      href: viewHref("dismissed"),
+      count: counts.dismissed,
+    },
   ] as const;
   return (
-    <nav aria-label="Manual job search views" className="flex flex-wrap gap-1.5 px-10 pb-[18px]">
-      {/* Saving is gone; Saved shows while something saved before is still there. */}
-      {tabs.filter((tab) => tab.view !== "saved" || tab.count > 0 || view === "saved").map((tab) => (
-        <Link
-          key={tab.view}
-          href={tab.href}
-          aria-current={tab.view === view ? "page" : undefined}
-          className={cn(
-            "flex items-baseline gap-1.5 rounded-control border px-3 py-2 text-control",
-            tab.view === view ? "border-primary bg-selected font-medium text-primary-text hover:text-primary-text" : "border-line-field bg-card text-ink hover:border-line-strong hover:bg-hover hover:text-ink",
-          )}
-        >
-          {tab.label}
-          {tab.count !== null && <span className="text-xs opacity-65">{tab.count}</span>}
-        </Link>
-      ))}
+    <nav
+      aria-label="Manual job search views"
+      className="flex flex-wrap gap-1.5 px-10 pb-[18px]"
+    >
+      {/* Saved jobs have their own page now, Saved for later. */}
+      {tabs
+        .filter((tab) => tab.view !== "saved")
+        .map((tab) => (
+          <Link
+            key={tab.view}
+            href={tab.href}
+            aria-current={tab.view === view ? "page" : undefined}
+            className={cn(
+              "flex items-baseline gap-1.5 rounded-control border px-3 py-2 text-control",
+              tab.view === view
+                ? "border-primary bg-selected font-medium text-primary-text hover:text-primary-text"
+                : "border-line-field bg-card text-ink hover:border-line-strong hover:bg-hover hover:text-ink",
+            )}
+          >
+            {tab.label}
+            {tab.count !== null && (
+              <span className="text-xs opacity-65">{tab.count}</span>
+            )}
+          </Link>
+        ))}
     </nav>
   );
 }
@@ -286,10 +388,18 @@ function NoSource() {
     <div className="mx-10 mb-16 flex max-w-[640px] flex-col items-start gap-3 rounded-panel border border-line-card bg-card px-7 py-7">
       <h2 className="font-serif text-section">Choose where to search</h2>
       <p className="text-sm text-muted">
-        Manual job search searches one job source for you, such as JSearch (LinkedIn, Indeed and more) or Adzuna. Pick one in Settings. Until then,
+        Manual job search searches one job source for you, such as JSearch
+        (LinkedIn, Indeed and more) or Adzuna. Pick one in Settings. Until then,
         nothing is sent anywhere.
       </p>
-      <Link href={SETTINGS_HREF} className={buttonClassName("primary", "md", "mt-1 hover:text-on-primary")}>
+      <Link
+        href={SETTINGS_HREF}
+        className={buttonClassName(
+          "primary",
+          "md",
+          "mt-1 hover:text-on-primary",
+        )}
+      >
         Set up job search
       </Link>
     </div>
@@ -297,13 +407,32 @@ function NoSource() {
 }
 
 /** A search that didn't work, and what to do about it. */
-function SearchProblem({ problem, message, onRetry }: { problem: Problem["problem"]; message: string; onRetry: () => void }) {
-  const toSettings = problem === "no-key" || problem === "key" || problem === "country" || problem === "changed" || problem === "off";
+function SearchProblem({
+  problem,
+  message,
+  onRetry,
+}: {
+  problem: Problem["problem"];
+  message: string;
+  onRetry: () => void;
+}) {
+  const toSettings =
+    problem === "no-key" ||
+    problem === "key" ||
+    problem === "country" ||
+    problem === "changed" ||
+    problem === "off";
   return (
-    <div role="alert" className="mx-10 mb-16 flex max-w-[640px] flex-col items-start gap-3 rounded-panel border border-line-card bg-card px-7 py-6">
+    <div
+      role="alert"
+      className="mx-10 mb-16 flex max-w-[640px] flex-col items-start gap-3 rounded-panel border border-line-card bg-card px-7 py-6"
+    >
       <p className="text-sm">{message}</p>
       {toSettings ? (
-        <Link href={SETTINGS_HREF} className={buttonClassName("secondary", "sm")}>
+        <Link
+          href={SETTINGS_HREF}
+          className={buttonClassName("secondary", "sm")}
+        >
           Open Settings → Job search
         </Link>
       ) : problem === "unavailable" ? (

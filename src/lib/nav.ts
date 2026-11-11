@@ -1,5 +1,5 @@
 // Rocket is for Startups, hidden for now (see below).
-import { Archive, Bot, BriefcaseBusiness, FileText, House, Inbox, Search, Settings, UserRound, type LucideIcon } from "lucide-react";
+import { Archive, Bookmark, Bot, BriefcaseBusiness, FileText, House, Inbox, Search, Settings, UserRound, type LucideIcon } from "lucide-react";
 
 // The app's sections, shared by the sidebar and the page bar so they always agree.
 
@@ -21,6 +21,7 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
       { href: "/", label: "Dashboard", icon: House, isActive: (pathname) => pathname === "/" },
       { href: "/agent", label: "Agentic job search", icon: Bot },
       { href: "/jobs", label: "Manual job search", icon: Search },
+      { href: "/saved", label: "Saved for later", icon: Bookmark },
       {
         href: "/applications",
         label: "Job application log",

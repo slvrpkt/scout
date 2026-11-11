@@ -43,7 +43,7 @@ describe("the dashboard (E9-7)", () => {
     render(<Dashboard {...props} />);
     expect(screen.getByRole("heading", { level: 1, name: "Good morning, Jane" })).toBeInTheDocument();
     expect(screen.getByText("You've applied to 7 jobs and heard back from 5. That's a solid run. Keep it going.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "+ New application" })).toHaveAttribute("href", "/new?fresh=1");
+    expect(screen.queryByRole("link", { name: /New application/ })).not.toBeInTheDocument();
     expect(document.cookie).toMatch(/dossier-tz=/);
   });
 
@@ -142,7 +142,7 @@ describe("the dashboard (E9-7)", () => {
     expect(screen.queryByRole("region", { name: "Your funnel" })).not.toBeInTheDocument();
     rerender(<Dashboard {...props} empty figures={{ ...figures, sent: 0 }} />);
     expect(screen.queryByRole("link", { name: "Fill in your profile" })).not.toBeInTheDocument();
-    expect(screen.getByText(/use \+ New application at the top right/)).toBeInTheDocument();
+    expect(screen.getByText(/use \+ New manual application on Manual job search/)).toBeInTheDocument();
   });
 
   it("shows the calendar after the cards and Worth a look across the page below both, outside the time filter (E15-6)", () => {

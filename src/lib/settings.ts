@@ -251,6 +251,8 @@ export const settingsSchema = z.object({
   // Job agent (E16): one search, run once a day. Off until it's turned on.
   // It asks the source in Settings → Job search, with its key.
   agentEnabled: flag(false),
+  /** When it was last switched on: run times before this aren't caught up, so switching it on doesn't start a run at once. */
+  agentOnSince: z.iso.datetime().nullable().catch(null),
   /** The search it runs, as Find jobs asks it; it needs keywords and a country to run. */
   agentQuery: json(searchQuerySchema).catch(EMPTY_QUERY),
   /** The hour of the day it ran before it had several times (agentTimes reads it when it has none). */

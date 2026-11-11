@@ -35,7 +35,7 @@ Ten things Scout does, and [many more](#and-much-more):
 
 **Find**
 
-1. **A robust agentic job search.** Save up to 20 searches, each with plenty of ways to aim it: a job title and up to 5 alternative titles (like "TPM" or "AI Program Manager"); up to 10 locations, or anywhere in your country; work mode, seniority, job type, how recently it was posted and a minimum salary; words to skip; or up to 10 companies to follow, searched across the whole country. The agent runs your searches at the times you pick, skips what you've already seen, and ranks the best matches for you to review, with filters by company and location. Each job card tells you when the job was posted and when Scout found it, the deadline to apply when the posting gives one, and how and where to apply: on the employer's own site, or through Workday, Greenhouse, LinkedIn and others.
+1. **A robust agentic job search.** Save up to 20 searches, each with plenty of ways to aim it: a job title and up to 5 alternative titles (like "TPM" or "AI Program Manager"); up to 10 locations, or anywhere in your country; work mode, seniority, job type, how recently it was posted and a minimum salary; words to skip; or up to 10 companies to follow, searched across the whole country. The agent runs your searches at the times you pick, skips what you've already seen, and ranks the best matches for you to review, highest score first, with filters by company, location and score. Each job card tells you when the job was posted and when Scout found it, the deadline to apply when the posting gives one, and how and where to apply: on the employer's own site, or through Workday, Greenhouse, LinkedIn and others.
 2. **A robust manual job search.** Search postings yourself through JSearch (Google for Jobs, which covers LinkedIn, Indeed, Glassdoor and many company sites) by title, company, location and distance in miles, with the same filters as the agent. The cards give the same detail (when it was posted, and how and where to apply), and any result becomes an application in one click.
 
 **Score**
@@ -57,7 +57,7 @@ Ten things Scout does, and [many more](#and-much-more):
 
 ### And much more
 
-Read your existing resume (PDF or Word) to fill in your profile · Gmail and Google Calendar integration (optional) · a Claude connector (MCP) · cost estimates and spending limits for your API keys · resume themes and a theme builder · application history and undo · dark mode · and plenty of small touches.
+Read your existing resume (PDF or Word) to fill in your profile · Save for later, a short list of jobs to come back to · Gmail and Google Calendar integration (optional) · a Claude connector (MCP) · cost estimates and spending limits for your API keys · resume themes and a theme builder · application history and undo · dark mode · and plenty of small touches.
 
 ## Screenshots
 

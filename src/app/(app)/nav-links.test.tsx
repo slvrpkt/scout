@@ -28,6 +28,7 @@ describe("NavLinks", () => {
       "Dashboard",
       "Agentic job search",
       "Manual job search",
+      "Saved for later",
       "Job application log",
       "Archive",
       // Startups is hidden for now.

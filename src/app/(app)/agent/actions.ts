@@ -4,10 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { AgentCandidateStatus } from "@/generated/prisma/enums";
-import { agentDraftJob, dismissCandidate, draftJobKey, restoreCandidate } from "@/lib/agent/draft";
+import { agentDraftJob, dismissCandidate, draftJobKey, foundFromCandidate, restoreCandidate } from "@/lib/agent/draft";
+import { storePosting, unmarkPosting } from "@/lib/postings";
 import { AGENT_JOB_KEY, agentScanJob, agentScoreNowJob } from "@/lib/agent/jobs";
 import { agentSetupProblem } from "@/lib/agent/run";
 import { runLimitProblem } from "@/lib/agent/runs";
+import { lastRunResults, scoredToday, usageOn } from "@/lib/agent/budget";
+import { dayOf } from "@/lib/calendar-view";
+import { lastKnownTimeZone } from "@/lib/time-zone";
 import { MAX_SKIP_RULES_LENGTH } from "@/lib/scoring/rubric";
 import { createAgentSearch, defaultPages, deleteAgentSearch, loadAgentSearches, MAX_AGENT_PAGES, MAX_AGENT_SEARCHES, readySearches, updateAgentSearch } from "@/lib/agent/searches";
 import { loadJobSearchConfig } from "@/lib/job-search/config";
@@ -43,8 +47,11 @@ export const saveAgentSettings = action(
     if (changes.enabled && readySearches(await loadAgentSearches()).length === 0) {
       throw new ActionError("Add a search with keywords and a country before turning the agent on.");
     }
+    // Switching it on: the first run is the next time on the list, not one already gone by today.
+    const switchedOn = changes.enabled === true && !(await loadSettings()).agentEnabled;
     await saveSettings({
       agentEnabled: changes.enabled,
+      ...(switchedOn ? { agentOnSince: new Date().toISOString() } : {}),
       agentTimes: changes.times && sortedTimes(changes.times),
       agentMinScore: changes.minScore,
       agentDailyScores: changes.dailyScores,
@@ -116,7 +123,32 @@ export const scoreWaitingNow = action(z.object({}), async () => {
   return { jobId, reused: false };
 });
 
+/** Today's counts and whether scoring is going on, for the Agent screen to keep up while it's open. */
+export const agentToday = action(z.object({}), async () => {
+  const [settings, timeZone, waiting, unfinished] = await Promise.all([loadSettings(), lastKnownTimeZone(), prisma.queuedPosting.count(), findUnfinishedJobs(AGENT_JOB_KEY)]);
+  const now = new Date();
+  const usage = usageOn(settings.agentUsage, dayOf(now, timeZone));
+  const last = settings.agentRuns[0];
+  const results = last ? await lastRunResults(new Date(last.at), settings.agentMinScore) : null;
+  return { scored: usage.scored, drafted: usage.drafted, ...(await scoredToday(now, timeZone)), waiting, scoring: Boolean(settings.agentBatchId) || unfinished.length > 0, results };
+});
+
 const candidateId = z.string().min(1).max(100);
+
+/** Save for later on an agent's job: kept as a posting, as Manual job search keeps one, so it shows on Saved for later. */
+export const saveAgentPosting = action(z.object({ candidateId, saved: z.boolean() }), async ({ candidateId: id, saved }, { toast }) => {
+  const candidate = await prisma.agentCandidate.findUnique({ where: { id } });
+  if (!candidate) throw new ActionError("That job is gone. Reload the page.");
+  if (saved) {
+    await storePosting(foundFromCandidate(candidate), { savedAt: new Date(), dismissedAt: null });
+    toast("Saved for later.");
+  } else {
+    await unmarkPosting({ source: candidate.source, externalId: candidate.externalId }, "saved");
+    toast("Taken off Saved for later.");
+  }
+  revalidatePath("/saved");
+  return null;
+});
 
 /** Every screen an agent draft shows on, or leaves. */
 function revalidateAgent() {

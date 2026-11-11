@@ -143,6 +143,17 @@ describe("saving the agent's settings (E16-7)", () => {
     expect(await loadSettings()).toMatchObject({ agentEnabled: true, agentTimes: ["04:00", "08:00", "13:00"], agentMinScore: 80, agentAutoDraft: true, agentDailyDrafts: 50, agentDailyScores: 150 });
     expect(await saveAgentSettings({ dailyScores: 1001 })).toMatchObject({ ok: false });
   });
+
+  it("remembers when it was switched on, and only then", async () => {
+    await saveSettings({ agentEnabled: false, agentOnSince: null });
+    const before = Date.now();
+    expect(await saveAgentSettings({ enabled: true })).toEqual({ ok: true, data: null });
+    const onSince = (await loadSettings()).agentOnSince;
+    expect(Date.parse(onSince ?? "")).toBeGreaterThanOrEqual(before);
+    // Saving other settings, or "on" again while it's on, keeps the time.
+    expect(await saveAgentSettings({ enabled: true, minScore: 75 })).toEqual({ ok: true, data: null });
+    expect((await loadSettings()).agentOnSince).toBe(onSince);
+  });
 });
 
 describe("the agent's saved searches", () => {

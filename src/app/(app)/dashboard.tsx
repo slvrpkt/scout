@@ -59,11 +59,6 @@ export function Dashboard({
               ? `You haven't applied to anything ${within.startsWith("In the") ? within.replace("In the", "in the") : within.toLowerCase()}, so there's nothing to show for this period.`
               : "Nothing to show yet: the dashboard fills in once you start applying."
         }
-        actions={
-          <Link href="/new?fresh=1" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
-            + New application
-          </Link>
-        }
       />
 
       {empty ? (
@@ -228,12 +223,12 @@ function Welcome({ profileStarted }: { profileStarted: boolean }) {
         week, where every application stands, what&apos;s worth a look next, and your interviews and deadlines on the calendar.
       </p>
       {profileStarted ? (
-        <p className="text-sm text-muted">To start an application, use + New application at the top right of this page.</p>
+        <p className="text-sm text-muted">To start an application, find a job on Agentic or Manual job search, or use + New manual application on Manual job search.</p>
       ) : (
         <>
           <p className="text-sm text-muted">
             If you haven&apos;t filled in your profile yet, start there: every tailored resume and cover letter is built from it. To start an
-            application, use + New application at the top right.
+            application, find a job on Agentic or Manual job search, or use + New manual application there.
           </p>
           <Link href="/profile" className={buttonClassName("secondary")}>
             Fill in your profile

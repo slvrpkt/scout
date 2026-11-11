@@ -146,7 +146,7 @@ export async function scoringCenter(): Promise<CostCenter | null> {
 }
 
 /** After a search, scoring waits this long, and this long again each time the search still isn't done. */
-export const SCORE_WAIT_MS = 30 * 60 * 1000;
+export const SCORE_WAIT_MS = 5 * 60 * 1000;
 const BATCH_GIVE_UP_MS = 25 * 60 * 60 * 1000;
 
 /** Whether scoring waits for a batch: the provider has them, and they're on. */

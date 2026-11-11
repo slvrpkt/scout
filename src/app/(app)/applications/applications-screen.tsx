@@ -127,9 +127,6 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, sheet
             <Link href="/applications/history" className={buttonClassName("secondary")}>
               Activity log
             </Link>
-            <Link href="/new?fresh=1" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
-              + New application
-            </Link>
           </>
         }
       />
@@ -243,8 +240,8 @@ function FirstApplication() {
         profile is what everything is built from, so it&apos;s worth filling in first.
       </p>
       <div className="flex flex-wrap items-center gap-4 pt-1">
-        <Link href="/new?fresh=1" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
-          + New application
+        <Link href="/jobs" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+          Go to Manual job search
         </Link>
         <Link href="/profile" className="text-sm text-muted underline underline-offset-2 hover:text-ink">
           Fill in your profile
