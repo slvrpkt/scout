@@ -191,7 +191,7 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, sheet
           <h2 className="text-control font-medium">
             Google Sheet
           </h2>
-          <p className="text-meta text-muted">A copy of this log in your Google Drive folder, replaced on each sync and every weekday at 7 PM.</p>
+          <p className="text-meta text-muted">A copy of this log in your Google Drive folder, updated as soon as you apply or a status changes.</p>
         </div>
         <SheetSync sheet={sheet} />
       </div>

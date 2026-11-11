@@ -14,7 +14,7 @@ export type SheetState = { ready: boolean; url: string | null; syncedAt: string 
 /**
  * Sync To Google Sheets, on the Job application log: replaces the sheet in
  * the Drive folder with the table as it is now. It also syncs on its own
- * every weekday at 7 PM. Before Google Drive is allowed, it leads to Settings.
+ * as soon as you apply or a status changes. Before Google Drive is allowed, it leads to Settings.
  */
 export function SheetSync({ sheet }: { sheet: SheetState }) {
   const [pending, startTransition] = useTransition();
@@ -29,7 +29,7 @@ export function SheetSync({ sheet }: { sheet: SheetState }) {
       </Link>
     );
   }
-  const status = sheet.problem ?? (sheet.syncedAt ? `Last synced ${sheet.syncedAt}. Syncs on its own every weekday at 7 PM.` : "Not synced yet. Syncs on its own every weekday at 7 PM.");
+  const status = sheet.problem ?? (sheet.syncedAt ? `Last synced ${sheet.syncedAt}. Updates on its own when you apply or a status changes.` : "Not synced yet. Updates on its own when you apply or a status changes.");
   return (
     <span className="flex items-center gap-2">
       <Button

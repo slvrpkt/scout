@@ -1,3 +1,4 @@
+import { strFromU8, unzipSync } from "fflate";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestClient, resetDatabase } from "@/test/db";
@@ -20,7 +21,7 @@ vi.mock("@/lib/jobs/runner", () => ({ defineJob: <T,>(definition: T) => definiti
 import { encryptSecret, GOOGLE_TOKEN } from "@/lib/secrets";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
-import { lastScheduledSync, scheduledSyncDue, syncIfDue, syncSheet } from "./applications-sheet";
+import { queueSheetSync, syncSheet } from "./applications-sheet";
 
 const prisma = () => db.client!;
 
@@ -48,16 +49,17 @@ beforeEach(async () => {
         return json({ id });
       }
       if (method === "POST" && href.pathname === "/upload/drive/v3/files") {
-        const text = Buffer.from(init!.body as Uint8Array).toString("utf8");
+        const raw = Buffer.from(init!.body as Uint8Array);
+        const text = raw.toString("latin1");
         const meta = JSON.parse(/\r\n\r\n(\{.*?\})\r\n/.exec(text)![1]) as { name: string; parents: string[]; mimeType?: string };
-        const start = text.indexOf("\r\n\r\n", text.indexOf("Content-Type: text/csv")) + 4;
+        const start = text.indexOf("\r\n\r\n", text.indexOf("Content-Type: application/vnd.openxmlformats")) + 4;
         const id = `f${++next}`;
-        drive.set(id, { id, name: meta.name, parent: meta.parents[0], type: meta.mimeType ?? "", csv: text.slice(start, text.lastIndexOf("\r\n--")), trashed: false });
+        drive.set(id, { id, name: meta.name, parent: meta.parents[0], type: meta.mimeType ?? "", csv: asCsv(raw.subarray(start, text.lastIndexOf("\r\n--"))), trashed: false });
         return json({ id });
       }
       const replaced = /^\/upload\/drive\/v3\/files\/([^/]+)$/.exec(href.pathname);
       if (method === "PATCH" && replaced) {
-        drive.get(replaced[1])!.csv = Buffer.from(init!.body as Uint8Array).toString("utf8");
+        drive.get(replaced[1])!.csv = asCsv(Buffer.from(init!.body as Uint8Array));
         return json({ id: replaced[1] });
       }
       const got = /^\/drive\/v3\/files\/([^/]+)$/.exec(href.pathname);
@@ -74,6 +76,14 @@ beforeEach(async () => {
 });
 afterEach(() => vi.unstubAllGlobals());
 afterAll(async () => prisma().$disconnect());
+
+/** An uploaded Excel sheet's cells as text, a line per row, for checking what went in. */
+function asCsv(xlsx: Uint8Array): string {
+  const sheet = strFromU8(unzipSync(xlsx)["xl/worksheets/sheet1.xml"]);
+  return [...sheet.matchAll(/<row [^>]*>(.*?)<\/row>/g)]
+    .map(([, row]) => [...row.matchAll(/<c [^>]*>(.*?)<\/c>/g)].map(([, cell]) => (/<t[^>]*>(.*?)<\/t>/.exec(cell) ?? /<v>(.*?)<\/v>/.exec(cell))?.[1] ?? "").map((text) => text.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")).join(","))
+    .join("\r\n");
+}
 
 const sheets = () => [...drive.values()].filter((file) => file.type === "application/vnd.google-apps.spreadsheet");
 const lines = (csv: string) => csv.split("\r\n").map((line) => line.split(",")[1]);
@@ -109,11 +119,24 @@ describe("syncing the log to Google Sheets", () => {
     expect((await loadSettings()).driveSheetSyncedAt).toBe("2026-11-05T12:00:00.000Z");
   });
 
+  it("updates on its own a few seconds after a change, several changes making one sync", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      queueSheetSync();
+      queueSheetSync();
+      expect(sheets()).toEqual([]);
+      await vi.advanceTimersByTimeAsync(5_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    await vi.waitFor(() => expect(sheets()).toHaveLength(1));
+  });
+
   it("keeps a blank sheet, just the header, while nothing was sent", async () => {
     await syncSheet();
     await syncSheet();
     expect(sheets()).toHaveLength(1);
-    expect(sheets()[0].csv).toBe("Company,Role,Salary,Posting Link,Source,Employer,Posted,Apply By,Location,Things To Note,Applied Using,Status,Match,Applied,Resume & Cover Letter,Job Description,Activity,Updated");
+    expect(sheets()[0].csv).toBe("Company,Role,Salary,Posting Link,Source,Employer,Posted,Apply By,Location,Things To Note,Applied Using,Status,Applied,Resume & Cover Letter,Job Description,Activity,Updated");
   });
 
   it("makes a new sheet in a renamed main folder, or when the old one was deleted", async () => {
@@ -124,29 +147,5 @@ describe("syncing the log to Google Sheets", () => {
     await syncSheet();
     const live = sheets().filter((file) => !file.trashed);
     expect(live.map((file) => drive.get(file.parent!)!.name)).toEqual(["Job search 2026-27", "Job search 2027-28"]);
-  });
-});
-
-describe("the weekday 7 PM sync", () => {
-  it("is due once 7 PM has come on a weekday in the user's time zone, not on weekends, and once after a missed stretch", async () => {
-    // Friday 6 November 2026, 19:00 in New York is 00:00 UTC on Saturday.
-    expect(lastScheduledSync(new Date("2026-11-07T00:30:00Z"), "America/New_York").toISOString()).toBe("2026-11-07T00:00:00.000Z");
-    // Before it, Thursday's.
-    expect(lastScheduledSync(new Date("2026-11-06T23:30:00Z"), "America/New_York").toISOString()).toBe("2026-11-06T00:00:00.000Z");
-    // Saturday and Sunday have none: Sunday evening still points at Friday's.
-    expect(lastScheduledSync(new Date("2026-11-09T02:00:00Z"), "America/New_York").toISOString()).toBe("2026-11-07T00:00:00.000Z");
-    expect(scheduledSyncDue(new Date("2026-11-07T00:30:00Z"), "America/New_York", "2026-11-06T12:00:00Z")).toBe(true);
-    expect(scheduledSyncDue(new Date("2026-11-07T00:30:00Z"), "America/New_York", "2026-11-07T00:15:00Z")).toBe(false);
-    // Missed while the computer was off: one sync when it's back, days later.
-    expect(scheduledSyncDue(new Date("2026-11-10T09:00:00Z"), "America/New_York", "2026-11-01T09:00:00Z")).toBe(true);
-
-    expect(await syncIfDue(new Date("2026-11-07T00:30:00Z"))).toBe(true);
-    expect(await syncIfDue(new Date("2026-11-07T00:45:00Z"))).toBe(false);
-  });
-
-  it("waits until Google Drive is allowed", async () => {
-    await prisma().googleAccount.deleteMany();
-    expect(await syncIfDue(new Date("2026-11-07T02:30:00Z"))).toBe(false);
-    expect(sheets()).toEqual([]);
   });
 });

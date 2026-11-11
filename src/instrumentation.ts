@@ -40,10 +40,6 @@ export async function register() {
     const { startAgentSchedule } = await import("@/lib/agent/schedule");
     startAgentSchedule();
 
-    // The Job application log's Google Sheet, every weekday at 7 PM, while Google Drive is allowed.
-    const { startSheetSchedule } = await import("@/lib/applications-sheet");
-    startSheetSchedule();
-
     // Startups' daily refresh, once it was refreshed by hand and while the screen is in use (#222).
     const { startStartupsSchedule } = await import("@/lib/startups/schedule");
     startStartupsSchedule();

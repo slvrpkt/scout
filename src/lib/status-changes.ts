@@ -49,6 +49,8 @@ export async function applyStatusChange(
   });
   // Loaded on use: the backup brings in the job runner and Google.
   if (copies > 0) await (await import("./drive-backup")).queueDriveBackup(applicationId);
+  // The sheet follows: once the Drive copy is in when it was just sent (drive-backup.ts), else now.
+  else if (result.outcome === "changed") (await import("./applications-sheet")).queueSheetSync();
   return result;
 }
 
@@ -63,7 +65,7 @@ export type UndoResult =
  * can be undone; after a newer one, the result is "superseded".
  */
 export async function undoStatusChange(db: PrismaClient, eventId: string): Promise<UndoResult> {
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx): Promise<UndoResult> => {
     const event = await tx.statusEvent.findUnique({ where: { id: eventId } });
     if (!event) return { outcome: "not-found" };
 
@@ -80,6 +82,9 @@ export async function undoStatusChange(db: PrismaClient, eventId: string): Promi
     await tx.statusEvent.delete({ where: { id: event.id } });
     return { outcome: "undone", status: restored.status };
   });
+  // The sheet follows the status as it is again.
+  if (result.outcome === "undone") (await import("./applications-sheet")).queueSheetSync();
+  return result;
 }
 
 /** Takes the job an application was made from off Saved for later: the posting it started from, or the agent's job it drafted. */

@@ -253,5 +253,7 @@ async function backUp(applicationId: string, step: (name: string) => Promise<voi
       data: { applicationId, kind: NoteKind.UPDATE, body: `Saved to Google Drive: ${settings.driveFolderName} / ${applicationFolderName(application)}`, at: new Date() },
     });
   }
+  // The sheet links to what was just saved.
+  (await import("./applications-sheet")).queueSheetSync();
   return { folderUrl: folderUrl(folder), files: uploaded };
 }
