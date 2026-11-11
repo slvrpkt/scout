@@ -170,7 +170,8 @@ export function DocumentPreview({
             ))}
         </div>
       </div>
-      {side && <aside className="order-first w-[calc(var(--u)*640)] flex-none @min-[900px]:sticky @min-[900px]:top-0 @min-[900px]:order-none @min-[900px]:w-[264px]">{side}</aside>}
+      {/* Scrolls with the page: pinned, a long side would be cut off with no way to reach its end. */}
+      {side && <aside className="order-first w-[calc(var(--u)*640)] flex-none @min-[900px]:order-none @min-[900px]:w-[264px]">{side}</aside>}
       </div>
     </div>
   );

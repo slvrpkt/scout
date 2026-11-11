@@ -50,14 +50,14 @@ export async function checkBeforeSending(applicationId: string): Promise<SendChe
   const [{ application, profile, resume, letter, settings }, account] = await Promise.all([loadDocuments(applicationId), loadGoogleAccount()]);
   const problems: string[] = [];
   if (!resume) problems.push("There's no resume to attach.");
-  if (!letter) problems.push("There's no cover letter to attach.");
+  if (!letter && !application.noCoverLetter) problems.push("There's no cover letter to attach.");
   if (application.resumePagesAsk) problems.push("The question about a third page on the resume isn't answered yet.");
   const limit = application.resumePageLimit ?? maxPages(settings.pageLimit);
   if (resume && limit) {
     const pages = countPdfPages(await renderPdf(`/print/resume/${applicationId}`));
     if (pages > limit) problems.push(pages === Number.MAX_SAFE_INTEGER ? `The resume's pages couldn't be counted, so it can't be checked against your limit of ${limit}.` : `The resume runs to ${pages} pages, over your limit of ${limit}.`);
   }
-  if (letter && countPdfPages(await renderPdf(`/print/letter/${applicationId}`)) > 1) problems.push("The cover letter runs past one page.");
+  if (letter && !application.noCoverLetter && countPdfPages(await renderPdf(`/print/letter/${applicationId}`)) > 1) problems.push("The cover letter runs past one page.");
   const resumeEmail = profile.basics.email.trim();
   if (account && resumeEmail && resumeEmail.toLowerCase() !== account.email.toLowerCase()) {
     problems.push(`Your resume gives ${resumeEmail}, but this goes from ${account.email}. Scout only sees replies to ${account.email}.`);
@@ -97,6 +97,7 @@ export async function sendApplicationEmail(applicationId: string, { checked = fa
   const attachments: Attachment[] = [];
   for (const { kind, path } of PRINTED) {
     if (!application.documents.some((document) => document.kind === kind)) continue;
+    if (kind === DocumentKind.COVER_LETTER && application.noCoverLetter) continue;
     attachments.push({
       fileName: resolveFileName(settings.fileNamePattern, { name, company: application.company, role: application.role, doc: kind, date: new Date() }),
       contentType: "application/pdf",

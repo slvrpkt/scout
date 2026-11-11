@@ -77,10 +77,10 @@
   --color-warning: light-dark(#6b4f1a, #fbbf24);
   --color-warning-surface: light-dark(oklch(0.94 0.04 85), rgb(245 158 11 / 0.14));
   --color-warning-line: light-dark(oklch(0.85 0.06 85), rgb(245 158 11 / 0.4));
-  --color-saved: light-dark(#f2b33d, #d99a2b); /* Save for later, when on */
-  --color-saved-hover: light-dark(#e6a52c, #c98b20);
-  --color-saved-line: light-dark(#d9962a, #b07a1c);
-  --color-on-saved: light-dark(#3d2a05, #1f1503);
+  --color-saved: light-dark(#c6ebd0, #2f6b4a); /* Save for later, when on: light green */
+  --color-saved-hover: light-dark(#b2e2be, #3a7d58);
+  --color-saved-line: light-dark(#86c99a, #4a9a6c);
+  --color-on-saved: light-dark(#14532d, #eaf7ef);
   /* Work mode capsules on job cards: bright, with white text that stays readable */
   --color-mode-remote: light-dark(#047857, #059669);
   --color-mode-hybrid: light-dark(#1d5fb8, #2a78d6);

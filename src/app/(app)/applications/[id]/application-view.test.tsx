@@ -26,6 +26,11 @@ import {
   sendMessage,
   setApplicationTheme,
   setFollowThemeLayout,
+  setNoCoverLetter,
+  saveApplicationForLater,
+  replacePosting,
+  regenerateCoverLetter,
+  rewriteForFullPosting,
   startRegenerating,
   startWritingEmail,
   undoEmailRewrite,
@@ -33,10 +38,16 @@ import {
   updateNote,
 } from "./actions";
 import { ApplicationView, type ApplicationViewProps } from "./application-view";
+import { withHeadingUnits } from "@/lib/resume-heading";
 
 vi.mock("./actions", () => ({
   setApplicationTheme: vi.fn(async () => ({ ok: true, data: null })),
   setFollowThemeLayout: vi.fn(async () => ({ ok: true, data: null })),
+  setNoCoverLetter: vi.fn(async () => ({ ok: true, data: null })),
+  saveApplicationForLater: vi.fn(async () => ({ ok: true, data: null })),
+  replacePosting: vi.fn(async () => ({ ok: true, data: null })),
+  regenerateCoverLetter: vi.fn(async () => ({ ok: true, data: null })),
+  rewriteForFullPosting: vi.fn(async () => ({ ok: true, data: null })),
   saveUnit: vi.fn(async ({ text }: { text: string }) => ({ ok: true, data: { text } })),
   startRegenerating: vi.fn(async () => ({ ok: true, data: "job-1" })),
   restoreUnit: vi.fn(async () => ({ ok: true, data: null })),
@@ -265,8 +276,8 @@ describe("editing a unit (E8-3)", () => {
     expect(frame).toHaveAttribute("data-unit", "summary");
     expect(within(frame).getByRole("button", { name: "Edit" })).toBeInTheDocument();
     // Printed parts that aren't units, like the header, have none.
-    // Every unit prints, the Skills section included.
-    expect(screen.getAllByRole("group")).toHaveLength(demoResumeUnits().length);
+    // Every unit prints, the Skills section included, and each job's heading and your location can be changed too.
+    expect(screen.getAllByRole("group")).toHaveLength(withHeadingUnits(demoResumeUnits(), props.profile).length);
   });
 
   it("leaves a part of the resume out, with Undo on the toast (#217)", async () => {
@@ -325,7 +336,8 @@ describe("editing a unit (E8-3)", () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     const role = screen.getByRole("group", { name: "Studio Brik role" });
-    await user.click(within(role).getByRole("button", { name: "Edit" }));
+    // The role's own Edit, after its heading's.
+    await user.click(within(role).getAllByRole("button", { name: "Edit" }).at(-1)!);
     expect(role).toHaveTextContent(/^UX Designer, Studio Brik/);
     expect(within(role).getByRole("textbox")).toHaveAccessibleDescription("One bullet per line");
   });
@@ -385,7 +397,7 @@ describe("regenerating a unit (E8-4)", () => {
   const rewritten = { text: "A new summary.", unverified: undefined };
   const toastAction = () => vi.mocked(toast).mock.lastCall?.[1]?.action;
 
-  it("dims the unit while it's rewritten and leaves the rest usable", async () => {
+  it("dims the unit while it's rewritten, and the rest wait till it's done", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     const frame = screen.getByRole("group", { name: "Summary" });
@@ -395,7 +407,7 @@ describe("regenerating a unit (E8-4)", () => {
     expect(frame).toHaveAttribute("aria-busy", "true");
     expect(within(frame).getByText("Rewriting…")).toBeInTheDocument();
     expect(within(frame).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "Languages" })).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Languages" })).queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
   });
 
   it("shows the new text with Undo on the toast", async () => {
@@ -505,6 +517,15 @@ describe("the Refine with AI panel (E8-5)", () => {
     // The posting has the page to itself.
     await user.click(screen.getByRole("tab", { name: /Job posting/ }));
     expect(screen.queryByRole("complementary", { name: "Refine with AI" })).not.toBeInTheDocument();
+  });
+
+  it("hides the parts' Edit, Regenerate, Ask AI and Leave out while a change is being made", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} />);
+    expect(within(screen.getByRole("group", { name: "Summary" })).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    await user.type(input(), "Shorter summary{Enter}");
+    await apply(user);
+    expect(within(screen.getByRole("group", { name: "Summary" })).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("says edits stay with this application, and points to the Profile for a lasting one", () => {
@@ -732,6 +753,115 @@ describe("downloading (E8-8)", () => {
   it("isn't offered without documents", () => {
     render(<ApplicationView {...props} resume={null} letter={null} />);
     expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
+  });
+});
+
+describe("a job's heading and your location, for this resume alone", () => {
+  it("edits a job's title, company and place by clicking it, and says the Profile stays", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} />);
+    const heading = screen.getByRole("group", { name: "Studio Brik role heading" });
+    await user.click(within(heading).getByRole("button", { name: "Edit" }));
+    const box = within(heading).getByRole("textbox");
+    expect(box).toHaveAccessibleDescription("Job title, company and place, one per line. For this resume only: your Profile stays as it is.");
+    await user.clear(box);
+    await user.type(box, "Senior UX Designer{Enter}Brik Studio{Enter}Haarlem");
+    await user.click(within(heading).getByRole("button", { name: "Save" }));
+    expect(saveUnit).toHaveBeenCalledWith(expect.objectContaining({ document: "RESUME", unitId: expect.stringMatching(/^role-head:/), text: "Senior UX Designer\nBrik Studio\nHaarlem" }));
+    // No Regenerate or Leave out: it's yours to say.
+    expect(within(heading).queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument();
+  });
+});
+
+describe("a job description cut short", () => {
+  const short = { text: "Ledgerly is hiring a designer.", url: "", pasted: "27 Sep" };
+  const full = { ...short, text: "Ledgerly is hiring. ".repeat(80) };
+
+  it("warns on the resume tab and under the original posting, in a line", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} posting={short} />);
+    expect(screen.getByText("Warning: this job description seems too short, only 30 characters.")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /Job posting/ }));
+    expect(screen.getByText("Warning: this job description seems too short, only 30 characters.")).toBeInTheDocument();
+  });
+
+  it("doesn't warn about a full one", () => {
+    render(<ApplicationView {...props} posting={full} />);
+    expect(screen.queryByText(/seems too short/)).not.toBeInTheDocument();
+  });
+
+  it("takes the full description pasted on the Job Posting tab", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} posting={short} initialTab="posting" />);
+    await user.click(screen.getByRole("button", { name: "Replace the job description" }));
+    await user.type(screen.getByRole("textbox", { name: "Paste the full job description" }), "The whole posting");
+    await user.click(screen.getByRole("button", { name: "Use this description" }));
+    expect(replacePosting).toHaveBeenCalledWith({ id: "app-1", text: "The whole posting" });
+  });
+
+  it("offers to rewrite the resume and cover letter once it's been replaced", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} posting={full} postingNewer />);
+    await user.click(screen.getByRole("button", { name: "Regenerate resume and cover letter for the full posting" }));
+    expect(rewriteForFullPosting).toHaveBeenCalledWith({ id: "app-1" });
+    // And from the Job Posting tab, right where it was pasted.
+    await user.click(screen.getByRole("tab", { name: /Job posting/ }));
+    await user.click(screen.getByRole("button", { name: "Regenerate resume and cover letter for the full posting" }));
+    expect(rewriteForFullPosting).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Save for later in the header", () => {
+  it("saves the job, and lights up", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} application={{ ...props.application, saved: false }} />);
+    await user.click(screen.getByRole("button", { name: "Save for later" }));
+    expect(saveApplicationForLater).toHaveBeenCalledWith({ id: "app-1", saved: true });
+    expect(screen.getByRole("button", { name: "Saved for later" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("isn't there once it's been applied to", () => {
+    render(<ApplicationView {...props} application={{ ...props.application, saved: null }} />);
+    expect(screen.queryByRole("button", { name: /Save for later|Saved/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("when it was applied", () => {
+  it("says when it was marked Applied, and nothing before", () => {
+    const { unmount } = render(<ApplicationView {...props} />);
+    expect(screen.queryByText(/Marked as applied on/)).not.toBeInTheDocument();
+    unmount();
+    render(<ApplicationView {...props} timeZone="America/New_York" application={{ ...props.application, appliedAt: new Date("2026-11-11T19:05:00Z") }} />);
+    expect(screen.getByText(/Marked as applied on/)).toHaveTextContent("Marked as applied on Nov 11, 2026, 2:05 PM");
+  });
+});
+
+describe("No cover letter", () => {
+  it("marks the application as going without one, from the Cover letter tab", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} />);
+    await user.click(screen.getByRole("tab", { name: "Custom tailored cover letter" }));
+    await user.click(screen.getByRole("button", { name: "I don't plan to use a cover letter" }));
+    expect(setNoCoverLetter).toHaveBeenCalledWith({ id: "app-1", on: true });
+  });
+
+  it("regenerates the cover letter from beside it", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} initialTab="letter" />);
+    await user.click(screen.getByRole("button", { name: "Regenerate cover letter" }));
+    expect(regenerateCoverLetter).toHaveBeenCalledWith({ id: "app-1" });
+  });
+
+  it("then shows no letter and no download on that tab, and can be undone", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} application={{ ...props.application, noCoverLetter: true }} initialTab="letter" />);
+    expect(screen.getByRole("status")).toHaveTextContent("No cover letter for this application");
+    expect(screen.queryByRole("button", { name: "Download" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Use a cover letter after all" }));
+    expect(setNoCoverLetter).toHaveBeenCalledWith({ id: "app-1", on: false });
+    // The resume still downloads.
+    await user.click(screen.getByRole("tab", { name: "Custom tailored resume" }));
+    expect(screen.getByRole("button", { name: "Download" })).toBeInTheDocument();
   });
 });
 

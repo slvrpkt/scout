@@ -132,17 +132,9 @@ export type AgentView = {
   belowMinimum: AgentCandidateView[];
 };
 
-/** The Agent item's badge (E16-6): what's waiting for a look. */
+/** The Agentic job search item's badge (E16-6): the drafts waiting for your review, whenever they were found, as its Drafts to review tab counts them. */
 export async function countAgentQueue(): Promise<number> {
-  const { agentMinScore } = await loadSettings();
-  return prisma.agentCandidate.count({
-    where: {
-      OR: [
-        { status: AgentCandidateStatus.SCORED, score: { gte: agentMinScore } },
-        { status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } },
-      ],
-    },
-  });
+  return prisma.agentCandidate.count({ where: { status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } } });
 }
 
 const sectionOf = (problem: string): AgentView["setupSection"] =>

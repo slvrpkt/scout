@@ -452,6 +452,8 @@ model Application {
   agentScore          Int?
   /// An agent draft not approved yet: only the Agent screen shows it (#195).
   awaitingReview      Boolean           @default(false)
+  /// Sent without a cover letter: it can't be downloaded, isn't attached in Gmail or saved as sent. A letter already written is kept.
+  noCoverLetter       Boolean           @default(false)
   title               String            @default("")
   company             String            @default("")
   role                String            @default("")
@@ -508,6 +510,8 @@ model Application {
   resumeSuggestions   String[]         @default([])
   /// When the resume was last written from the profile; older than the profile's last change, it's out of date.
   resumeWrittenAt     DateTime?
+  /// When the job description was last replaced (Job Posting tab); a resume written before it is offered a rewrite.
+  postingChangedAt    DateTime?
   /// Set while it's being sent through Gmail; left set when a send stopped halfway, so it may have gone out.
   sendingAt           DateTime?
   /// The skills line under each job is left out: the last thing given up to fit.

@@ -15,6 +15,9 @@ import { LETTER_POINTS, RESUME_POINTS } from "@/lib/themes";
 // them with its status change; undoing that change removes them again. A
 // later send (to a recruiter, a second portal) is recorded by hand.
 
+/** Why an application marked "No cover letter" has no letter to download. */
+export const NO_COVER_LETTER = "This application goes without a cover letter, so there's none to download. To send one after all, choose Use a cover letter after all on its Cover letter tab.";
+
 /** The documents an employer gets; the email is in the Gmail history instead. */
 export const SENT_KINDS: readonly DocumentKind[] = [DocumentKind.RESUME, DocumentKind.COVER_LETTER];
 
@@ -32,12 +35,14 @@ export async function saveSentCopies(
   eventId: string | null = null,
   format?: FileFormat,
 ): Promise<number> {
+  const application = await tx.application.findUnique({ where: { id: applicationId }, select: { lastDownloadFormat: true, noCoverLetter: true } });
+  // Marked "No cover letter": only the resume went, so only the resume is kept (and saved to Google Drive).
+  const kinds = application?.noCoverLetter ? SENT_KINDS.filter((kind) => kind !== DocumentKind.COVER_LETTER) : SENT_KINDS;
   const documents = await tx.document.findMany({
-    where: { applicationId, kind: { in: [...SENT_KINDS] } },
+    where: { applicationId, kind: { in: [...kinds] } },
     select: { kind: true, units: true, themeId: true },
   });
   if (documents.length === 0) return 0;
-  const application = await tx.application.findUnique({ where: { id: applicationId }, select: { lastDownloadFormat: true } });
   const sentAs = format ?? application?.lastDownloadFormat ?? FileFormat.PDF;
   // The layout it went out in, so the copy stays what the employer got when the template changes.
   const { resumeTemplate } = await loadSettings();

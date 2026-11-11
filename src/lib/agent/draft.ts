@@ -19,6 +19,7 @@ import { logServerError } from "@/lib/log";
 import { dismissPosting, storePosting, unmarkPosting } from "@/lib/postings";
 import { prisma } from "@/lib/prisma";
 import { loadSettings } from "@/lib/settings-data";
+import { looksCutShort } from "@/lib/posting-length";
 
 
 // A candidate's draft (E16-5): written the way New application writes one,
@@ -65,7 +66,10 @@ function detailsFrom(extracted: Extracted): ApplicationDetails {
  * retry, a second click and auto-draft can't make two applications; a failure
  * sends it back to SCORED with the error to show. Returns the application.
  */
-export async function draftCandidate(candidateId: string, context: JobContext): Promise<string> {
+/** Starts an automatic draft's note on a posting held back for being cut short; draftBest skips those. */
+export const HELD_SHORT = "Not drafted:";
+
+export async function draftCandidate(candidateId: string, context: JobContext, { auto = false }: { auto?: boolean } = {}): Promise<string> {
   const candidate = await prisma.agentCandidate.findUnique({ where: { id: candidateId } });
   if (!candidate) throw new ActionError("That posting is no longer in the agent's queue.");
   if (candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId) return candidate.applicationId;
@@ -81,6 +85,10 @@ export async function draftCandidate(candidateId: string, context: JobContext): 
     // The source may have given only a snippet; the whole text writes a better draft.
     const description = (await fullText(found)) ?? candidate.description;
     if (!description.trim()) throw new ActionError("That posting has no text to write from. Open it and start an application by hand.");
+    // Four lines can't tailor a resume: an automatic draft waits. Prepare draft still writes one when you ask.
+    if (auto && looksCutShort(description)) {
+      throw new ActionError(`${HELD_SHORT} the job board sent only ${description.trim().length} characters of this posting. Prepare draft writes one anyway; then paste the full description on its Job Posting tab.`);
+    }
     const posting = postingText({ ...found, description });
 
     await context.step(`Reading the posting from ${name}`);
@@ -122,9 +130,9 @@ export async function draftCandidate(candidateId: string, context: JobContext): 
 /** Prepares one candidate's draft in the background (E16-5): from Prepare draft, or a run with auto-draft on. */
 export const agentDraftJob = defineJob({
   type: "agent-draft",
-  input: z.object({ candidateId: z.string().min(1) }),
+  input: z.object({ candidateId: z.string().min(1), auto: z.boolean().optional() }),
   result: z.object({ applicationId: z.string().min(1) }),
-  run: async ({ candidateId }, context) => ({ applicationId: await draftCandidate(candidateId, context) }),
+  run: async ({ candidateId, auto }, context) => ({ applicationId: await draftCandidate(candidateId, context, { auto }) }),
 });
 
 /**

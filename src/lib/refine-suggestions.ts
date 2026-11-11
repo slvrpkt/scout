@@ -62,6 +62,8 @@ export function refineSuggestions({
       gap ? `Mention ${gap}` : "Mention accessibility",
     ],
     letter: [
+      // The resume changes with the chat; the letter can be brought in line with it.
+      "Rewrite it to match my latest resume",
       tone === Tone.FORMAL ? "Make it warmer" : "Make it more formal",
       "Shorter, under 200 words",
       ...(gap ? [`Handle the ${gap} gap differently`] : []),

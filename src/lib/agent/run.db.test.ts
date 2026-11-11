@@ -436,7 +436,7 @@ describe("runAgentScan (E16-3)", () => {
     const result = await runAgentScan({ manual: true }, context(), new Date(now.getTime() + 2 * hour));
     expect(result).toMatchObject({ scored: 3, drafted: 1, message: "2 new postings are waiting for a look. Preparing a draft for the best one." });
     const best = await prisma().agentCandidate.findFirstOrThrow({ where: { externalId: "a" } });
-    expect(startJob).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "agent-draft" }), { candidateId: best.id }, { key: `agent-candidate:${best.id}` });
+    expect(startJob).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "agent-draft" }), { candidateId: best.id, auto: true }, { key: `agent-candidate:${best.id}` });
   });
 
   it("says when nothing reached the minimum score", async () => {

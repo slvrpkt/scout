@@ -1,5 +1,6 @@
 "use client";
 
+import { useRewriting } from "./rewriting";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
@@ -13,6 +14,7 @@ import { fitResumeNow } from "./actions";
 export function OverLimitNotice({ id, limit }: { id: string; limit: number }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  useRewriting(pending);
   const fit = () =>
     !pending &&
     startTransition(async () => {

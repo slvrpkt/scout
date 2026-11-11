@@ -5,6 +5,7 @@ import { publicationHref, publicationLink } from "@/lib/citation";
 import { ageOn, formatDateRange, formatMonthYear, resumeCertifications, resumePublications, type Basics, type CertificationItem, type ProfileData, isSkill } from "@/lib/profile";
 import { inEditorOrder, skillsText, withoutNames } from "@/lib/skill-groups";
 import { withCurrentIds } from "@/lib/unit-ids";
+import { LOCATION_UNIT, parseRoleHead, ROLE_HEAD } from "@/lib/resume-heading";
 
 // What a resume shows, worked out from the profile (the base resume) or from
 // a tailored document's units, so the renderer only has to lay it out.
@@ -246,9 +247,16 @@ export function resumeContent(
     content.experience = withUnit("experience:", profile.experience).map(({ entry, text: bullets }) => {
       // The skills line in this job's words, when it was written for it.
       const skills = text(`role-skills:${entry.id}`).split(", ").map((skill) => skill.trim()).filter(Boolean);
-      const shown = experience(entry, bullets);
+      // This resume's own title, company and place, when you changed them for it.
+      const head = units.some((unit) => unit.id === `${ROLE_HEAD}${entry.id}`) ? parseRoleHead(text(`${ROLE_HEAD}${entry.id}`)) : null;
+      const shown = experience(head ? { ...entry, role: head.role || entry.role, company: head.company || entry.company, location: head.location } : entry, bullets);
       return skills.length > 0 ? { ...shown, skills: fewSkills(skills) } : shown;
     });
+    // Where you live, as this resume says it.
+    if (units.some((unit) => unit.id === LOCATION_UNIT)) {
+      const placed = { ...basics, city: text(LOCATION_UNIT).trim(), state: "" };
+      content.contacts = template ? templateContacts(placed, template) : contactItems(placed, today, labels);
+    }
     content.projects = withUnit("project:", profile.projects).map(({ entry, text }) => project(entry, text));
     content.education = withUnit("education:", profile.education).map(({ entry, text }) =>
       education(entry, text),

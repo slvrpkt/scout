@@ -23,7 +23,7 @@ import { loadSettings, saveSettings } from "@/lib/settings-data";
 
 import { loadUsage, spend, startOfDay } from "./budget";
 import { candidateData, jobKey } from "./candidates";
-import { agentDraftJob, draftJobKey } from "./draft";
+import { agentDraftJob, draftJobKey, HELD_SHORT } from "./draft";
 import { scoreRoom } from "./runs";
 
 // New postings wait here to be scored, so a job found once is never searched
@@ -215,7 +215,13 @@ export async function draftBest(now: Date, timeZone: string, settings: SettingsD
   );
   const best = (
     await prisma.agentCandidate.findMany({
-      where: { status: AgentCandidateStatus.SCORED, score: { gte: Math.max(settings.agentDraftScore, settings.agentMinScore) }, createdAt: { gte: startOfDay(now, timeZone) } },
+      where: {
+        status: AgentCandidateStatus.SCORED,
+        score: { gte: Math.max(settings.agentDraftScore, settings.agentMinScore) },
+        createdAt: { gte: startOfDay(now, timeZone) },
+        // Not one held back for being cut short: it waits for you.
+        OR: [{ error: null }, { NOT: { error: { startsWith: HELD_SHORT } } }],
+      },
       orderBy: [{ score: "desc" }, { createdAt: "desc" }],
       take: room + busy.size,
       select: { id: true },
@@ -223,7 +229,7 @@ export async function draftBest(now: Date, timeZone: string, settings: SettingsD
   )
     .filter(({ id }) => !busy.has(draftJobKey(id)))
     .slice(0, room);
-  for (const { id } of best) await startJob(agentDraftJob, { candidateId: id }, { key: draftJobKey(id) });
+  for (const { id } of best) await startJob(agentDraftJob, { candidateId: id, auto: true }, { key: draftJobKey(id) });
   if (best.length > 0) await spend(now, timeZone, { drafted: best.length });
   return best.length;
 }

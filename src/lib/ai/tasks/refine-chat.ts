@@ -1,3 +1,4 @@
+import { isHeadingUnit } from "@/lib/resume-heading";
 import { z } from "zod";
 
 import { DocumentKind, Tone } from "@/generated/prisma/enums";
@@ -40,6 +41,7 @@ const INSTRUCTIONS = `You help a candidate refine their tailored resume, cover l
 
 - Change only what the request asks for. Each edit replaces one unit's whole text: give its document (RESUME, COVER_LETTER or EMAIL), its unitId and the new text. For a role or project, write bullets one per line without bullet characters.
 - Never edit a publication (a resume unit whose unitId starts with "publication:"): it's the candidate's citation, as they wrote it. If asked to, say they can edit it or leave it out themselves.
+- A resume unit whose unitId starts with "role-head:" is a job's heading, three lines: the job title, the company, and its place. The "location" unit is where the candidate lives, as the resume's header shows it. Change them only when the candidate asks (another town, a company's new name), keeping the three lines; it's for this resume alone.
 - The email goes out with the resume and cover letter attached. Its "to" unit is the recipient ("Name <address>"), "subject" its subject line and "body" the whole message, from the greeting to the sign-off and the candidate's name.
 - tone: set it (WARM, DIRECT or FORMAL) only when the request asks for a different tone for the letter; otherwise null. When you change the tone, rewrite the letter's paragraphs to match. A different tone for the email is an edit to the email, not a new tone.
 - If the request needs facts the profile doesn't have (a skill, employer, number, credential…), don't make them up: set declined to true, make no edits, and say in reply what the candidate could add to their profile first.
@@ -123,7 +125,8 @@ export const refineChat: Task<RefineInput, Refinement> = async (provider, input,
       // A publication stays as the candidate wrote it (#218).
       if (unit && text && text !== unit.text && !isPublicationUnit(unit.id)) {
         // E6-6: in strict mode, note what the profile and posting don't back.
-        const checked = edit.document === DocumentKind.EMAIL ? unit.id !== "to" : unit.id !== SIGN_OFF_UNIT && !isFrameUnit(unit.id);
+        // A heading or location the candidate asked to change is theirs to say.
+        const checked = edit.document === DocumentKind.EMAIL ? unit.id !== "to" : unit.id !== SIGN_OFF_UNIT && !isFrameUnit(unit.id) && !isHeadingUnit(unit.id);
         const unverified = sources && checked ? unverifiedFacts(text, sources) : [];
         edits.set(`${edit.document} ${unit.id}`, {
           document: edit.document,

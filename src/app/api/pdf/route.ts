@@ -9,7 +9,7 @@ import { countPdfPages } from "@/lib/pdf/pages";
 import { renderPdf } from "@/lib/pdf/render";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
-import { rememberDownloadFormat } from "@/lib/sent-documents";
+import { NO_COVER_LETTER, rememberDownloadFormat } from "@/lib/sent-documents";
 import { maxPages, pagesInWords } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-data";
 import { route } from "@/lib/route";
@@ -81,10 +81,11 @@ async function renderRequested(request: NextRequest): Promise<{ pdf: Uint8Array;
   const application = APPLICATION_ID.test(id)
     ? await prisma.application.findUnique({
         where: { id },
-        select: { company: true, role: true, documents: { where: { kind: TAILORED[doc] }, select: { id: true } } },
+        select: { company: true, role: true, noCoverLetter: true, documents: { where: { kind: TAILORED[doc] }, select: { id: true } } },
       })
     : null;
   if (!application) return notFound("That application no longer exists.");
+  if (doc === "letter" && application.noCoverLetter) return notFound(NO_COVER_LETTER);
   if (application.documents.length === 0) {
     return notFound(doc === "resume" ? "This application has no tailored resume." : "This application has no cover letter.");
   }

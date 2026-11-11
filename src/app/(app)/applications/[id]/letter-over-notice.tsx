@@ -1,5 +1,6 @@
 "use client";
 
+import { useRewriting } from "./rewriting";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
@@ -12,6 +13,7 @@ import { fitLetterNow } from "./actions";
 export function LetterOverNotice({ id }: { id: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  useRewriting(pending);
   const fit = () =>
     !pending &&
     startTransition(async () => {

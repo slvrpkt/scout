@@ -1,5 +1,8 @@
 "use client";
 
+import { looksCutShort, shortPostingWarning } from "@/lib/posting-length";
+import { ReplacePosting } from "./replace-posting";
+import { PostingChangedNotice } from "./posting-changed-notice";
 import Link from "next/link";
 import { useId, useState } from "react";
 
@@ -45,6 +48,7 @@ export function PostingTab({
   onAddSkill,
   facts,
   setFacts,
+  postingNewer = false,
 }: {
   applicationId: string;
   posting: PostingData;
@@ -53,6 +57,8 @@ export function PostingTab({
   onAddSkill: (index: number, skill: string) => void;
   facts: FactItem[];
   setFacts: (change: (facts: FactItem[]) => FactItem[]) => void;
+  /** The description was replaced after the resume was written: regenerate from here too. */
+  postingNewer?: boolean;
 }) {
   const notesHint = useId();
   const saved = facts.map((fact) => fact.text.trim()).filter(Boolean).join("\n\n");
@@ -138,6 +144,13 @@ export function PostingTab({
               ) : (
                 <p className="text-sm text-muted">No posting was saved with this application.</p>
               )}
+              {looksCutShort(posting.text) && (
+                <p role="alert" className="text-meta font-medium text-error">
+                  {shortPostingWarning(posting.text)}
+                </p>
+              )}
+              {postingNewer && <PostingChangedNotice id={applicationId} />}
+              <ReplacePosting id={applicationId} />
             </div>
           </div>
         </section>

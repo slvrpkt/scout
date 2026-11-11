@@ -30,6 +30,10 @@ import { loadProfile } from "@/lib/profile-data";
 import { findOrCreateSkill } from "@/lib/profile-entries";
 import { sampleApplicationIds } from "@/lib/sample-data";
 import { saveSentCopies } from "@/lib/sent-documents";
+import { addHeadingUnit, isHeadingUnit, withHeadingUnits } from "@/lib/resume-heading";
+import { saveApplicationJob } from "@/lib/application-saved";
+import { replacePostingText, rewriteForPosting } from "@/lib/replace-posting";
+import { rewriteLetter } from "@/lib/jobs/write-letter";
 import { applyStatusChange } from "@/lib/status-changes";
 import { cleanUnitText, isPublicationUnit, unitName } from "@/lib/unit-text";
 
@@ -53,6 +57,86 @@ export const setFollowThemeLayout = action(
     return null;
   },
 );
+
+/** Replace the job description (Job Posting tab): the full text, read again and matched with the profile. */
+export const replacePosting = action(
+  z.object({ id: z.string().min(1), text: z.string().trim().min(100, "That's shorter than a job description. Paste the whole posting.").max(100_000) }),
+  async ({ id, text }, { toast }) => {
+    if ((await prisma.application.count({ where: { id } })) === 0) throw new ActionError(GONE);
+    try {
+      await replacePostingText(id, text);
+    } catch (error) {
+      if (error instanceof AiError) throw new ActionError(error.message);
+      logServerError("replacing a job description", error);
+      throw new ActionError("The description couldn't be read just now, so the old one stays. Try again in a moment.");
+    }
+    refresh(id);
+    toast("The full job description is in. The match and ATS score follow it now.");
+    return null;
+  },
+);
+
+/** "Rewrite the resume and cover letter for the full posting", once the description was replaced. */
+export const rewriteForFullPosting = action(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+  const application = await prisma.application.findUnique({ where: { id }, select: { sentAt: true } });
+  if (!application) throw new ActionError(GONE);
+  if (application.sentAt) throw new ActionError("This application was already sent, so its resume stays as it went out.");
+  let letter: boolean;
+  try {
+    ({ letter } = await rewriteForPosting(id));
+  } catch (error) {
+    if (error instanceof AiError) throw new ActionError(error.message);
+    logServerError("rewriting for the full job description", error);
+    throw new ActionError("It couldn't be rewritten just now, so it stays as it is. Try again in a moment.");
+  }
+  refresh(id);
+  toast(`Rewritten for the full job description: the resume${letter ? " and cover letter" : ""}. The earlier versions are in History.`);
+  return null;
+});
+
+/** Regenerate cover letter: written again from the job's requirements and the resume as it is now. */
+export const regenerateCoverLetter = action(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+  const application = await prisma.application.findUnique({ where: { id }, select: { sentAt: true, noCoverLetter: true } });
+  if (!application) throw new ActionError(GONE);
+  if (application.sentAt) throw new ActionError("This application was already sent, so its cover letter stays as it went out.");
+  if (application.noCoverLetter) throw new ActionError("This application goes without a cover letter.");
+  try {
+    if (!(await rewriteLetter(id, "the cover letter for your latest resume", "As it was before it was regenerated"))) {
+      throw new ActionError("There's no cover letter to regenerate yet.");
+    }
+  } catch (error) {
+    if (error instanceof ActionError) throw error;
+    if (error instanceof AiError) throw new ActionError(error.message);
+    logServerError("regenerating a cover letter", error);
+    throw new ActionError("The cover letter couldn't be regenerated just now, so it stays as it is. Try again in a moment.");
+  }
+  refresh(id);
+  toast("Cover letter regenerated from your latest resume. The earlier one is in History.");
+  return null;
+});
+
+/** Save for later in the application's header: the job it was made from goes on Saved for later, or comes off. */
+export const saveApplicationForLater = action(z.object({ id: z.string().min(1), saved: z.boolean() }), async ({ id, saved }, { toast }) => {
+  if (!(await saveApplicationJob(id, saved))) throw new ActionError(GONE);
+  toast(saved ? "Saved for later." : "Taken off Saved for later.");
+  revalidatePath("/saved");
+  refresh(id);
+  return null;
+});
+
+/**
+ * "No cover letter" on the Cover letter tab, and its undo: the application
+ * goes without one. Nothing is written or thrown away: a letter already
+ * written stays, unused. Marked after a send, that send's letter is taken
+ * off what was sent too, unless it's already in Google Drive.
+ */
+export const setNoCoverLetter = action(z.object({ id: z.string().min(1), on: z.boolean() }), async ({ id, on }) => {
+  const { count } = await prisma.application.updateMany({ where: { id }, data: { noCoverLetter: on } });
+  if (count === 0) throw new ActionError(GONE);
+  if (on) await prisma.sentDocument.deleteMany({ where: { applicationId: id, kind: DocumentKind.COVER_LETTER, driveFileId: null } });
+  refresh(id);
+  return null;
+});
 
 /**
  * The Theme menu on the Resume and Cover letter tabs (#226, public issue 10):
@@ -123,6 +207,13 @@ export const saveUnit = action(
       // A letter written before E8-11 shows its frame without storing it: the first edit stores that part.
       if (!unit && units && document === DocumentKind.COVER_LETTER && isFrameUnit(unitId)) {
         documents[document] = withFrame(units, { [unitId]: clean });
+        return;
+      }
+      // A job's heading or your location, changed for this resume alone: stored from now on. The profile stays as it is.
+      if (!unit && units && document === DocumentKind.RESUME && isHeadingUnit(unitId)) {
+        const drawn = withHeadingUnits(units, await loadProfile()).find((entry) => entry.id === unitId);
+        if (!drawn) throw new ActionError(PART_GONE);
+        documents[document] = addHeadingUnit(units, { ...drawn, text: clean });
         return;
       }
       if (!unit) throw new ActionError(PART_GONE);

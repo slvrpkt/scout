@@ -1,5 +1,6 @@
 "use client";
 
+import { looksCutShort, shortPostingWarning } from "@/lib/posting-length";
 import { ScoreNow } from "./score-now";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -811,13 +812,14 @@ export function CandidateCard({
         </div>
         {/* The actions at the top, so they're there without scrolling: all one height, the score centered on them. */}
         <div className="flex flex-wrap items-center justify-end gap-2.5">
-          <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
-            {children}
-          </div>
+          {/* Save for later comes first, before Review opportunity and the rest. */}
           <AgentSaveButton
             candidateId={candidate.id}
             saved={candidate.saved ?? false}
           />
+          <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
+            {children}
+          </div>
           <ScoreExplainer
             score={candidate.score}
             title={[candidate.title, candidate.company]
@@ -851,6 +853,11 @@ export function CandidateCard({
         >
           {candidate.description}
         </div>
+      )}
+      {looksCutShort(candidate.description) && !candidate.error?.startsWith("Not drafted:") && (
+        <p role="alert" className="text-meta font-medium text-error">
+          {shortPostingWarning(candidate.description)}
+        </p>
       )}
       {candidate.error && (
         <p role="alert" className="text-meta text-error">

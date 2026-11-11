@@ -1,5 +1,6 @@
 "use client";
 
+import { useRewriting } from "./rewriting";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
@@ -17,6 +18,7 @@ import { answerResumePages } from "./actions";
 export function PagesQuestion({ id, reason = null }: { id: string; reason?: string | null }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  useRewriting(pending);
   const answer = (allow: boolean) =>
     !pending &&
     startTransition(async () => {

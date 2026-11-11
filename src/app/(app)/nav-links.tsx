@@ -9,6 +9,13 @@ import { isCurrent, NAV } from "@/lib/nav";
 import { useSidebarCollapsed } from "./sidebar-frame";
 
 /** The sidebar's navigation, with the current section highlighted. */
+/** What each item's count is, on hover and for screen readers. */
+const COUNT_TIPS: Record<string, (count: number) => string> = {
+  "/agent": (count) => `${count} ${count === 1 ? "draft" : "drafts"} waiting for your review`,
+  "/saved": (count) => `${count} ${count === 1 ? "job" : "jobs"} saved for later`,
+};
+const countTip = (href: string, count: number) => COUNT_TIPS[href]?.(count) ?? `${count} waiting`;
+
 export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
   const pathname = usePathname();
   const collapsed = useSidebarCollapsed();
@@ -50,6 +57,7 @@ export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
                 <span className={cn(collapsed && "sr-only")}>{label}</span>
                 {counts?.[href] ? (
                   <span
+                    title={countTip(href, counts[href])}
                     className={cn(
                       "ml-auto rounded-full px-1.5 text-[11px] leading-[18px] font-semibold",
                       // On the selected (white) item the badge turns navy, so it still shows.
@@ -57,8 +65,8 @@ export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
                       collapsed && "absolute ml-0 translate-x-2.5 -translate-y-2",
                     )}
                   >
-                    {counts[href]}
-                    <span className="sr-only"> waiting</span>
+                    <span aria-hidden="true">{counts[href]}</span>
+                    <span className="sr-only">{countTip(href, counts[href])}</span>
                   </span>
                 ) : null}
               </Link>

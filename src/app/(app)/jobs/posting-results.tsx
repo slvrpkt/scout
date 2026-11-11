@@ -750,6 +750,13 @@ function PostingDetail({
         </div>
         {/* The actions at the top, so they're there without scrolling: all one height, the score centered on them. */}
         <div className="flex flex-wrap items-center justify-end gap-2.5">
+          {/* Save for later comes first, before Review opportunity and the rest. */}
+          {!state.dismissed && (
+            <SaveForLaterButton
+              saved={state.saved}
+              onToggle={state.saved ? onUnsave : onSave}
+            />
+          )}
           <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
             {children}
             {state.dismissed && (
@@ -786,12 +793,6 @@ function PostingDetail({
               </Button>
             )}
           </div>
-          {!state.dismissed && (
-            <SaveForLaterButton
-              saved={state.saved}
-              onToggle={state.saved ? onUnsave : onSave}
-            />
-          )}
           {state.score && !scoring ? (
             <ScoreExplainer
               score={state.score.score}

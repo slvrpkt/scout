@@ -22,6 +22,7 @@ import { pagesInWords } from "@/lib/settings";
 import { bulletLines, isPublicationUnit } from "@/lib/unit-text";
 import { citationExcerpt } from "@/lib/citation";
 import { withCurrentIds } from "@/lib/unit-ids";
+import { carryHeadings } from "@/lib/resume-heading";
 
 // "Resume length" (E10-10, SET-9): a new tailored resume that runs over its
 // page limit is fitted once, when the application is created, with the
@@ -244,7 +245,8 @@ export async function rewriteResume(
       const resume = await tx.document.findUnique({ where: { applicationId_kind: { applicationId, kind: DocumentKind.RESUME } } });
       if (!resume) return;
       await saveVersion(tx, resume.id, documents[DocumentKind.RESUME] ?? [], { cause: VersionCause.BEFORE_RESTORE, detail: before });
-      documents[DocumentKind.RESUME] = data;
+      // The titles, companies and place you changed for this resume stay.
+      documents[DocumentKind.RESUME] = carryHeadings(documents[DocumentKind.RESUME] ?? [], data);
       await tx.application.update({ where: { id: applicationId }, data: { resumeSuggestions: suggestions, resumeWrittenAt: new Date() } });
     },
     { version: { cause: VersionCause.REGENERATED, detail } },

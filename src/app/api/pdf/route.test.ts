@@ -108,6 +108,15 @@ describe("GET /api/pdf", () => {
     expect(prisma.application.updateMany).toHaveBeenLastCalledWith({ where: { id: "app1" }, data: { lastDownloadFormat: "PDF" } });
   });
 
+  it("refuses the cover letter of an application marked No cover letter, but not its resume", async () => {
+    vi.mocked(prisma.application.findUnique).mockResolvedValue({ company: "Ledgerly", role: "", noCoverLetter: true, documents: [{ id: "d1" }] } as never);
+    const response = await get("?doc=letter&application=app1");
+    expect(response.status).toBe(404);
+    expect((await response.json()).error).toMatch(/goes without a cover letter/);
+    expect(renderPdf).not.toHaveBeenCalled();
+    expect((await get("?doc=resume&application=app1")).status).toBe(200);
+  });
+
   it("says which document an application doesn't have", async () => {
     vi.mocked(prisma.application.findUnique).mockResolvedValue({ company: "Ledgerly", role: "", documents: [] } as never);
     const response = await get("?doc=letter&application=app1");

@@ -77,6 +77,16 @@
   pointer-events: auto;
 }
 
+/* A part inside another (a job's heading in the job): under the pointer, only its own toolbar and highlight show. */
+.frame:has(.frame:hover) > .toolbar {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.frame:has(.frame:hover)::before {
+  background: none;
+}
+
 /* In the margin before the unit, so it doesn't move the text. */
 .check {
   position: absolute;
@@ -112,4 +122,11 @@
     animation-duration: 0.01s;
     background: var(--color-flash);
   }
+}
+
+/* While the document is being changed, its parts don't light up: nothing can be done to them till it's done. */
+.locked:hover::before,
+.locked:focus-visible::before,
+.locked:has(:focus-visible)::before {
+  background: none;
 }

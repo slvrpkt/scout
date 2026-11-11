@@ -33,7 +33,7 @@ describe("refineSuggestions (E8-5)", () => {
     };
     expect(refineSuggestions({ match, requirements, tone: "WARM", hasSummary: true })).toEqual({
       resume: ["Make the summary shorter", "Emphasize Design systems", "Mention Kubernetes"],
-      letter: ["Make it more formal", "Shorter, under 200 words", "Handle the Kubernetes gap differently"],
+      letter: ["Rewrite it to match my latest resume", "Make it more formal", "Shorter, under 200 words", "Handle the Kubernetes gap differently"],
       email: ["Shorter, under 100 words", "Make it more formal", "Lead with Design systems"],
     });
   });
@@ -45,13 +45,13 @@ describe("refineSuggestions (E8-5)", () => {
       "Handle the fintech experience gap differently",
     );
     const long = { items: [item(requirements[1].text, "gap")] };
-    expect(refineSuggestions({ match: long, requirements: requirements.slice(1), tone: "WARM", hasSummary: true }).letter).toHaveLength(2);
+    expect(refineSuggestions({ match: long, requirements: requirements.slice(1), tone: "WARM", hasSummary: true }).letter).toHaveLength(3);
   });
 
   it("falls back to the prototype's chips without a match", () => {
     expect(refineSuggestions({ match: null, requirements: [], tone: "FORMAL", hasSummary: false })).toEqual({
       resume: ["Emphasize leadership", "Mention accessibility"],
-      letter: ["Make it warmer", "Shorter, under 200 words"],
+      letter: ["Rewrite it to match my latest resume", "Make it warmer", "Shorter, under 200 words"],
       email: ["Shorter, under 100 words", "Make it warmer", "Make the subject line stand out"],
     });
   });

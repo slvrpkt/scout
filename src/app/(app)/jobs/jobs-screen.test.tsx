@@ -221,7 +221,7 @@ describe("the results", () => {
     renderScreen({ search: stored([posting("a", { state: { ...state, saved: true } })]) });
     expect(screen.getByText(/^Posted 30 Sept? 2026$/)).toBeInTheDocument();
     expect(screen.getByText("Last updated today at 14:32")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Saved" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Saved for later" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByRole("button", { name: "Remove from Saved" })).not.toBeInTheDocument();
   });
 
@@ -230,7 +230,7 @@ describe("the results", () => {
     renderScreen({ search: stored([posting("a"), posting("b")]) });
     await userEvent.click(screen.getByRole("button", { name: "Save for later" }));
     expect(savePostingForLater).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Saved" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Saved for later" })).toHaveAttribute("aria-pressed", "true");
     expect(within(screen.getByRole("list", { name: "Postings" })).getByRole("button", { name: /^Designer a/ })).toBeInTheDocument();
   });
 
@@ -488,7 +488,7 @@ describe("the Saved and Dismissed views (E14-7)", () => {
 
   it("takes an unsaved posting out of Saved, with Undo", async () => {
     renderScreen({ view: "saved", kept: [posting("a", { state: { ...state, saved: true } }), posting("b", { state: { ...state, saved: true } })] });
-    await userEvent.click(screen.getByRole("button", { name: "Saved" }));
+    await userEvent.click(screen.getByRole("button", { name: "Saved for later" }));
     expect(unsavePosting).toHaveBeenCalledWith({ source: "JSEARCH", externalId: "a" });
     expect(screen.queryByRole("button", { name: /^Designer a/ })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Designer b" })).toBeInTheDocument();

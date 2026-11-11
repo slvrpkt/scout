@@ -53,15 +53,17 @@ export async function documentsFile(applicationId: string): Promise<ApplicationF
   // Not sent yet: the tailored documents, in the format last downloaded.
   const documents = await loadDocuments(applicationId);
   if (!documents.resume) return null;
+  // Marked "No cover letter": the resume alone.
+  const letter = documents.application.noCoverLetter ? null : documents.letter;
   const format = application.lastDownloadFormat ?? FileFormat.PDF;
   let file: Uint8Array;
   if (format === FileFormat.PDF) {
     const resume = await renderPdf(`/print/resume/${applicationId}`);
-    file = documents.letter ? await combinePdfs([await renderPdf(`/print/letter/${applicationId}`), resume]) : resume;
+    file = letter ? await combinePdfs([await renderPdf(`/print/letter/${applicationId}`), resume]) : resume;
   } else {
-    file = await combinedDocx(documents, documents.resume, documents.letter && { context: documents, document: documents.letter });
+    file = await combinedDocx(documents, documents.resume, letter && { context: documents, document: letter });
   }
-  return { file, ...named(await fileNameFor(applicationId, new Date(), format), Boolean(documents.letter), format) };
+  return { file, ...named(await fileNameFor(applicationId, new Date(), format), Boolean(letter), format) };
 }
 
 async function fileNameFor(applicationId: string, date: Date, format: FileFormat): Promise<string> {

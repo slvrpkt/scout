@@ -1,5 +1,6 @@
 "use client";
 
+import { useRewriting } from "./rewriting";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,7 @@ export function AtsScore({ id, grade, draft, profileNewer = false }: { id: strin
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  useRewriting(pending);
   // The grade last shown: when a change to the resume (a chat edit, say) brings a new one, say what moved.
   const [shown, setShown] = useState(grade);
   const [change, setChange] = useState<string | null>(null);

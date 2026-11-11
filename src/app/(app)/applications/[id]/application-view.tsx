@@ -3,7 +3,6 @@
 import type { AtsGrade } from "@/lib/ats-grade";
 import { AtsScore } from "./ats-grade-card";
 import { OverLimitNotice } from "./over-limit-notice";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Switch } from "radix-ui";
 import { useEffect, useId, useOptimistic, useRef, useState, useTransition, type ReactNode } from "react";
@@ -65,7 +64,11 @@ import { JobWatcher } from "./job-watcher";
 import { ActivityTimeline } from "./activity-timeline";
 import { DismissDraft } from "./dismiss-draft";
 import { LogPager } from "./log-pager";
+import { isHeadingUnit, withHeadingUnits } from "@/lib/resume-heading";
+import { useAnyRewriting } from "./rewriting";
 import { DownloadMenu } from "./download-menu";
+import { CoverLetterChoice, RegenerateLetter } from "./cover-letter-choice";
+import { SaveApplicationButton } from "./save-application-button";
 import type { LogNeighbours } from "@/lib/applications-data";
 
 import { NotesTab, type DriveState } from "./notes-tab";
@@ -73,6 +76,8 @@ import { PostingTab, type PostingData } from "./posting-tab";
 import { LetterOverNotice } from "./letter-over-notice";
 import { LetterPending } from "./letter-pending";
 import { OutdatedNotice } from "./outdated-notice";
+import { PostingChangedNotice } from "./posting-changed-notice";
+import { looksCutShort, shortPostingWarning } from "@/lib/posting-length";
 import { RefinePanel, type ChatEntry } from "./refine-panel";
 import { ResumeSuggestions } from "./resume-suggestions";
 import { StatusControl } from "./status-control";
@@ -126,6 +131,12 @@ export type ApplicationViewProps = {
     archived: boolean;
     /** A job agent draft not approved yet (#195): it isn't in Applications. */
     awaitingReview?: boolean;
+    /** Marked "No cover letter": only the resume goes. */
+    noCoverLetter?: boolean;
+    /** When it was marked Applied (sent); null before. */
+    appliedAt?: Date | null;
+    /** Whether its job is on Saved for later; null once it's been applied to. */
+    saved?: boolean | null;
     /** The job agent's find it was drafted from, while it waits for review: Archive moves both to the archive. */
     reviewCandidateId?: string | null;
     /** The next interview, while in Interview (E9-9). */
@@ -155,6 +166,8 @@ export type ApplicationViewProps = {
   letter: DocumentData | null;
   /** The cover letter being drafted now, the first time a job agent draft is opened. */
   letterJobId?: string | null;
+  /** The job description was replaced after the resume was written: offer a rewrite. */
+  postingNewer?: boolean;
   /** They're the copies that were sent, so they can only be read. */
   frozen?: boolean;
   /** The profile has changed since this draft's resume was written. */
@@ -235,6 +248,7 @@ export function ApplicationView({
   atsGrade = null,
   suggestionsJobId = null,
   letterJobId = null,
+  postingNewer = false,
   letterDate,
   score,
   initialTab,
@@ -549,6 +563,9 @@ export function ApplicationView({
    * (E8-11); a part an older letter only shows is stored when it's first
    * edited or regenerated.
    */
+  // A chat request, a part or a whole document being written again: the parts' buttons wait till it's done.
+  const anyRewriting = useAnyRewriting();
+  const locked = reply !== null || Object.keys(rewrites).length > 0 || anyRewriting;
   const unitsOf = (kind: DocumentKind, units: Unit[], stored: ReadonlySet<string> = new Set(units.map((unit) => unit.id))): UnitRenderer =>
     function renderEditableUnit({ id, className, head, children }) {
       const unit = units.find((entry) => entry.id === id);
@@ -558,7 +575,7 @@ export function ApplicationView({
         kind === DocumentKind.EMAIL
           ? WRITTEN_EMAIL_UNITS.has(id)
           : kind === DocumentKind.RESUME
-            ? !isPublicationUnit(id)
+            ? !isPublicationUnit(id) && !isHeadingUnit(id)
             : !isFrameUnit(id) || WRITTEN_FRAME_UNITS.has(id);
       return (
         <UnitFrame
@@ -569,6 +586,7 @@ export function ApplicationView({
           editing={editing === key}
           saving={editing === key && saving[key] !== undefined}
           busy={key in rewrites}
+          locked={locked}
           flashing={flashing.keys.has(key)}
           onEdit={() => setEditing(key)}
           onCancel={() => setEditing(null)}
@@ -576,14 +594,15 @@ export function ApplicationView({
           onRegenerate={written ? () => void regenerate(kind, unit, { stored: stored.has(id) }) : undefined}
           // The chat only edits parts the letter stores.
           onAskAi={written && stored.has(id) ? () => askAbout(kind, unit) : undefined}
-          onLeaveOut={kind === DocumentKind.RESUME ? () => leaveOut(unit) : undefined}
+          onLeaveOut={kind === DocumentKind.RESUME && !isHeadingUnit(id) ? () => leaveOut(unit) : undefined}
         >
           {children}
         </UnitFrame>
       );
     };
 
-  const resumeUnits = resume && shown(DocumentKind.RESUME, resume.units);
+  // Its job headings and your location too, those it doesn't store yet as the profile has them.
+  const resumeUnits = resume && withHeadingUnits(shown(DocumentKind.RESUME, resume.units), profile);
   // Every part of the letter, those it doesn't store yet as they've always been drawn (E8-11).
   const letterUnits =
     letter &&
@@ -672,19 +691,18 @@ export function ApplicationView({
         actions={
           <>
             {application.archived && <span className="rounded-full bg-track px-3 py-1.5 text-meta text-muted">Archived</span>}
-            {application.awaitingReview && (
-              <Link
-                href="/agent"
-                title="Change the status when you apply: that moves it to your Job application log. Archive keeps it in the log's archive."
-                className="rounded-full bg-warning-surface px-3 py-1.5 text-meta text-warning hover:text-warning"
-              >
-                From the job agent · waiting for review
-              </Link>
+            {/* Once applied, when: before that, Mark as applied beside it says what's left to do. */}
+            {application.appliedAt && (
+              <span role="status" className="rounded-full bg-success-surface px-3 py-1.5 text-meta text-success">
+                Marked as applied on{" "}
+                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", ...(timeZone ? { timeZone } : {}) }).format(application.appliedAt)}
+              </span>
             )}
+            {application.saved != null && <SaveApplicationButton key={String(application.saved)} id={application.id} saved={application.saved} />}
             {application.awaitingReview && application.reviewCandidateId && <DismissDraft candidateId={application.reviewCandidateId} />}
             <StatusControl id={application.id} status={application.status} interviewAt={application.nextInterviewAt} timeZone={timeZone} />
-            {(resume || letter) && (
-              // The document on screen, as a PDF or a Word file; from the other tabs, the resume (E8-8).
+            {(resume || letter) && !(tab === "letter" && application.noCoverLetter) && (
+              // The document on screen, as a PDF or a Word file; from the other tabs, the resume (E8-8). Not a letter marked "No cover letter".
               <DownloadMenu id={application.id} doc={tab === "letter" ? "letter" : "resume"} />
             )}
             <ApplicationMenu id={application.id} archived={application.archived} />
@@ -729,9 +747,16 @@ export function ApplicationView({
                 if (application.resumePagesAsk) return <PagesQuestion id={application.id} reason={application.resumePagesReason} />;
                 const over = pageLimit !== null && pages > pageLimit;
                 const noSkills = resume.theme.noRoleSkills === true;
-                if (!over && !noSkills && !outdated && !resume.trimmed?.length) return undefined;
+                const short = looksCutShort(posting.text);
+                if (!over && !noSkills && !outdated && !resume.trimmed?.length && !short && !postingNewer) return undefined;
                 return (
                   <div className="flex flex-col gap-2">
+                    {short && (
+                      <p role="alert" className="text-meta font-medium text-error">
+                        {shortPostingWarning(posting.text)}
+                      </p>
+                    )}
+                    {postingNewer && <PostingChangedNotice id={application.id} />}
                     {outdated && <OutdatedNotice id={application.id} />}
                     {over && <OverLimitNotice id={application.id} limit={pageLimit} />}
                     {noSkills && (
@@ -761,7 +786,7 @@ export function ApplicationView({
                 template={template}
                 language={application.language}
                 includeReferences={includeReferences}
-                renderUnit={viewed(DocumentKind.RESUME) || frozen ? plainUnit : unitsOf(DocumentKind.RESUME, resumeUnits)}
+                renderUnit={viewed(DocumentKind.RESUME) || frozen ? plainUnit : unitsOf(DocumentKind.RESUME, resumeUnits, new Set(resume.units.map((unit) => unit.id)))}
               />
             </DocumentPreview>
           ) : (
@@ -770,7 +795,9 @@ export function ApplicationView({
         </TabsContent>
 
         <TabsContent value="letter" className="flex min-h-0 min-w-0 flex-[999_1_480px]">
-          {letterJobId ? (
+          {application.noCoverLetter ? (
+            <CoverLetterChoice id={application.id} skipped />
+          ) : letterJobId ? (
             <LetterPending jobId={letterJobId} />
           ) : letter && letterTheme && letterUnits ? (
             <DocumentPreview
@@ -780,6 +807,14 @@ export function ApplicationView({
                   {themeMenu(letterTheme)}
                   {historyButton(DocumentKind.COVER_LETTER)}
                 </span>
+              }
+              // Top right, beside the letter: apart from the letter's own controls.
+              side={
+                // One under the other, the same width.
+                <div className="grid gap-2 [&>*]:w-full">
+                  <CoverLetterChoice id={application.id} skipped={false} />
+                  {!frozen && <RegenerateLetter id={application.id} />}
+                </div>
               }
               caption={viewed(DocumentKind.COVER_LETTER) || frozen ? undefined : hint}
               notice={(pages) => (viewed(DocumentKind.COVER_LETTER) ? versionBanner(viewed(DocumentKind.COVER_LETTER)!) : frozen ? frozenNote : pages > 1 ? <LetterOverNotice id={application.id} /> : undefined)}
@@ -798,7 +833,12 @@ export function ApplicationView({
               />
             </DocumentPreview>
           ) : (
-            <MissingDocument>This application has no custom tailored cover letter.</MissingDocument>
+            <MissingDocument>
+              This application has no custom tailored cover letter.
+              <span className="mt-3 block">
+                <CoverLetterChoice id={application.id} skipped={false} />
+              </span>
+            </MissingDocument>
           )}
         </TabsContent>
 
@@ -830,6 +870,7 @@ export function ApplicationView({
             onAddSkill={(index) => addSkill(index)}
             facts={facts}
             setFacts={setFacts}
+            postingNewer={postingNewer}
           />
         </TabsContent>
 

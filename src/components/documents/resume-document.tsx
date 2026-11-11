@@ -1,3 +1,4 @@
+import { LOCATION_UNIT, ROLE_HEAD } from "@/lib/resume-heading";
 import { Fragment, type CSSProperties, type ReactElement, type ReactNode } from "react";
 
 import { CitationText } from "@/components/citation";
@@ -120,7 +121,11 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
               id: `experience:${role.id}`,
               // A job shown as its title line alone sits close to the next.
               className: cn(styles.entry, !role.descriptor && role.bullets.length === 0 && (role.skills.length === 0 || theme.noRoleSkills) && styles.bare),
-              head: <EntryHead emphasis title={role.role} at={role.company} dates={role.dates} timeline={resolved.timeline} nextToTitle={resolved.nextToTitle} lang={labels.locale} layout={entry} />,
+              // Its title, company and place: a part of their own on a tailored resume, edited for it alone.
+              head: (() => {
+                const line = <EntryHead emphasis title={role.role} at={role.company} dates={role.dates} timeline={resolved.timeline} nextToTitle={resolved.nextToTitle} lang={labels.locale} layout={entry} />;
+                return options.units?.some((unit) => unit.id === `${ROLE_HEAD}${role.id}`) ? renderUnit({ id: `${ROLE_HEAD}${role.id}`, children: line }) : line;
+              })(),
               children: (
                 <>
                   {role.descriptor && <p className={styles.descriptor}>{role.descriptor}</p>}
@@ -296,7 +301,14 @@ export function ResumeDocument({ theme, profile, paper, layout, language, render
             <p className={styles.headline}>{content.headline}</p>
           ))}
       </div>
-      {!resolved.split && content.contacts.length > 0 && <ContactLine items={content.contacts} />}
+      {!resolved.split &&
+        content.contacts.length > 0 &&
+        (options.units?.some((unit) => unit.id === LOCATION_UNIT) ? (
+          // Clicked, it edits where you live, for this resume alone.
+          renderUnit({ id: LOCATION_UNIT, children: <ContactLine items={content.contacts} /> })
+        ) : (
+          <ContactLine items={content.contacts} />
+        ))}
     </>
   );
 

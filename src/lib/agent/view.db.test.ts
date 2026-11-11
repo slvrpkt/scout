@@ -61,8 +61,8 @@ describe("the Agent screen's data (E16-6)", () => {
       lastRun: { at: "Tue 20 Oct, 7:00 AM", message: "2 new postings are waiting for a look." },
       nextRun: "Wed 21 Oct, 7:00 AM",
     });
-    // The badge: scored at or above the minimum, and drafts.
-    expect(await countAgentQueue()).toBe(3);
+    // The badge: the drafts waiting for review, nothing else.
+    expect(await countAgentQueue()).toBe(1);
   });
 
   it("says what's missing, and when the day's runs are used up", async () => {

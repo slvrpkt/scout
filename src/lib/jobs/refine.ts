@@ -8,6 +8,7 @@ import { getAiProvider } from "@/lib/ai";
 import { loadTaskOptions } from "@/lib/ai/task-options";
 import { refineChat, type ChatTurn } from "@/lib/ai/tasks";
 import { extractedOf, unitsSchema, type Unit, type UnitEdit } from "@/lib/application-data";
+import { addHeadingUnit, isHeadingUnit, withHeadingUnits } from "@/lib/resume-heading";
 import { updateDocuments } from "@/lib/document-units";
 import { withoutPrivateParts } from "@/lib/letter-frame";
 import { prisma } from "@/lib/prisma";
@@ -72,6 +73,8 @@ export const refineJob = defineJob({
     const targetUnit = target && unitsOf(target.document).find((unit) => unit.id === target.unitId);
 
     const [provider, options, profile, facts] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile(), loadFactTexts(applicationId)]);
+    // Its job headings and your location too, so they can be changed for this resume alone.
+    const resumeShown = withHeadingUnits(resume, profile);
     const { data, promptVersion } = await refineChat(
       provider,
       {
@@ -79,7 +82,7 @@ export const refineJob = defineJob({
         history,
         target: targetUnit ? `${targetUnit.label} (${targetUnit.id})` : null,
         viewing,
-        resume,
+        resume: resumeShown,
         letter,
         email: unitsOf(DocumentKind.EMAIL),
         profile,
@@ -96,6 +99,12 @@ export const refineJob = defineJob({
       const applied: UnitEdit[] = [];
       const leftAlone: string[] = [];
       for (const edit of data.edits) {
+        // A heading the resume doesn't store yet is stored now, as it was drawn.
+        if (edit.document === DocumentKind.RESUME && isHeadingUnit(edit.unitId) && !documents[DocumentKind.RESUME]?.some((entry) => entry.id === edit.unitId)) {
+          const drawn = resumeShown.find((entry) => entry.id === edit.unitId);
+          const stored = documents[DocumentKind.RESUME];
+          if (drawn && stored) documents[DocumentKind.RESUME] = addHeadingUnit(stored, { ...drawn });
+        }
         const unit = documents[edit.document]?.find((entry) => entry.id === edit.unitId);
         if (!unit) continue;
         if (unit.text !== edit.previousText) {

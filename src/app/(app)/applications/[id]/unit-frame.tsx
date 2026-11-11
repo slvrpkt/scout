@@ -1,5 +1,6 @@
 "use client";
 
+import { isHeadingUnit, ROLE_HEAD } from "@/lib/resume-heading";
 import { Popover } from "radix-ui";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
@@ -23,6 +24,8 @@ export type UnitFrameProps = {
   saving: boolean;
   /** The AI is rewriting it (E8-4). */
   busy: boolean;
+  /** The document is being changed (a chat request, a regeneration): no Edit, Regenerate, Ask AI or Leave out till it's done. */
+  locked?: boolean;
   flashing: boolean;
   onEdit: () => void;
   onCancel: () => void;
@@ -50,6 +53,7 @@ export function UnitFrame({
   editing,
   saving,
   busy,
+  locked = false,
   flashing,
   onEdit,
   onCancel,
@@ -74,7 +78,7 @@ export function UnitFrame({
   return (
     <div
       ref={frame}
-      className={cn(className, styles.frame, flashing && styles.flash, busy && styles.busy, editing && styles.editing)}
+      className={cn(className, styles.frame, flashing && styles.flash, busy && styles.busy, editing && styles.editing, locked && !editing && styles.locked)}
       data-unit={id}
       role="group"
       aria-label={unit.label}
@@ -92,7 +96,8 @@ export function UnitFrame({
           Rewriting…
         </span>
       ) : (
-        !editing && (
+        !editing &&
+        !locked && (
           <div
             className={cn(
               styles.toolbar,
@@ -143,7 +148,7 @@ function UnitEditor({
     <div className={cn(styles.editor, "mt-1 flex flex-col gap-2 font-sans")} dir="auto">
       <textarea
         aria-label={`Edit ${unit.label}`}
-        aria-describedby={isBulletUnit(unit.id) ? `${unit.id}-hint` : undefined}
+        aria-describedby={isBulletUnit(unit.id) || isHeadingUnit(unit.id) ? `${unit.id}-hint` : undefined}
         // Opened on request, so the text box takes focus.
         autoFocus
         value={value}
@@ -165,6 +170,11 @@ function UnitEditor({
         {isBulletUnit(unit.id) && (
           <span id={`${unit.id}-hint`} className="mr-auto text-xs text-muted">
             One bullet per line
+          </span>
+        )}
+        {isHeadingUnit(unit.id) && (
+          <span id={`${unit.id}-hint`} className="mr-auto text-xs text-muted">
+            {unit.id.startsWith(ROLE_HEAD) ? "Job title, company and place, one per line. " : ""}For this resume only: your Profile stays as it is.
           </span>
         )}
         <Button variant="secondary" size="sm" className="min-h-[calc(var(--px)*30)] bg-input" onClick={onCancel} disabled={saving}>

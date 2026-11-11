@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * Save for later, at the top right of a job's card. Off, it's grey and
- * pressed in; on, it lights up amber. Saving never takes the job out of the
+ * pressed in; on, it turns light green and says Saved for later. Saving never takes the job out of the
  * list it's in: it only shows on Saved for later as well.
  */
 export function SaveForLaterButton({ saved, busy = false, onToggle }: { saved: boolean; busy?: boolean; onToggle: () => void }) {
@@ -25,7 +25,7 @@ export function SaveForLaterButton({ saved, busy = false, onToggle }: { saved: b
       )}
     >
       <Bookmark size={14} aria-hidden="true" className={cn("shrink-0", saved && "fill-current")} />
-      {saved ? "Saved" : "Save for later"}
+      {saved ? "Saved for later" : "Save for later"}
     </button>
   );
 }

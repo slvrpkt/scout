@@ -56,6 +56,8 @@ export type CoverLetterInput = {
   posting: string;
   /** A firm limit on the paragraphs' words, when the letter has to come out shorter. */
   maxWords?: number;
+  /** The tailored resume as it is now, edits and all, when the letter is written again to go with it. */
+  resume?: Unit[];
 };
 
 /**
@@ -64,7 +66,7 @@ export type CoverLetterInput = {
  * "sign-off"), which matches the tone. The sender, date and signature come
  * from the profile when the application is created (src/lib/letter-frame.ts).
  */
-export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider, { profile, extracted, match, tone, facts, posting, maxWords }, options) => {
+export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider, { profile, extracted, match, tone, facts, posting, maxWords, resume }, options) => {
   const answer = await provider.complete({
     system: system(
       INSTRUCTIONS,
@@ -87,6 +89,8 @@ export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider,
         content: [
           `The job:\n${jobForPrompt(extracted, match)}`,
           posting.trim() && `The posting, in full:\n${postingForPrompt(posting)}`,
+          resume?.length &&
+            `The candidate's tailored resume for this job, as it is now (it may have been edited for this job). Build the letter on what it stresses, in your own words, without repeating it line for line:\n${resume.map((unit) => `${unit.label}: ${unit.text}`).join("\n")}`,
           applicationFacts(facts),
         ]
           .filter(Boolean)

@@ -23,6 +23,7 @@ import { folderUrl } from "@/lib/google/drive";
 import { loadConversation } from "@/lib/google/inbox-data";
 import { prisma } from "@/lib/prisma";
 import { refineSuggestions } from "@/lib/refine-suggestions";
+import { applicationSaved } from "@/lib/application-saved";
 import { loadThemes } from "@/lib/theme-data";
 import { userTimeZone } from "@/lib/time-zone";
 
@@ -73,7 +74,8 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
     ]);
 
   // A job agent draft's letter is written when it's first opened.
-  const letterJobId = letter && letterPending(letter.units) && !frozen ? await queueLetter(id) : null;
+  // Not written at all for an application marked "No cover letter".
+  const letterJobId = letter && letterPending(letter.units) && !frozen && !application.noCoverLetter ? await queueLetter(id) : null;
   const match = readJson(matchSchema, application.match);
   const messages = application.messages
     .map((message, index) => ({
@@ -115,6 +117,10 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
         followThemeLayout,
         archived: application.archivedAt !== null,
         awaitingReview: application.awaitingReview,
+        noCoverLetter: application.noCoverLetter,
+        appliedAt: application.sentAt,
+        // Not once applied: applying takes a job off Saved for later.
+        saved: application.sentAt ? null : await applicationSaved(id),
         resumePagesAsk: application.resumePagesAsk,
         resumePagesReason: application.resumePagesReason,
         resumeSuggestions: application.resumeSuggestions,
@@ -144,12 +150,13 @@ export default async function ApplicationPage({ params, searchParams }: PageProp
       letter={letter}
       letterJobId={letterJobId}
       frozen={frozen}
+      postingNewer={!frozen && application.postingChangedAt !== null && application.postingChangedAt > (application.resumeWrittenAt ?? application.createdAt)}
       outdated={application.status === "DRAFT" && settings.profileChangedAt !== null && Date.parse(settings.profileChangedAt) > (application.resumeWrittenAt ?? application.createdAt).getTime()}
       themes={themes}
       baseThemeId={settings.baseThemeId}
       email={email}
       writingEmail={emailJobs.at(-1)?.id ?? null}
-      attachments={{ resume: resume ? fileName("RESUME") : null, letter: letter ? fileName("COVER_LETTER") : null }}
+      attachments={{ resume: resume ? fileName("RESUME") : null, letter: letter && !application.noCoverLetter ? fileName("COVER_LETTER") : null }}
       gmail={
         google.status === "not-configured" && emails.length === 0
           ? undefined

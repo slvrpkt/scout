@@ -199,7 +199,7 @@ describe("AgentScreen (E16-6)", () => {
     expect(save).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(save);
     expect(saveAgentPosting).toHaveBeenCalledWith({ candidateId: "s1", saved: true });
-    expect(screen.getByRole("button", { name: "Saved" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Saved for later" })).toHaveAttribute("aria-pressed", "true");
     expect(found().some((text) => text?.includes("Posting s1"))).toBe(true);
   });
 

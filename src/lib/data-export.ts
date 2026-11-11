@@ -249,6 +249,10 @@ const application = z.object({
   employerType: z.enum(EmployerType).nullable().optional(),
   /** The format last downloaded in; absent in older files. */
   lastDownloadFormat: z.enum(FileFormat).nullable().optional(),
+  /** When the job description was last replaced; absent in older files. */
+  postingChangedAt: optionalDate.optional(),
+  /** Sent without a cover letter; absent in older files. */
+  noCoverLetter: z.boolean().optional(),
   /** Applied Using and Things To Note; absent in older files. */
   appliedVia: text.nullable().optional(),
   thingsToNote: text.optional(),

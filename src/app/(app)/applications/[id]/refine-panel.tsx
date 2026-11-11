@@ -223,9 +223,6 @@ export function RefinePanel({
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted">Shift+Enter for a new line</span>
               <span className="flex gap-2">
-                <Button size="sm" variant="secondary" className="px-3.5 py-[7px]" aria-disabled={!draft.trim() || undefined} onClick={() => add(draft)}>
-                  Add
-                </Button>
                 <Button size="sm" className="px-3.5 py-[7px]" aria-disabled={thinking || toApply.length === 0 || undefined} onClick={() => void apply()}>
                   {toApply.length > 1 ? `Apply ${toApply.length} changes` : "Apply changes"}
                 </Button>

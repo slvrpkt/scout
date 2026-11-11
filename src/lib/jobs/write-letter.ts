@@ -10,6 +10,7 @@ import { writeCoverLetter } from "@/lib/ai/tasks";
 import { matchSchema } from "@/lib/application-data";
 import { loadDocuments, readJson } from "@/lib/application-documents";
 import { updateDocuments } from "@/lib/document-units";
+import { saveVersion } from "@/lib/document-versions";
 import { fitLetterToPage } from "@/lib/letter-fit";
 import { isFrameUnit, isParagraph, withFrame } from "@/lib/letter-frame";
 import { logServerError } from "@/lib/log";
@@ -60,6 +61,42 @@ export const writeLetterJob = defineJob({
     return { written: true };
   },
 });
+
+/**
+ * Writes the cover letter again for the application as it is now: the job's
+ * requirements and the tailored resume, edits and all. The one before stays
+ * in History. False without a letter.
+ */
+export async function rewriteLetter(applicationId: string, detail: string, before: string, signal?: AbortSignal): Promise<boolean> {
+  const { application, profile, extracted, letter, resume } = await loadDocuments(applicationId);
+  if (!letter || !extracted) return false;
+  const [provider, options] = await Promise.all([getAiProvider(), loadTaskOptions()]);
+  const { data } = await writeCoverLetter(
+    provider,
+    {
+      profile,
+      extracted,
+      match: readJson(matchSchema, application.match),
+      tone: application.tone,
+      facts: application.facts.map((fact) => fact.text),
+      posting: application.postingText,
+      resume: resume?.units,
+    },
+    { ...options, signal },
+  );
+  await updateDocuments(
+    applicationId,
+    async (documents, tx) => {
+      const stored = await tx.document.findUnique({ where: { applicationId_kind: { applicationId, kind: DocumentKind.COVER_LETTER } } });
+      if (stored) await saveVersion(tx, stored.id, documents[DocumentKind.COVER_LETTER] ?? [], { cause: VersionCause.BEFORE_RESTORE, detail: before });
+      const frame = Object.fromEntries((documents[DocumentKind.COVER_LETTER] ?? []).filter((unit) => isFrameUnit(unit.id)).map((unit) => [unit.id, unit.text]));
+      documents[DocumentKind.COVER_LETTER] = withFrame(data, frame);
+    },
+    { version: { cause: VersionCause.REGENERATED, detail } },
+  );
+  await fitLetterToPage(applicationId, signal).catch((error: unknown) => logServerError("fitting the cover letter", error));
+  return true;
+}
 
 /** Opening a draft whose letter isn't written yet: write it in the background, unless that's under way. The job's id, or null. */
 export async function queueLetter(applicationId: string): Promise<string | null> {
