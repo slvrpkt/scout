@@ -112,6 +112,33 @@ function placeOf(job: Job): string {
   return [job.job_city, job.job_state, job.job_country ? countryName(job.job_country.toLowerCase()) : null].filter(Boolean).join(", ");
 }
 
+const isLinkedIn = (link: string) => {
+  try {
+    const host = new URL(link).hostname.toLowerCase();
+    return host === "linkedin.com" || host.endsWith(".linkedin.com");
+  } catch {
+    return false;
+  }
+};
+
+/** Where the job can be applied to: the employer's own page, LinkedIn, and where JSearch found it, each once, as far as JSearch says. */
+export function applyLinksOf(job: Job): NonNullable<FoundPosting["applyLinks"]> {
+  const options = (job.apply_options ?? []).map((option) => ({ url: safeLink(option.apply_link), publisher: (option.publisher ?? "").trim().slice(0, 100), direct: Boolean(option.is_direct) })).filter((option) => option.url);
+  const links: NonNullable<FoundPosting["applyLinks"]> = [];
+  const add = (kind: "direct" | "linkedin" | "source", url: string, publisher: string) => {
+    if (url && url.length <= 2000 && !links.some((link) => link.url === url)) links.push({ kind, url, publisher });
+  };
+  const direct = options.find((option) => option.direct && !isLinkedIn(option.url));
+  if (direct) add("direct", direct.url, direct.publisher);
+  const linkedIn = options.find((option) => isLinkedIn(option.url));
+  if (linkedIn) add("linkedin", linkedIn.url, "LinkedIn");
+  // Where JSearch found it: its own apply link, or the publisher's option.
+  const publisher = (job.job_publisher ?? "").trim().slice(0, 100);
+  const source = safeLink(job.job_apply_link) || options.find((option) => option.publisher === publisher)?.url || "";
+  if (source && !isLinkedIn(source)) add("source", source, publisher);
+  return links;
+}
+
 export function postingFromJob(job: Job): FoundPosting {
   const description = (job.job_description ?? "").trim().slice(0, 100_000);
   return {
@@ -128,6 +155,7 @@ export function postingFromJob(job: Job): FoundPosting {
     description,
     complete: description.length > 0,
     employmentType: job.job_employment_type?.trim().slice(0, 100) || null,
+    applyLinks: applyLinksOf(job),
     ...(job.job_latitude != null && job.job_longitude != null && Math.abs(job.job_latitude) <= 90 && Math.abs(job.job_longitude) <= 180 ? { lat: job.job_latitude, lng: job.job_longitude } : {}),
   };
 }

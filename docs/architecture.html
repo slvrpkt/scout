@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scout architecture</title>
+<!-- The source of docs/images/architecture.png: rendered at 1600x1080 by Playwright. -->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1600px; height: 1080px; }
+  body { font-family: "Segoe UI", system-ui, sans-serif; color: #1b2433; background: #f6f8fb; position: relative; overflow: hidden; }
+  h1 { position: absolute; left: 40px; top: 28px; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 40px; color: #13233f; }
+  .sub { position: absolute; left: 42px; top: 82px; font-size: 16px; color: #56627a; }
+  .box { position: absolute; border-radius: 14px; padding: 14px 16px; border: 2px solid; background: #fff; }
+  .box h2 { font-size: 17px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .box p, .box li { font-size: 13.5px; line-height: 1.45; color: #34405a; }
+  .box ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+  .box li::before { content: "•"; color: currentColor; opacity: .55; margin-right: 6px; }
+  .tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; color: #fff; letter-spacing: .02em; }
+  .chip { display: inline-block; font-size: 12px; padding: 3px 9px; border-radius: 999px; margin: 3px 4px 0 0; background: #e8eef9; color: #1f3a5f; }
+  /* Color code */
+  .you { border-color: #1f3a5f; background: #eef3fb; }
+  .you h2 { color: #1f3a5f; }
+  .host { border: 2px dashed #8a97ad; background: #eef1f6; }
+  .app { border-color: #2a78d6; }
+  .app h2 { color: #1d5fb8; }
+  .timers { border-color: #1baf7a; }
+  .timers h2 { color: #0b7d55; }
+  .runner { border-color: #0f9488; }
+  .runner h2 { color: #0b6e66; }
+  .data { border-color: #6250d6; }
+  .data h2 { color: #4b3bb5; }
+  .files { border-color: #8a7bd9; }
+  .files h2 { color: #4b3bb5; }
+  .ai { border-color: #c2410c; background: #fff6f0; }
+  .ai h2 { color: #a33408; }
+  .jobs { border-color: #d48a00; background: #fffaf0; }
+  .jobs h2 { color: #8a5a00; }
+  .optional { border: 2px dashed #8a97ad; background: #fbfcfe; }
+  .optional h2 { color: #4a5670; }
+  .cost { background: #b91c1c; }
+  .free { background: #0b7d55; }
+  .opt { background: #6b778d; }
+  .hostlabel { position: absolute; font-size: 14px; font-weight: 700; color: #4a5670; letter-spacing: .04em; text-transform: uppercase; }
+  svg { position: absolute; left: 0; top: 0; }
+  .label { font-size: 12.5px; fill: #34405a; }
+  .legend { position: absolute; left: 40px; top: 816px; width: 300px; background: #fff; border: 1px solid #d8dfea; border-radius: 12px; padding: 14px 16px; }
+  .legend h3 { font-size: 14px; margin-bottom: 8px; color: #13233f; }
+  .legend div { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #34405a; margin: 4px 0; }
+  .sw { width: 16px; height: 16px; border-radius: 4px; border: 2px solid; flex: none; }
+</style>
+</head>
+<body>
+  <h1>Scout architecture: a bird's-eye view</h1>
+  <p class="sub">Everything runs on your own computer. Only the AI provider and the job source are reached over the internet, with your own keys; the rest is optional.</p>
+
+  <!-- The user -->
+  <div class="box you" style="left:40px; top:150px; width:300px; height:300px;">
+    <h2>You, in your browser</h2>
+    <p><b>http://localhost:3000</b>, signed in with your password.</p>
+    <p style="margin-top:6px">Screens:</p>
+    <span class="chip">Dashboard</span><span class="chip">Agentic job search</span><span class="chip">Manual job search</span><span class="chip">Saved for later</span><span class="chip">Job application log</span><span class="chip">Archive</span><span class="chip">Profile</span><span class="chip">Base resume</span><span class="chip">Settings</span>
+  </div>
+  <div class="box optional" style="left:40px; top:480px; width:300px; height:150px;">
+    <h2>Claude (optional) <span class="tag opt">OPTIONAL</span></h2>
+    <p>Claude Desktop or claude.ai can use Scout's connector (MCP) to read postings and help draft, with your permission.</p>
+  </div>
+  <div class="box optional" style="left:40px; top:656px; width:300px; height:132px;">
+    <h2>Google (optional) <span class="tag opt">OPTIONAL</span></h2>
+    <p>Gmail (send, read replies), Calendar (interviews) and Drive (backups), with your own OAuth client.</p>
+  </div>
+
+  <!-- Your computer -->
+  <div class="box host" style="left:372px; top:120px; width:800px; height:930px;"></div>
+  <div class="hostlabel" style="left:394px; top:132px;">Your computer (localhost)</div>
+
+  <div class="box app" style="left:394px; top:162px; width:756px; height:200px;">
+    <h2>Scout web app <span class="tag free">NEXT.JS 16 · NODE 24</span></h2>
+    <p>Draws every screen and answers every click. Each request checks your sign-in session first. API keys are stored encrypted and never sent to the browser.</p>
+    <span class="chip">Pages</span><span class="chip">Server actions</span><span class="chip">Sign-in &amp; sessions</span><span class="chip">Settings &amp; spending limits</span><span class="chip">Fit scoring rules (distance, pay, work mode)</span><span class="chip">Duplicate check against your log</span><span class="chip">Export &amp; import</span>
+  </div>
+
+  <div class="box timers" style="left:394px; top:392px; width:370px; height:356px;">
+    <h2>Background timers</h2>
+    <p style="margin-bottom:6px">Inside Scout; they only run while Scout is running.</p>
+    <ul>
+      <li><b>Agent runs</b>: at your run times (e.g. 9:00 AM, 1:00 PM), checked every minute; a missed time runs when Scout is back</li>
+      <li><b>Scoring</b>: about 5 minutes after a search; a batch is checked every 2 minutes</li>
+      <li><b>Cleanup</b>: every 15 minutes, old task data and archived agent jobs past their time (90 days by default)</li>
+      <li><b>Nightly backup</b>: 3:00 AM</li>
+      <li><b>Base resume watch</b>: refits it after your profile changes</li>
+      <li><b>Inbox check</b>: Gmail replies, if connected</li>
+      <li><b>Update check</b>: GitHub, daily, off by default</li>
+    </ul>
+  </div>
+
+  <div class="box runner" style="left:780px; top:392px; width:370px; height:356px;">
+    <h2>Job runner</h2>
+    <p style="margin-bottom:6px">Longer work in the background, step by step, with progress on screen.</p>
+    <ul>
+      <li><b>Agent search</b>: every saved search, page by page; skips jobs already seen</li>
+      <li><b>Set aside first</b>: titles to skip, words, distance, minimum score, for free</li>
+      <li><b>Scoring</b>: what's left, one by one or as a batch</li>
+      <li><b>Drafts</b>: tailored resume and cover letter for the best scores</li>
+      <li><b>ATS check</b>: grades a resume and improves it toward an A</li>
+      <li><b>Page fit</b>: the base resume at exactly two or three pages</li>
+      <li><b>Files</b>: PDFs and Word files to download</li>
+    </ul>
+  </div>
+
+  <div class="box data" style="left:394px; top:778px; width:370px; height:250px;">
+    <h2>Database <span class="tag free">POSTGRESQL</span></h2>
+    <ul>
+      <li>Your profile and base resume</li>
+      <li>Applications, their documents and history</li>
+      <li>The agent's searches and the jobs it found</li>
+      <li>Saved for later and the Archive</li>
+      <li>Settings, run times, limits and costs</li>
+      <li>API keys, encrypted with your secret</li>
+    </ul>
+  </div>
+
+  <div class="box files" style="left:780px; top:778px; width:370px; height:250px;">
+    <h2>Files and rendering</h2>
+    <ul>
+      <li><b>PDFs</b>: printed by headless Chromium, so they match the preview</li>
+      <li><b>Word files</b>: built as .docx, pages checked</li>
+      <li><b>Nightly backups</b>: kept for a set number of days</li>
+      <li><b>Exports</b>: everything, as one file, whenever you ask</li>
+    </ul>
+  </div>
+
+  <!-- The internet -->
+  <div class="hostlabel" style="left:1214px; top:132px;">The internet (your keys)</div>
+  <div class="box ai" style="left:1214px; top:162px; width:346px; height:300px;">
+    <h2>AI provider <span class="tag cost">COSTS PER USE</span></h2>
+    <p><b>Claude Haiku</b> (default), or OpenAI, Mistral, or any OpenAI-compatible service.</p>
+    <p style="margin-top:6px">Used for: fit scores, tailored resumes, cover letters, ATS fixes, reading your resume.</p>
+    <p style="margin-top:6px">Gets the parts of your profile and the posting each task needs. Scoring can go as a <b>batch at half price</b>. Your spending limit stops requests once it's reached.</p>
+    <p style="margin-top:6px"><b>Or a local model</b> (Ollama, LM Studio): free, and nothing leaves your computer.</p>
+  </div>
+
+  <div class="box jobs" style="left:1214px; top:490px; width:346px; height:258px;">
+    <h2>Job source <span class="tag cost">COSTS PER SEARCH</span></h2>
+    <p><b>JSearch</b> on RapidAPI (default): Google for Jobs, which covers LinkedIn, Indeed, Glassdoor and company career sites. Paid per request; each page of results is one.</p>
+    <p style="margin-top:6px">Or Adzuna, FreeHire, Bundesagentur für Arbeit.</p>
+    <p style="margin-top:6px">Gets only the search: words, place, filters. Never your profile.</p>
+  </div>
+
+  <div class="box optional" style="left:1214px; top:778px; width:346px; height:250px;">
+    <h2>Other services <span class="tag opt">OPTIONAL</span></h2>
+    <ul>
+      <li><b>TypeSafe Jev</b>: a scoring model, instead of the AI provider</li>
+      <li><b>GitHub</b>: the update check, off until you switch it on</li>
+      <li><b>Employer and job board pages</b>: Scout opens a posting's own page to read the rest of its text</li>
+    </ul>
+    <p style="margin-top:8px">Scout sends no telemetry or usage data.</p>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <h3>Color key</h3>
+    <div><span class="sw" style="border-color:#1f3a5f;background:#eef3fb"></span>You</div>
+    <div><span class="sw" style="border-color:#2a78d6"></span>The Scout app</div>
+    <div><span class="sw" style="border-color:#1baf7a"></span>Timers · <span class="sw" style="border-color:#0f9488"></span>Background work</div>
+    <div><span class="sw" style="border-color:#6250d6"></span>Data that stays on your computer</div>
+    <div><span class="sw" style="border-color:#c2410c;background:#fff6f0"></span>AI · <span class="sw" style="border-color:#d48a00;background:#fffaf0"></span>Job search (cost money)</div>
+    <div><span class="sw" style="border-color:#8a97ad;border-style:dashed"></span>Optional</div>
+  </div>
+
+  <!-- Arrows -->
+  <svg width="1600" height="1080" viewBox="0 0 1600 1080">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#56627a"/></marker>
+    </defs>
+    <g stroke="#56627a" stroke-width="2" fill="none">
+      <!-- You <-> app -->
+      <path d="M340 262 L394 262" marker-start="url(#a)" marker-end="url(#a)"/>
+      <!-- Claude -> app -->
+      <path d="M340 540 C 365 540, 365 340, 394 330" marker-end="url(#a)"/>
+      <!-- Google <-> app -->
+      <path d="M340 720 C 372 720, 360 360, 394 350" stroke-dasharray="5 5" marker-start="url(#a)" marker-end="url(#a)"/>
+      <!-- app <-> timers / runner -->
+      <path d="M579 362 L579 392" marker-end="url(#a)"/>
+      <path d="M965 362 L965 392" marker-start="url(#a)" marker-end="url(#a)"/>
+      <!-- timers -> runner -->
+      <path d="M764 570 L780 570" marker-end="url(#a)"/>
+      <!-- runner/app <-> database -->
+      <path d="M579 748 L579 778" marker-start="url(#a)" marker-end="url(#a)"/>
+      <path d="M965 748 L965 778" marker-end="url(#a)"/>
+      <!-- runner -> AI -->
+      <path d="M1150 470 C 1180 470, 1185 330, 1214 320" marker-start="url(#a)" marker-end="url(#a)"/>
+      <!-- runner -> job source -->
+      <path d="M1150 600 L1214 600" marker-start="url(#a)" marker-end="url(#a)"/>
+      <!-- files -> other services (reading a posting's own page, the update check) -->
+      <path d="M1150 900 L1214 900" stroke-dasharray="5 5" marker-end="url(#a)"/>
+    </g>
+  </svg>
+</body>
+</html>

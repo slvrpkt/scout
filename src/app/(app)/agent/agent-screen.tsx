@@ -795,7 +795,7 @@ export function CandidateCard({
           </span>
           {candidate.fresh && <Fresh label={candidate.fresh} />}
           <span className="mt-1.5">
-            <HowToApply url={candidate.url} />
+            <HowToApply url={candidate.url} links={candidate.applyLinks} />
           </span>
           {candidate.foundBy && (
             <p className="text-xs text-muted">Found by “{candidate.foundBy}”</p>

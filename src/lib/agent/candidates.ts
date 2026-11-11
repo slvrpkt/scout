@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { Prisma } from "@/generated/prisma/client";
 import type { PostingFit } from "@/lib/fit";
-import { linkKey, type FoundPosting } from "@/lib/job-search/search";
+import { foundPostingSchema, linkKey, type FoundPosting } from "@/lib/job-search/search";
 
 // The job agent's candidates (E16): postings it found and scored. An archived
 // one stays, whole, so the posting never comes back and can be put back.
@@ -82,6 +82,7 @@ export function candidateData(posting: FoundPosting, score: PostingFit): Prisma.
     via: posting.via,
     description: posting.description,
     complete: posting.complete,
+    applyLinks: posting.applyLinks?.length ? posting.applyLinks : Prisma.DbNull,
     score: score.score,
     reasons: score.reasons,
     redFlags: score.redFlags,
@@ -90,6 +91,12 @@ export function candidateData(posting: FoundPosting, score: PostingFit): Prisma.
     jobKey: jobKey(posting),
   };
 }
+/** Apply links as stored; anything that isn't one reads as none. */
+export function applyLinksOf(value: Prisma.JsonValue | null): NonNullable<FoundPosting["applyLinks"]> {
+  const parsed = foundPostingSchema.shape.applyLinks.safeParse(value ?? undefined);
+  return parsed.success ? (parsed.data ?? []) : [];
+}
+
 /** A JSON list of strings, as reasons and red flags are stored; anything else reads as none. */
 export function stringsOf(value: Prisma.JsonValue | null): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];

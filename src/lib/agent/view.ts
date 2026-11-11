@@ -9,7 +9,7 @@ import { findDuplicate, loadDuplicateLog, type DuplicateMatch, type LogEntry } f
 import { loadJobSearchConfig } from "@/lib/job-search/config";
 import { countryName } from "@/lib/job-search/countries";
 import { fullText } from "@/lib/job-search/find";
-import { describeSearch, type JobSource } from "@/lib/job-search/search";
+import { describeSearch, type FoundPosting, type JobSource } from "@/lib/job-search/search";
 import { findUnfinishedJobs } from "@/lib/jobs/runner";
 import { SOURCE_INFO } from "@/lib/job-search/sources";
 import { prisma } from "@/lib/prisma";
@@ -24,7 +24,7 @@ import { skipRuleList } from "@/lib/scoring/rubric";
 import { allTimeResults, lastRunResults, scoredToday, usageOn, type RunResults } from "./budget";
 import { freshFirst, freshLabel, withoutStaleBonus } from "@/lib/freshness";
 
-import { stringsOf } from "./candidates";
+import { applyLinksOf, stringsOf } from "./candidates";
 import { draftJobKey, foundFromCandidate } from "./draft";
 import { AGENT_JOB_KEY } from "./jobs";
 import { agentSetupProblem } from "./run";
@@ -54,6 +54,8 @@ export type AgentCandidateView = {
   origin: string;
   source: JobSource;
   url: string;
+  /** Where it can be applied to, in order; empty when only `url` is known. */
+  applyLinks?: NonNullable<FoundPosting["applyLinks"]>;
   score: number;
   reasons: string[];
   redFlags: string[];
@@ -254,6 +256,7 @@ function candidateView(candidate: ShownCandidate, draftJobId: string | null, log
       .join(" · "),
     source: candidate.source,
     url: candidate.url,
+    applyLinks: applyLinksOf(candidate.applyLinks),
     score: candidate.score,
     reasons: stringsOf(candidate.reasons),
     redFlags: stringsOf(candidate.redFlags),

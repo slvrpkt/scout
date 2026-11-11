@@ -115,6 +115,15 @@ export const foundPostingSchema = z.object({
   complete: z.boolean(),
   /** "FULLTIME", "CONTRACTOR"…, as the source says, when it does. */
   employmentType: z.string().max(100).nullish(),
+  /**
+   * Where it can be applied to, when the source says (JSearch): the employer's
+   * own page first, then LinkedIn, then where the source found it. Without
+   * them, `url` is the one link.
+   */
+  applyLinks: z
+    .array(z.object({ kind: z.enum(["direct", "linkedin", "source"]), url: z.string().max(2000).refine((url) => safeLink(url) !== "", "Not a web address."), publisher: z.string().max(100) }))
+    .max(3)
+    .optional(),
   /** Found by a company search: the distance from your ZIP code doesn't rule it out. */
   companySearch: z.boolean().optional(),
   /** Where the job is on the map, when the source says: for the distance from your ZIP code. */

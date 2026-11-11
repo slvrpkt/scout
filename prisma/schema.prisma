@@ -748,6 +748,8 @@ model Posting {
   /// Where the source found it, e.g. "LinkedIn".
   via           String        @default("")
   description   String        @default("")
+  /// Where it can be applied to (FoundPosting.applyLinks).
+  applyLinks    Json?
   /// False while the description is only the start of the posting.
   complete      Boolean       @default(false)
   /// Pasted into New application rather than found by a search; `source` means nothing then.
@@ -833,6 +835,8 @@ model AgentCandidate {
   via           String               @default("")
   /// Plain text, as the source gave it.
   description   String               @default("")
+  /// Where it can be applied to: the employer's page, LinkedIn, where the source found it (FoundPosting.applyLinks).
+  applyLinks    Json?
   complete      Boolean              @default(false)
   /// 0–100: how well the posting fits the profile (score-posting).
   score         Int                  @default(0)

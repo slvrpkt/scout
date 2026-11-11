@@ -90,6 +90,12 @@ Read your existing resume (PDF or Word) to fill in your profile · Save for late
   </tr>
 </table>
 
+## Architecture
+
+How Scout fits together: what runs on your computer, what runs in the background and when, where your data lives, and the only outside services it reaches (the AI provider and the job source, with your own keys). The source of the picture is [docs/architecture.html](docs/architecture.html).
+
+![Scout's architecture: you in your browser, the Scout app with its background timers and job runner, the database and files on your computer, and the AI provider, job source and optional services on the internet](docs/images/architecture.png)
+
 ## Getting started
 
 Scout runs on your own computer, for one person. You'll need about 15 minutes and two API keys.

@@ -745,7 +745,7 @@ function PostingDetail({
             )}
           </span>
           <span className="mt-1.5">
-            <HowToApply url={posting.url} />
+            <HowToApply url={posting.url} links={posting.applyLinks} />
           </span>
         </div>
         {/* The actions at the top, so they're there without scrolling: all one height, the score centered on them. */}

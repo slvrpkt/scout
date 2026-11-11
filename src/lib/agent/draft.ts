@@ -1,5 +1,7 @@
 import "server-only";
 
+import { applyLinksOf } from "./candidates";
+
 import { z } from "zod";
 
 import type { AgentCandidate } from "@/generated/prisma/client";
@@ -41,6 +43,7 @@ export function foundFromCandidate(candidate: AgentCandidate): FoundPosting {
     via: candidate.via,
     description: candidate.description,
     complete: candidate.complete,
+    ...(applyLinksOf(candidate.applyLinks).length ? { applyLinks: applyLinksOf(candidate.applyLinks) } : {}),
   };
 }
 

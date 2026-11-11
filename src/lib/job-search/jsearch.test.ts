@@ -74,6 +74,11 @@ describe("JSearch search", () => {
         description: expect.stringContaining("Senior Product Designer for its payments team"),
         complete: true,
         employmentType: "Full-time",
+        // Where to apply: the employer's own page first, then LinkedIn.
+        applyLinks: [
+          { kind: "direct", url: "https://careers.ledgerly.example/jobs/42", publisher: "Ledgerly Careers" },
+          { kind: "linkedin", url: "https://www.linkedin.com/jobs/view/1234567890?utm_source=google_jobs_apply", publisher: "LinkedIn" },
+        ],
         // Where it is on the map, for the distance from your ZIP code.
         lat: expect.any(Number),
         lng: expect.any(Number),
@@ -92,6 +97,7 @@ describe("JSearch search", () => {
         description: "Northwind Studio is looking for a UX Researcher, fully remote within Germany.",
         complete: true,
         employmentType: null,
+        applyLinks: [{ kind: "source", url: "https://de.indeed.com/viewjob?jk=abc123&from=serp", publisher: "Indeed" }],
       },
     ]);
   });

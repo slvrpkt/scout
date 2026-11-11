@@ -1,8 +1,8 @@
 import "server-only";
 
-import type { Posting } from "@/generated/prisma/client";
+import { Prisma, type Posting } from "@/generated/prisma/client";
 import { linkKey, postingKey, type FoundPosting, type JobSource, type PostingState, type ShownPosting } from "@/lib/job-search/search";
-import { stringsOf } from "@/lib/agent/candidates";
+import { applyLinksOf, stringsOf } from "@/lib/agent/candidates";
 import { findDuplicate, loadDuplicateLog } from "@/lib/duplicates";
 import { prisma } from "@/lib/prisma";
 import { withoutStaleBonus } from "@/lib/freshness";
@@ -31,6 +31,7 @@ function fieldsOf(found: FoundPosting) {
     via: found.via,
     description: found.description,
     complete: found.complete,
+    applyLinks: found.applyLinks?.length ? found.applyLinks : Prisma.DbNull,
   };
 }
 
@@ -50,6 +51,8 @@ export function foundFromPosting(posting: Posting): FoundPosting {
     via: posting.via,
     description: posting.description,
     complete: posting.complete,
+    // Only when there are some, so a posting without them reads back as it was.
+    ...(applyLinksOf(posting.applyLinks).length ? { applyLinks: applyLinksOf(posting.applyLinks) } : {}),
   };
 }
 
