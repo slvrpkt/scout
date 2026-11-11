@@ -61,6 +61,24 @@ describe("importExport (E10-6)", () => {
     expect(await prisma().fact.count()).toBe(3);
   });
 
+  it("keeps the agent's job keys, apply links and put-back dates, and the jobs the Archive's clearing deleted", async () => {
+    const applyLinks = [{ kind: "direct", url: "https://careers.example.com/1", publisher: "Example" }];
+    await prisma().agentCandidate.create({
+      data: { source: "JSEARCH", externalId: "j1", title: "PM", dedupeKey: "d1", jobKey: "pm|example|reston", restoredAt: now, applyLinks, score: 80, status: "SCORED" },
+    });
+    await prisma().posting.create({ data: { source: "JSEARCH", externalId: "p1", title: "PM", applyLinks, savedAt: now } });
+    await prisma().clearedJob.create({ data: { key: "JSEARCH:gone", createdAt: now } });
+    const file = await asFile();
+    await prisma().agentCandidate.deleteMany();
+    await prisma().posting.deleteMany();
+    await prisma().clearedJob.deleteMany();
+
+    await importExport(prisma(), file);
+    expect(await prisma().agentCandidate.findFirstOrThrow({ where: { externalId: "j1" } })).toMatchObject({ jobKey: "pm|example|reston", restoredAt: now, applyLinks });
+    expect(await prisma().posting.findFirstOrThrow({ where: { externalId: "p1" } })).toMatchObject({ applyLinks });
+    expect(await prisma().clearedJob.findMany({ select: { key: true } })).toEqual([{ key: "JSEARCH:gone" }]);
+  });
+
   it("keeps the next interview's date, and reads older files without it (E9-9)", async () => {
     const file = await asFile();
     const at = file.applications.find((application) => application.company === "Northstar Health")!.nextInterviewAt;

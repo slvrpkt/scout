@@ -95,7 +95,7 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
         {/* How long they're kept: said plainly, with where to change it. */}
         <p role="note" className="text-meta text-muted">
           {clearDays > 0
-            ? `Jobs the agentic job search set aside, or that you archived, are deleted automatically ${archiveClearPeriod(clearDays)} after they were archived. Applications you archived are never deleted. `
+            ? `Jobs the agentic job search set aside, jobs you archived, and archived applications you never applied to are deleted automatically ${archiveClearPeriod(clearDays)} after they were archived. Anything you applied to is never deleted. `
             : "Nothing here is deleted automatically. "}
           To {clearDays > 0 ? "keep them longer, or never delete them" : "clear old jobs automatically"}, change it in{" "}
           <Link href="/settings?section=data" className="underline underline-offset-2 hover:text-ink">

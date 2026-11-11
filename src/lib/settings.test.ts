@@ -63,7 +63,7 @@ describe("stored settings", () => {
       nightlyBackup: true,
       jobRetentionHours: 24,
       archiveClearDays: 90,
-      agentClearedTally: { setAside: 0, skipped: 0, archived: 0, since: null },
+      agentClearedTally: { setAside: 0, skipped: 0, archived: 0, drafted: 0, since: null },
       baseThemeId: "standard",
       baseNoSkills: false,
       baseSummary: null,

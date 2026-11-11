@@ -90,16 +90,16 @@ export async function allTimeResults(minScore: number, cleared: ClearedTally): P
     lastRunResults(new Date(0), minScore),
     prisma.agentCandidate.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
   ]);
-  const deleted = cleared.setAside + cleared.skipped + cleared.archived;
+  const deleted = cleared.setAside + cleared.skipped + cleared.archived + cleared.drafted;
   const found = first?.createdAt.toISOString() ?? null;
   return {
     found: here.found + deleted,
     waiting: here.waiting,
-    scored: here.scored + cleared.skipped + cleared.archived,
+    scored: here.scored + cleared.skipped + cleared.archived + cleared.drafted,
     setAside: here.setAside + cleared.setAside,
     atMin: here.atMin,
     below: here.below,
-    drafted: here.drafted,
+    drafted: here.drafted + cleared.drafted,
     skipped: here.skipped + cleared.skipped,
     archived: here.archived + cleared.archived,
     since: [found, cleared.since].filter((date): date is string => Boolean(date)).sort()[0] ?? null,

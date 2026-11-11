@@ -14,6 +14,7 @@ vi.mock("./actions", () => ({
   startZippingPdfs: vi.fn(async () => ({ ok: true, data: { jobId: "zip-1", documents: 12 } })),
   updateSettings: vi.fn(async () => ({ ok: true, data: null })),
   backUpNow: vi.fn(async () => ({ ok: true, data: null })),
+  clearOldBackups: vi.fn(async () => ({ ok: true, data: { count: 2, bytes: 2048, oldest: null } })),
   deleteEverything: vi.fn(async () => undefined),
   loadSample: vi.fn(async () => ({ ok: true, data: { applications: 10 }, toast: "Sample data loaded." })),
   removeSample: vi.fn(async () => ({ ok: true, data: { applications: 10 }, toast: "Sample data removed." })),
@@ -252,5 +253,18 @@ describe("sample data", () => {
     render(<DataSection sampleData={{ loaded: false, loadedAt: null, canLoad: false }} jobRetentionHours={24} archiveClearDays={90} hasApiKey={false} exportName="x.json" backups={backups} />);
     expect(screen.getByRole("button", { name: "Load sample data" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("It needs an empty Scout, and this one already has a profile or applications.")).toBeInTheDocument();
+  });
+});
+
+describe("the backups on this computer", () => {
+  it("says how much room they take, and clears old ones after asking", async () => {
+    const { clearOldBackups } = await import("./actions");
+    render(<DataSection sampleData={noSample} jobRetentionHours={24} archiveClearDays={90} hasApiKey={false} exportName="x.json" backups={{ ...backups, usage: { count: 11, bytes: 2_600_000, oldest: "2026-11-06T23:15:00.000Z" } }} />);
+    expect(screen.getByText(/11 backups on this computer, 2\.5 MB in all/)).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Clear old backups" }), "Keep the last 30 days");
+    await userEvent.click(screen.getByRole("button", { name: "Clear old backups" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete older backups" }));
+    expect(clearOldBackups).toHaveBeenCalledWith({ keepDays: 30 });
+    expect(await screen.findByText(/2 backups on this computer, 2 KB in all/)).toBeInTheDocument();
   });
 });

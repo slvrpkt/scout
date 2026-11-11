@@ -16,6 +16,12 @@ describe("work style", () => {
   });
   it("doesn't take hybrid cloud for hybrid work", () => {
     expect(workStyleOf(posting({ description: "Experience with hybrid cloud environments." }))).toBeNull();
+    // Remote said plainly wins over a passing mention of hybrid work or an office.
+    expect(workStyleOf(posting({ title: "Rebar Project Manager (Remote North East Coast)", description: "Visit sites on-site as needed." }))).toBe("remote");
+    expect(workStyleOf(posting({ description: "This position is fully remote. Our Reston teams work hybrid." }))).toBe("remote");
+    expect(workStyleOf(posting({ title: "Project Manager (Hybrid / Remote)", description: "3 days a week in the office." }))).toBe("hybrid");
+    expect(workStyleOf(posting({ remote: false, description: "This is a 100% U.S. based remote position. Visit the office on-site once a year." }))).toBe("remote");
+    expect(workStyleOf(posting({ remote: false, description: "This is not a remote position; on-site in Reston." }))).toBe("onsite");
   });
   it("reads remote and on-site from the flag or the words, and says when it can't tell", () => {
     expect(workStyleOf(posting({ remote: true }))).toBe("remote");

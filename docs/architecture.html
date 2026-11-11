@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Scout architecture</title>
-<!-- The source of docs/images/architecture.png: rendered at 1600x1000 (scale 1.5) by Playwright. -->
+<title>Scout Architecture</title>
+<!-- The source of docs/images/architecture.png: rendered at 1600x1080 (scale 1.5) by Playwright. -->
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 1600px; height: 1000px; }
+  html, body { width: 1600px; height: 1080px; }
   body { font-family: "Segoe UI", system-ui, sans-serif; background: #f7f9fc; position: relative; overflow: hidden; color: #1b2433; }
   svg { position: absolute; left: 0; top: 0; }
   .t { position: absolute; color: #fff; }
@@ -15,16 +15,21 @@
   .t ul { list-style: none; display: flex; flex-direction: column; gap: 3px; }
   .t li::before { content: "▸"; opacity: .7; margin-right: 6px; font-size: 11px; }
   .t b { font-weight: 700; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 22px; }
   .dark { color: #1b2433; }
   .dark h2 { color: #3b475f; }
   .dark p, .dark li { color: #3b475f; }
   .pill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.22); margin-left: 6px; vertical-align: 2px; }
   .pill.cost { background: #fff; color: #9b1c1c; }
   .pill.opt { background: #fff; color: #4a5670; border: 1px solid #b8c1d1; }
+  .pill.star { background: #f2b33d; color: #3d2a05; }
+  /* In the Job Agent: a line about the job source or the LLM provider, in that box's color (lightened to read on navy). */
+  .t li.src { color: #f0b84a; }
+  .t li.llm { color: #ff8a5c; }
   h1 { position: absolute; left: 40px; top: 26px; font-family: Georgia, "Times New Roman", serif; font-weight: 400; font-size: 38px; color: #13233f; }
   .sub { position: absolute; left: 42px; top: 76px; font-size: 15px; color: #56627a; }
   .zone { position: absolute; font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-  .key { position: absolute; left: 40px; top: 800px; width: 280px; }
+  .key { position: absolute; left: 40px; top: 830px; width: 280px; }
   .key h3 { font-size: 14px; color: #13233f; margin-bottom: 8px; }
   .key div { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #34405a; margin: 5px 0; }
   .sw { width: 18px; height: 14px; border-radius: 3px; flex: none; }
@@ -32,10 +37,10 @@
 </style>
 </head>
 <body>
-  <h1>Scout architecture: a bird's-eye view</h1>
-  <p class="sub">Everything runs on your own computer. Only the AI provider and the job source are reached over the internet, with your own keys; the rest is optional.</p>
+  <h1>Scout Architecture: A Bird's-Eye View</h1>
+  <p class="sub">Everything runs on your own computer. Only the LLM provider and the job source are reached over the internet, with your own keys; the rest is optional.</p>
 
-  <svg width="1600" height="1000" viewBox="0 0 1600 1000">
+  <svg width="1600" height="1080" viewBox="0 0 1600 1080">
     <defs>
       <!-- A clear, solid arrow tip that keeps its shape at any angle. -->
       <marker id="tip" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
@@ -45,9 +50,8 @@
     </defs>
 
     <!-- Zones -->
-    <rect x="370" y="118" width="740" height="852" rx="18" fill="#e9eef6" stroke="#9aa6bb" stroke-width="2" stroke-dasharray="8 6" />
-    <rect x="1170" y="118" width="400" height="852" rx="18" fill="#fbf3ea" stroke="#d6ae86" stroke-width="2" stroke-dasharray="8 6" />
-    <!-- A cloud beside the internet zone's name -->
+    <rect x="370" y="118" width="740" height="932" rx="18" fill="#e9eef6" stroke="#9aa6bb" stroke-width="2" stroke-dasharray="8 6" />
+    <rect x="1170" y="118" width="400" height="932" rx="18" fill="#fbf3ea" stroke="#d6ae86" stroke-width="2" stroke-dasharray="8 6" />
     <path d="M1196 140 a9 9 0 0 1 17 -4 a11 11 0 0 1 20 5 a7 7 0 0 1 0 14 h-36 a8 8 0 0 1 -1 -15 z" fill="#b4400b" />
 
     <!-- You: a browser window -->
@@ -61,80 +65,104 @@
 
     <!-- Optional accounts -->
     <rect x="40" y="490" width="280" height="122" rx="12" fill="#eef1f6" stroke="#8a97ad" stroke-width="2" stroke-dasharray="6 5" />
-    <rect x="40" y="642" width="280" height="130" rx="12" fill="#eef1f6" stroke="#8a97ad" stroke-width="2" stroke-dasharray="6 5" />
+    <rect x="40" y="642" width="280" height="140" rx="12" fill="#eef1f6" stroke="#8a97ad" stroke-width="2" stroke-dasharray="6 5" />
 
-    <!-- The Scout app -->
-    <rect x="400" y="160" width="680" height="122" rx="12" fill="#1d5fb8" filter="url(#lift)" />
+    <!-- The Scout web app -->
+    <rect x="400" y="160" width="680" height="112" rx="12" fill="#1d5fb8" filter="url(#lift)" />
+
+    <!-- The Job Agent: the heart of it, set apart with a gold edge and a robot -->
+    <rect x="400" y="312" width="680" height="152" rx="14" fill="#13233f" stroke="#f2b33d" stroke-width="3" filter="url(#lift)" />
+    <g transform="translate(1036 344)" fill="none" stroke="#f2b33d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="-14" y="-8" width="28" height="20" rx="5" />
+      <path d="M0 -8 V-14" /><circle cx="0" cy="-16" r="2" fill="#f2b33d" />
+      <circle cx="-6" cy="1" r="2" fill="#f2b33d" stroke="none" /><circle cx="6" cy="1" r="2" fill="#f2b33d" stroke="none" />
+      <path d="M-5 7 H5" /><path d="M-14 0 H-18 M14 0 H18" />
+    </g>
+
     <!-- Background timers, with a clock -->
-    <rect x="400" y="340" width="320" height="252" rx="12" fill="#0b7d55" filter="url(#lift)" />
-    <g transform="translate(690 368)" fill="none" stroke="#fff" stroke-width="2.2" opacity=".85"><circle r="13" /><path d="M0 -7 V0 L5 4" stroke-linecap="round" /></g>
+    <rect x="400" y="502" width="320" height="222" rx="12" fill="#0b7d55" filter="url(#lift)" />
+    <g transform="translate(690 530)" fill="none" stroke="#fff" stroke-width="2.2" opacity=".85"><circle r="13" /><path d="M0 -7 V0 L5 4" stroke-linecap="round" /></g>
     <!-- Job runner, with a gear -->
-    <rect x="760" y="340" width="320" height="252" rx="12" fill="#0f766e" filter="url(#lift)" />
-    <g transform="translate(1050 368)" fill="#fff" opacity=".85">
+    <rect x="760" y="502" width="320" height="222" rx="12" fill="#0f766e" filter="url(#lift)" />
+    <g transform="translate(1050 530)" fill="#fff" opacity=".85">
       <path d="M-2.5 -14 h5 l1 4 a10 10 0 0 1 3 1.6 l3.8 -1.6 l2.5 4.3 l-3.2 2.6 a10 10 0 0 1 0 3.4 l3.2 2.6 l-2.5 4.3 l-3.8 -1.6 a10 10 0 0 1 -3 1.6 l-1 4 h-5 l-1 -4 a10 10 0 0 1 -3 -1.6 l-3.8 1.6 l-2.5 -4.3 l3.2 -2.6 a10 10 0 0 1 0 -3.4 l-3.2 -2.6 l2.5 -4.3 l3.8 1.6 a10 10 0 0 1 3 -1.6 z" />
       <circle r="4.5" fill="#0f766e" />
     </g>
 
     <!-- Database: a cylinder -->
     <g filter="url(#lift)">
-      <path d="M400 676 v226 a160 24 0 0 0 320 0 v-226 z" fill="#4f3cc0" />
-      <ellipse cx="560" cy="676" rx="160" ry="24" fill="#7462e0" />
+      <path d="M400 790 v196 a160 24 0 0 0 320 0 v-196 z" fill="#4f3cc0" />
+      <ellipse cx="560" cy="790" rx="160" ry="24" fill="#7462e0" />
     </g>
-
     <!-- Files: a stack of pages with a folded corner -->
     <g filter="url(#lift)">
-      <rect x="784" y="640" width="296" height="270" rx="10" fill="#a99ee8" />
-      <rect x="772" y="652" width="296" height="270" rx="10" fill="#8b7ddd" />
-      <path d="M760 674 a10 10 0 0 1 10 -10 h236 l38 38 v228 a10 10 0 0 1 -10 10 h-264 a10 10 0 0 1 -10 -10 z" fill="#6a5acd" />
-      <path d="M1006 664 v28 a10 10 0 0 0 10 10 h28 z" fill="#b9b0f0" />
+      <rect x="784" y="764" width="296" height="246" rx="10" fill="#a99ee8" />
+      <rect x="772" y="776" width="296" height="246" rx="10" fill="#8b7ddd" />
+      <path d="M760 798 a10 10 0 0 1 10 -10 h236 l38 38 v204 a10 10 0 0 1 -10 10 h-264 a10 10 0 0 1 -10 -10 z" fill="#6a5acd" />
+      <path d="M1006 788 v28 a10 10 0 0 0 10 10 h28 z" fill="#b9b0f0" />
     </g>
 
-    <!-- The internet: AI provider and job source (solid), other services (optional) -->
-    <rect x="1200" y="160" width="340" height="252" rx="12" fill="#b4400b" filter="url(#lift)" />
-    <rect x="1200" y="446" width="340" height="226" rx="12" fill="#946200" filter="url(#lift)" />
-    <rect x="1200" y="710" width="340" height="230" rx="12" fill="#f3f5f9" stroke="#8a97ad" stroke-width="2" stroke-dasharray="6 5" />
-    <!-- Cloud badges on the internet services -->
-    <path d="M1500 186 a8 8 0 0 1 15 -3.5 a10 10 0 0 1 18 4.5 a6 6 0 0 1 0 12.5 h-32 a7 7 0 0 1 -1 -13.5 z" fill="#fff" opacity=".9" />
-    <path d="M1500 470 a8 8 0 0 1 15 -3.5 a10 10 0 0 1 18 4.5 a6 6 0 0 1 0 12.5 h-32 a7 7 0 0 1 -1 -13.5 z" fill="#fff" opacity=".9" />
-    <path d="M1500 734 a8 8 0 0 1 15 -3.5 a10 10 0 0 1 18 4.5 a6 6 0 0 1 0 12.5 h-32 a7 7 0 0 1 -1 -13.5 z" fill="#8a97ad" />
+    <!-- The internet: job source and LLM provider (solid), other services (optional) -->
+    <rect x="1200" y="160" width="340" height="180" rx="12" fill="#946200" filter="url(#lift)" />
+    <rect x="1200" y="372" width="340" height="252" rx="12" fill="#b4400b" filter="url(#lift)" />
+    <rect x="1200" y="660" width="340" height="350" rx="12" fill="#f3f5f9" stroke="#8a97ad" stroke-width="2" stroke-dasharray="6 5" />
+    <path d="M1500 184 a8 8 0 0 1 15 -3.5 a10 10 0 0 1 18 4.5 a6 6 0 0 1 0 12.5 h-32 a7 7 0 0 1 -1 -13.5 z" fill="#fff" opacity=".9" />
+    <path d="M1500 396 a8 8 0 0 1 15 -3.5 a10 10 0 0 1 18 4.5 a6 6 0 0 1 0 12.5 h-32 a7 7 0 0 1 -1 -13.5 z" fill="#fff" opacity=".9" />
+    <path d="M1500 684 a8 8 0 0 1 15 -3.5 a10 10 0 0 1 18 4.5 a6 6 0 0 1 0 12.5 h-32 a7 7 0 0 1 -1 -13.5 z" fill="#8a97ad" />
 
-    <!-- Connections: straight lines with right-angle turns, a clear tip at each end that's an input. -->
+    <!-- Connections: straight lines with right-angle turns and a clear tip. -->
     <g stroke="#3b475f" stroke-width="2.2" fill="none" stroke-linejoin="round">
-      <path d="M322 220 H398" marker-start="url(#tip)" marker-end="url(#tip)" />
-      <path d="M322 550 H340 V250 H398" marker-end="url(#tip)" />
-      <path d="M322 706 H356 V266 H398" stroke-dasharray="6 5" marker-start="url(#tip)" marker-end="url(#tip)" />
-      <path d="M560 284 V338" marker-end="url(#tip)" />
-      <path d="M920 284 V338" marker-start="url(#tip)" marker-end="url(#tip)" />
-      <path d="M722 466 H758" marker-end="url(#tip)" />
-      <path d="M560 594 V650" marker-start="url(#tip)" marker-end="url(#tip)" />
-      <path d="M920 594 V636" marker-end="url(#tip)" />
-      <path d="M1082 400 H1140 V286 H1198" marker-start="url(#tip)" marker-end="url(#tip)" />
-      <path d="M1082 540 H1198" marker-start="url(#tip)" marker-end="url(#tip)" />
-      <path d="M1082 820 H1198" stroke-dasharray="6 5" marker-end="url(#tip)" />
+      <path d="M322 214 H398" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <path d="M322 550 H340 V240 H398" marker-end="url(#tip)" />
+      <path d="M322 712 H356 V256 H398" stroke-dasharray="6 5" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <!-- App and agent: Run now, and the results it shows -->
+      <path d="M740 274 V310" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <!-- Timers start the agent's runs -->
+      <path d="M560 500 V466" marker-end="url(#tip)" />
+      <!-- The agent hands its best jobs to the runner for drafts -->
+      <path d="M920 466 V500" marker-end="url(#tip)" />
+      <!-- Data and files -->
+      <path d="M560 726 V764" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <path d="M920 726 V760" marker-end="url(#tip)" />
+      <!-- Agent and job source -->
+      <path d="M1082 344 H1140 V250 H1198" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <!-- Agent and LLM: scoring -->
+      <path d="M1082 430 H1198" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <!-- Runner and LLM: writing and grading -->
+      <path d="M1082 580 H1198" marker-start="url(#tip)" marker-end="url(#tip)" />
+      <!-- Files and other services -->
+      <path d="M1082 900 H1198" stroke-dasharray="6 5" marker-end="url(#tip)" />
     </g>
-    <!-- Labels on the connections -->
     <g>
-      <rect x="1086" y="320" width="108" height="34" rx="6" fill="#fff" stroke="#c9d1de" />
-      <text class="lbl" x="1140" y="334" text-anchor="middle">prompts and</text>
-      <text class="lbl" x="1140" y="348" text-anchor="middle">answers</text>
-      <rect x="1086" y="506" width="108" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
-      <text class="lbl" x="1140" y="520" text-anchor="middle">search, postings</text>
-      <rect x="1086" y="786" width="108" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
-      <text class="lbl" x="1140" y="800" text-anchor="middle">job pages, updates</text>
-      <rect x="566" y="300" width="70" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
-      <text class="lbl" x="601" y="314" text-anchor="middle">starts</text>
-      <rect x="566" y="612" width="96" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
-      <text class="lbl" x="614" y="626" text-anchor="middle">reads, writes</text>
-      <rect x="926" y="604" width="68" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
-      <text class="lbl" x="960" y="618" text-anchor="middle">makes</text>
+      <rect x="1086" y="276" width="108" height="34" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="1140" y="290" text-anchor="middle">searches,</text>
+      <text class="lbl" x="1140" y="304" text-anchor="middle">new postings</text>
+      <rect x="1086" y="440" width="108" height="34" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="1140" y="454" text-anchor="middle">scores each job</text>
+      <text class="lbl" x="1140" y="468" text-anchor="middle">vs. your profile</text>
+      <rect x="1086" y="590" width="108" height="34" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="1140" y="604" text-anchor="middle">writes, grades</text>
+      <text class="lbl" x="1140" y="618" text-anchor="middle">(ATS)</text>
+      <rect x="1086" y="866" width="108" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="1140" y="880" text-anchor="middle">job pages, updates</text>
+      <rect x="752" y="282" width="104" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="804" y="296" text-anchor="middle">Run now, results</text>
+      <rect x="572" y="474" width="86" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="615" y="488" text-anchor="middle">starts runs</text>
+      <rect x="932" y="474" width="96" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="980" y="488" text-anchor="middle">drafts for 80+</text>
+      <rect x="572" y="736" width="96" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="620" y="750" text-anchor="middle">reads, writes</text>
+      <rect x="932" y="732" width="62" height="20" rx="6" fill="#fff" stroke="#c9d1de" />
+      <text class="lbl" x="963" y="746" text-anchor="middle">makes</text>
     </g>
   </svg>
 
-  <div class="zone" style="left:394px; top:132px; color:#4a5670;">Your computer (localhost)</div>
-  <div class="zone" style="left:1262px; top:132px; color:#8a3a0a;">The internet (your own keys)</div>
+  <div class="zone" style="left:394px; top:132px; color:#4a5670;">Your Computer (localhost)</div>
+  <div class="zone" style="left:1262px; top:132px; color:#8a3a0a;">The Internet (Your Own Keys)</div>
 
   <div class="t" style="left:58px; top:198px; width:250px;">
-    <h2>You, in your browser</h2>
+    <h2>You, in Your Browser</h2>
     <p>Signed in with your password. Every screen in one place:</p>
     <ul style="margin-top:6px">
       <li>Dashboard</li><li>Agentic and Manual job search</li><li>Saved for later</li><li>Job application log and Archive</li><li>Profile, Base resume, Settings</li>
@@ -146,36 +174,50 @@
   </div>
   <div class="t dark" style="left:58px; top:656px; width:250px;">
     <h2>Google <span class="pill opt">OPTIONAL</span></h2>
-    <p>Gmail for sending and replies, Calendar for interviews, Drive for backups, with your own Google sign-in.</p>
+    <p>Gmail for sending and replies, Calendar for interviews, and Drive: a folder per job you applied to, with the resume and cover letter you sent.</p>
   </div>
 
-  <div class="t" style="left:420px; top:174px; width:640px;">
-    <h2>Scout web app <span class="pill">NEXT.JS · NODE</span></h2>
-    <p>Draws every screen and handles every click. Checks your sign-in on each request, keeps API keys encrypted (never sent to the browser), applies your scoring rules and spending limits, and flags jobs you've already applied to.</p>
+  <div class="t" style="left:420px; top:172px; width:640px;">
+    <h2>Scout Web App <span class="pill">NEXT.JS · NODE</span></h2>
+    <p>Draws every screen and handles every click. Checks your sign-in on each request, keeps API keys encrypted (never sent to the browser), applies your spending limits, and flags jobs you've already applied to.</p>
   </div>
-  <div class="t" style="left:420px; top:356px; width:250px;">
-    <h2>Background timers</h2>
+
+  <div class="t" style="left:420px; top:326px; width:600px;">
+    <h2>Job Agent <span class="pill star">THE CORE</span></h2>
+    <div class="cols">
+      <ul>
+        <li><b>Runs</b> every saved search at your times</li>
+        <li class="src"><b>Asks the job source</b> for new postings, page by page</li>
+        <li><b>Skips</b> jobs it has already seen</li>
+      </ul>
+      <ul>
+        <li><b>Sets aside</b> what your rules rule out, for free</li>
+        <li class="llm"><b>Asks the LLM to score</b> each job against your profile (batch, half price)</li>
+        <li><b>Ranks</b> the best; 80+ get drafts</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="t" style="left:420px; top:518px; width:250px;">
+    <h2>Background Timers</h2>
     <ul>
       <li><b>Agent runs</b> at your times, checked every minute</li>
       <li><b>Scoring</b> about 5 minutes after a search</li>
-      <li><b>Cleanup</b> every 15 minutes, incl. the Archive (90 days)</li>
+      <li><b>Cleanup</b> every 15 minutes, incl. the Archive</li>
       <li><b>Nightly backup</b> at 3:00 AM</li>
-      <li><b>Base resume</b> refit after profile changes</li>
-      <li><b>Inbox</b> and <b>update</b> checks, if switched on</li>
+      <li><b>Inbox</b> and <b>update</b> checks, if on</li>
     </ul>
   </div>
-  <div class="t" style="left:780px; top:356px; width:250px;">
-    <h2>Job runner</h2>
+  <div class="t" style="left:780px; top:518px; width:250px;">
+    <h2>Job Runner</h2>
     <ul>
-      <li><b>Searches</b> every saved search; skips jobs already seen</li>
-      <li><b>Sets aside</b> what your rules rule out, for free</li>
-      <li><b>Scores</b> the rest, one by one or as a batch</li>
-      <li><b>Drafts</b> a tailored resume and cover letter</li>
-      <li><b>ATS check</b> and fixes toward an A</li>
-      <li><b>Fits</b> the base resume to 2 or 3 pages</li>
+      <li><b>Drafts</b> a tailored resume and cover letter (LLM)</li>
+      <li><b>Grades</b> it against ATS criteria and fixes it toward an A (LLM)</li>
+      <li><b>Fits</b> the base resume to 2 or 3 pages (LLM)</li>
+      <li><b>Builds</b> PDF and Word files</li>
     </ul>
   </div>
-  <div class="t" style="left:432px; top:724px; width:256px;">
+  <div class="t" style="left:432px; top:836px; width:256px;">
     <h2>Database <span class="pill">POSTGRESQL</span></h2>
     <ul>
       <li>Profile and base resume</li>
@@ -185,7 +227,7 @@
       <li>Settings, limits, costs; keys encrypted</li>
     </ul>
   </div>
-  <div class="t" style="left:782px; top:716px; width:240px;">
+  <div class="t" style="left:782px; top:840px; width:240px;">
     <h2>Files</h2>
     <ul>
       <li><b>PDFs</b>, printed like the preview</li>
@@ -195,22 +237,21 @@
     </ul>
   </div>
 
-  <div class="t" style="left:1220px; top:176px; width:280px;">
-    <h2>AI provider <span class="pill cost">COSTS PER USE</span></h2>
+  <div class="t" style="left:1220px; top:174px; width:280px;">
+    <h2>Job Source <span class="pill cost">COSTS PER SEARCH</span></h2>
+    <p><b>JSearch</b> on RapidAPI by default: Google for Jobs, covering LinkedIn, Indeed, Glassdoor and company career sites. Or Adzuna, FreeHire, Bundesagentur. Gets only the search, never your profile.</p>
+  </div>
+  <div class="t" style="left:1220px; top:386px; width:280px;">
+    <h2>LLM Provider <span class="pill cost">COSTS PER USE</span></h2>
     <p><b>Claude Haiku</b> by default; or OpenAI, Mistral, any OpenAI-compatible service.</p>
-    <p style="margin-top:6px">Scores fit, writes resumes and cover letters, fixes ATS issues, reads your resume. Gets only what each task needs. Batch scoring at half price; your spending limit stops it.</p>
+    <p style="margin-top:6px"><b>For the agent:</b> scores each job's fit. <b>For the runner:</b> writes resumes and cover letters, grades them against ATS criteria, reads your resume. Gets only what each task needs; your spending limit stops it.</p>
     <p style="margin-top:6px"><b>Or a local model</b> (Ollama, LM Studio): free, nothing leaves your computer.</p>
   </div>
-  <div class="t" style="left:1220px; top:462px; width:280px;">
-    <h2>Job source <span class="pill cost">COSTS PER SEARCH</span></h2>
-    <p><b>JSearch</b> on RapidAPI by default: Google for Jobs, covering LinkedIn, Indeed, Glassdoor and company career sites. Each page of results is one paid request.</p>
-    <p style="margin-top:6px">Or Adzuna, FreeHire, Bundesagentur. Gets only the search, never your profile.</p>
-  </div>
-  <div class="t dark" style="left:1220px; top:726px; width:280px;">
-    <h2>Other services <span class="pill opt">OPTIONAL</span></h2>
+  <div class="t dark" style="left:1220px; top:676px; width:280px;">
+    <h2>Other Services <span class="pill opt">OPTIONAL</span></h2>
     <ul>
       <li><b>Employer and job board pages</b>, to read a posting's full text</li>
-      <li><b>TypeSafe Jev</b>, a scoring model instead of the AI</li>
+      <li><b>TypeSafe Jev</b>, a scoring model instead of the LLM</li>
       <li><b>GitHub</b> update check, off until switched on</li>
     </ul>
     <p style="margin-top:8px">Scout sends no telemetry or usage data.</p>
@@ -219,11 +260,12 @@
   <div class="key">
     <h3>Key</h3>
     <div><span class="sw" style="background:#1f3a5f"></span>You</div>
-    <div><span class="sw" style="background:#1d5fb8"></span>The Scout app</div>
-    <div><span class="sw" style="background:#0b7d55"></span><span class="sw" style="background:#0f766e"></span>Background work</div>
-    <div><span class="sw" style="background:#4f3cc0"></span><span class="sw" style="background:#6a5acd"></span>Your data, on your computer</div>
-    <div><span class="sw" style="background:#b4400b"></span><span class="sw" style="background:#946200"></span>Paid services, your keys</div>
-    <div><span class="sw" style="background:#eef1f6; border:2px dashed #8a97ad"></span>Optional · dashed lines are optional too</div>
+    <div><span class="sw" style="background:#1d5fb8"></span>The Scout Web App</div>
+    <div><span class="sw" style="background:#13233f; border:2px solid #f2b33d"></span>The Job Agent</div>
+    <div><span class="sw" style="background:#0b7d55"></span><span class="sw" style="background:#0f766e"></span>Background Work</div>
+    <div><span class="sw" style="background:#4f3cc0"></span><span class="sw" style="background:#6a5acd"></span>Your Data, on Your Computer</div>
+    <div><span class="sw" style="background:#946200"></span><span class="sw" style="background:#b4400b"></span>Paid Services, Your Keys</div>
+    <div><span class="sw" style="background:#eef1f6; border:2px dashed #8a97ad"></span>Optional (Dashed Lines Too)</div>
   </div>
 </body>
 </html>

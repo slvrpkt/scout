@@ -92,9 +92,9 @@ Read your existing resume (PDF or Word) to fill in your profile · Save for late
 
 ## Architecture
 
-How Scout fits together: what runs on your computer, what runs in the background and when, where your data lives, and the only outside services it reaches (the AI provider and the job source, with your own keys). The source of the picture is [docs/architecture.html](docs/architecture.html).
+How Scout fits together: the job agent at its heart, what runs on your computer and in the background and when, where your data lives, and the only outside services it reaches (the LLM provider and the job source, with your own keys). The source of the picture is [docs/architecture.html](docs/architecture.html).
 
-![Scout's architecture: you in your browser, the Scout app with its background timers and job runner, the database and files on your computer, and the AI provider, job source and optional services on the internet](docs/images/architecture.png)
+![Scout's architecture: you in your browser; on your computer the Scout web app, the job agent, background timers, the job runner, the database and files; on the internet the job source, the LLM provider and optional services](docs/images/architecture.png)
 
 ## Getting started
 

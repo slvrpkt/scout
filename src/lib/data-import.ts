@@ -78,7 +78,7 @@ const jsonList = (value: unknown) => (Array.isArray(value) ? value : []) as Pris
  * settings (the usage ping's) stay as they are.
  */
 export async function importExport(db: PrismaClient, data: DossierExport): Promise<void> {
-  const { profile, themes, settings, applications, postings, searches, agentCandidates, agentSearches, startups, startupBlocks, apiKey, jobSourceKeys } = data;
+  const { profile, themes, settings, applications, postings, searches, agentCandidates, agentSearches, startups, startupBlocks, clearedJobs, apiKey, jobSourceKeys } = data;
   const fromFile: Record<string, string | null> = {
     apiKeyEnc: apiKey ? encryptApiKey(apiKey) : null,
     jsearchKeyEnc: jobSourceKeys?.jsearch ? encryptSecret(JOB_SOURCE_KEY, jobSourceKeys.jsearch) : null,
@@ -94,6 +94,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       await tx.posting.deleteMany();
       await tx.postingSearch.deleteMany();
       await tx.agentCandidate.deleteMany();
+      await tx.clearedJob.deleteMany();
       await tx.agentSearch.deleteMany();
       await tx.startup.deleteMany();
       await tx.startupBlock.deleteMany();
@@ -205,7 +206,7 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
       // A posting's application that isn't in the file leaves it unlinked.
       const applicationIds = new Set(applications.map((application) => application.id));
       await tx.posting.createMany({
-        data: postings.map((posting) => ({ ...posting, applicationId: posting.applicationId && applicationIds.has(posting.applicationId) ? posting.applicationId : null })),
+        data: postings.map((posting) => ({ ...posting, applyLinks: json(posting.applyLinks), applicationId: posting.applicationId && applicationIds.has(posting.applicationId) ? posting.applicationId : null })),
       });
       await tx.postingSearch.createMany({
         data: searches.map((search) => ({ ...search, query: (search.query ?? {}) as Prisma.InputJsonValue, postings: (search.postings ?? []) as Prisma.InputJsonValue })),
@@ -221,10 +222,13 @@ export async function importExport(db: PrismaClient, data: DossierExport): Promi
           reasons: json(candidate.reasons),
           redFlags: json(candidate.redFlags),
           breakdown: json(candidate.breakdown),
+          applyLinks: json(candidate.applyLinks),
           applicationId: candidate.applicationId && applicationIds.has(candidate.applicationId) ? candidate.applicationId : null,
           searchId: candidate.searchId && agentSearchIds.has(candidate.searchId) ? candidate.searchId : null,
         })),
       });
+      // What the Archive's clearing deleted, so the agent still knows it saw those jobs.
+      await tx.clearedJob.createMany({ data: clearedJobs, skipDuplicates: true });
       // Startups (#222) with what the user did with them; an application that isn't in the file leaves one unlinked.
       await tx.startup.createMany({
         data: startups.map((startup) => ({

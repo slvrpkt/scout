@@ -67,7 +67,7 @@ describe("ArchiveScreen", () => {
 describe("the Archive's note and charts", () => {
   it("says archived jobs are deleted after the chosen time, applications never, and where to change it", () => {
     const { unmount } = render(<ArchiveScreen rows={[row("p1")]} clearDays={90} />);
-    expect(screen.getByRole("note")).toHaveTextContent("deleted automatically 90 days after they were archived. Applications you archived are never deleted.");
+    expect(screen.getByRole("note")).toHaveTextContent("archived applications you never applied to are deleted automatically 90 days after they were archived. Anything you applied to is never deleted.");
     expect(screen.getByRole("link", { name: "Settings → Your data → Clear the Archive" })).toHaveAttribute("href", "/settings?section=data");
     unmount();
     render(<ArchiveScreen rows={[row("p1")]} clearDays={0} />);

@@ -11,7 +11,7 @@ import { applyApiKeyChange } from "@/lib/ai/api-key";
 import { keyStateOf, loadAiConfig, resolveAiConfig } from "@/lib/ai/config";
 import type { KeyState } from "@/lib/ai/provider-options";
 import { DOCUMENT_LANGUAGES } from "@/lib/document-language";
-import { deleteAllBackups } from "@/lib/backups";
+import { backupUsage, clearBackups, deleteAllBackups, KEEP_BACKUPS } from "@/lib/backups";
 import { env } from "@/lib/env";
 import { JobSearchError, testSource } from "@/lib/job-search";
 import { credentialsFor, jobSearchView, loadJobSearchConfig, requestContext } from "@/lib/job-search/config";
@@ -426,3 +426,14 @@ export const backUpNow = action(z.object({}), async (_input, { toast }) => {
   toast(driveBackupProblem && backupToDrive ? "Backed up on this computer, but the copy to Google Drive failed." : "Backed up.");
   return null;
 });
+
+/** Clear old backups: keeps the last year, 6 months… of nightly backups on this computer, or deletes them all. */
+export const clearOldBackups = action(
+  z.object({ keepDays: z.number().int().refine((days) => KEEP_BACKUPS.some((option) => option.days === days)) }),
+  async ({ keepDays }, { toast }) => {
+    const deleted = await clearBackups(keepDays);
+    toast(deleted === 0 ? "Nothing that old to delete." : `Deleted ${deleted} ${deleted === 1 ? "backup" : "backups"}.`);
+    revalidatePath("/settings");
+    return backupUsage();
+  },
+);

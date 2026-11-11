@@ -29,32 +29,49 @@ export const clearedKeys = (job: { source: PostingSource; externalId: string; de
 
 const flagsOf = (value: unknown) => (Array.isArray(value) ? value.filter((flag): flag is string => typeof flag === "string") : []);
 
-/** Deletes archived agent jobs older than the setting (none when it's Never); returns how many went. */
+/**
+ * Deletes, once they've been archived longer than the setting (never when
+ * it's Never): archived agent jobs, and archived applications you never
+ * applied to (an agent draft you archived, say), with their documents.
+ * Anything you applied to stays. Returns how many went.
+ */
 export async function clearArchive(now = new Date(), days?: number): Promise<number> {
   const keep = days ?? (await loadSettings()).archiveClearDays;
   await prisma.clearedJob.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - CLEARED_KEEP_DAYS * DAY_MS) } } });
   if (keep <= 0) return 0;
-  const old = await prisma.agentCandidate.findMany({
+  const cutoff = new Date(now.getTime() - keep * DAY_MS);
+  const select = { id: true, source: true, externalId: true, dedupeKey: true, jobKey: true, score: true, redFlags: true, createdAt: true } as const;
+  const [old, unapplied] = await Promise.all([
     // Archived (when it was archived is its last change), and never made into an application.
-    where: { status: AgentCandidateStatus.DISMISSED, applicationId: null, updatedAt: { lt: new Date(now.getTime() - keep * DAY_MS) } },
-    select: { id: true, source: true, externalId: true, dedupeKey: true, jobKey: true, score: true, redFlags: true, createdAt: true },
-    take: 5000,
-  });
-  if (old.length === 0) return 0;
+    prisma.agentCandidate.findMany({ where: { status: AgentCandidateStatus.DISMISSED, applicationId: null, updatedAt: { lt: cutoff } }, select, take: 5000 }),
+    // Archived applications that never reached Applied, with the agent job each came from.
+    prisma.application.findMany({ where: { archivedAt: { lt: cutoff }, sentAt: null }, select: { id: true, agentCandidate: { select } }, take: 1000 }),
+  ]);
+  if (old.length === 0 && unapplied.length === 0) return 0;
+  const drafts = unapplied.flatMap((application) => (application.agentCandidate ? [application.agentCandidate] : []));
   return prisma.$transaction(async (tx) => {
-    await tx.clearedJob.createMany({ data: old.flatMap(clearedKeys).map((key) => ({ key })), skipDuplicates: true });
-    const { count } = await tx.agentCandidate.deleteMany({ where: { id: { in: old.map((job) => job.id) } } });
+    await tx.clearedJob.createMany({ data: [...old, ...drafts].flatMap(clearedKeys).map((key) => ({ key })), skipDuplicates: true });
+    const { count: jobs } = await tx.agentCandidate.deleteMany({ where: { id: { in: [...old, ...drafts].map((job) => job.id) } } });
+    // An application's documents, history and the rest go with it.
+    const { count: applications } = await tx.application.deleteMany({ where: { id: { in: unapplied.map((application) => application.id) } } });
     // What went, by kind, so the agent's all-time totals stay the same.
     const row = await tx.setting.findUnique({ where: { key: "agentClearedTally" } });
     const tally: ClearedTally = { ...settingsFromRows(row ? [row] : []).agentClearedTally };
+    const since = (job: { createdAt: Date }) => {
+      const found = job.createdAt.toISOString();
+      if (!tally.since || found < tally.since) tally.since = found;
+    };
     for (const job of old) {
       if (job.score === 0) tally.setAside += 1;
       else if (archiveReasonOf(flagsOf(job.redFlags)) === "you") tally.archived += 1;
       else tally.skipped += 1;
-      const found = job.createdAt.toISOString();
-      if (!tally.since || found < tally.since) tally.since = found;
+      since(job);
+    }
+    for (const job of drafts) {
+      tally.drafted += 1;
+      since(job);
     }
     await saveSettings({ agentClearedTally: tally }, tx);
-    return count;
+    return jobs - drafts.length + applications;
   });
 }

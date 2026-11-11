@@ -61,14 +61,26 @@ export const ARCHIVE_CLEAR_OPTIONS: readonly { days: number; label: string }[] =
   { days: 0, label: "Never" },
 ];
 export const DEFAULT_ARCHIVE_CLEAR_DAYS = 90;
+
+/** How far back Clear old backups keeps: 0 deletes them all. */
+export const KEEP_BACKUPS = [
+  { days: 365, label: "Keep the last year" },
+  { days: 182, label: "Keep the last 6 months" },
+  { days: 91, label: "Keep the last 3 months" },
+  { days: 30, label: "Keep the last 30 days" },
+  { days: 15, label: "Keep the last 15 days" },
+  { days: 0, label: "Delete all backups" },
+] as const;
+
 const clearedTallySchema = z.object({
   setAside: z.number().int().min(0).catch(0),
   skipped: z.number().int().min(0).catch(0),
   archived: z.number().int().min(0).catch(0),
+  drafted: z.number().int().min(0).catch(0),
   since: z.string().nullable().catch(null),
 });
 export type ClearedTally = z.infer<typeof clearedTallySchema>;
-export const EMPTY_CLEARED_TALLY: ClearedTally = { setAside: 0, skipped: 0, archived: 0, since: null };
+export const EMPTY_CLEARED_TALLY: ClearedTally = { setAside: 0, skipped: 0, archived: 0, drafted: 0, since: null };
 export const isArchiveClear = (days: number) => ARCHIVE_CLEAR_OPTIONS.some((option) => option.days === days);
 /** "48 hours", "90 days"; for the Archive's note. */
 export const archiveClearPeriod = (days: number) => (days === 2 ? "48 hours" : `${days} days`);

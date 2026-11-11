@@ -302,6 +302,12 @@ const agentCandidate = z.object({
   error: text.nullable(),
   applicationId: text.nullable(),
   dedupeKey: text,
+  /** The same job on another board (agent/candidates.ts jobKey); absent in older files. */
+  jobKey: text.nullable().default(null),
+  /** When it was put back from the Archive; absent in older files. */
+  restoredAt: optionalDate,
+  /** Where it can be applied to; absent in older files. */
+  applyLinks: z.unknown().nullable().default(null),
   /** The saved search that found it; absent in files before version 8. */
   searchId: text.nullable().default(null),
   createdAt: date,
@@ -372,6 +378,8 @@ const posting = z.object({
   description: text,
   complete: z.boolean(),
   pasted: z.boolean().default(false),
+  /** Where it can be applied to; absent in older files. */
+  applyLinks: z.unknown().nullable().default(null),
   savedAt: optionalDate,
   dismissedAt: optionalDate,
   applicationId: text.nullable(),
@@ -430,6 +438,8 @@ export const exportSchema = z.object({
   /** Startups (#222), and hashes of the ones removed for good; absent in older files. */
   startups: z.array(startup).default([]),
   startupBlocks: z.array(z.object({ hash: text, createdAt: date })).default([]),
+  /** Keys of jobs the Archive's clearing deleted, so the agent doesn't score them again; absent in older files. */
+  clearedJobs: z.array(z.object({ key: text, createdAt: date })).default([]),
 });
 export type DossierExport = z.infer<typeof exportSchema>;
 
@@ -451,7 +461,7 @@ export async function buildExport(
   { includeApiKey = false, now = new Date() }: { includeApiKey?: boolean; now?: Date } = {},
 ): Promise<DossierExport> {
   return db.$transaction(async (tx) => {
-    const [fields, skills, languages, experience, projects, education, publications, references, facts, themes, settings, applications, postings, searches, agentCandidates, agentSearches, startups, startupBlocks, certifications] = await Promise.all([
+    const [fields, skills, languages, experience, projects, education, publications, references, facts, themes, settings, applications, postings, searches, agentCandidates, agentSearches, startups, startupBlocks, certifications, clearedJobs] = await Promise.all([
       tx.profileField.findMany({ select: { key: true, value: true }, orderBy: { key: "asc" } }),
       tx.skill.findMany({ select: { id: true, name: true, sort: true, group: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
       tx.language.findMany({ select: { id: true, name: true, level: true, sort: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -487,6 +497,7 @@ export async function buildExport(
       tx.startup.findMany({ orderBy: { createdAt: "asc" } }),
       tx.startupBlock.findMany({ orderBy: { createdAt: "asc" } }),
       tx.certification.findMany({ orderBy: [{ sort: "asc" }, { createdAt: "asc" }] }),
+      tx.clearedJob.findMany({ orderBy: { createdAt: "asc" } }),
     ]);
 
     // Keys only when asked for, decrypted; one that's unreadable here too (DOSSIER_SECRET changed) has nothing to export.
@@ -534,6 +545,7 @@ export async function buildExport(
       agentSearches,
       startups,
       startupBlocks,
+      clearedJobs,
     };
   });
 }

@@ -16,9 +16,9 @@ import { useJob } from "@/hooks/use-job";
 import { IMPORT_MAX_BYTES, IMPORT_TOO_BIG } from "@/lib/import-limits";
 import type { JobView } from "@/lib/jobs/runner";
 import { downloadFrom } from "@/lib/save-file";
-import { ARCHIVE_CLEAR_OPTIONS, JOB_RETENTION_OPTIONS } from "@/lib/settings";
+import { ARCHIVE_CLEAR_OPTIONS, JOB_RETENTION_OPTIONS, KEEP_BACKUPS } from "@/lib/settings";
 
-import { backUpNow, deleteEverything, loadSample, removeSample, startZippingPdfs, updateSettings } from "./actions";
+import { backUpNow, clearOldBackups, deleteEverything, loadSample, removeSample, startZippingPdfs, updateSettings } from "./actions";
 import { SettingsSectionIntro } from "./settings-screen";
 
 type ZipResult = { file: string; fileName: string; documents: number };
@@ -32,6 +32,8 @@ export type BackupStatus = {
   lastRun: string | null;
   /** Why the last one failed, if it did. */
   problem: string | null;
+  /** The backups on this computer: how many, how much room, the oldest one's date. */
+  usage?: { count: number; bytes: number; oldest: string | null };
   /** The copy to Google Drive: switched on, Drive allowed, the folder once made, how many copies, and why the last copy failed. */
   drive: { on: boolean; allowed: boolean; folderUrl: string | null; copies: number; problem: string | null };
 };
@@ -269,7 +271,7 @@ export function DataSection({
         />
         <DataRow
           title="Clear the Archive"
-          description="Jobs the agentic job search set aside, or that you archived, are deleted this long after they were archived, so the Archive doesn't keep growing. Applications you archived are never deleted, and the agent still remembers a deleted job, so it isn't scored again."
+          description="Jobs the agentic job search set aside, jobs you archived, and archived applications you never applied to (with their drafts) are deleted this long after they were archived, so the Archive doesn't keep growing. Anything you applied to is never deleted, and the agent still remembers a deleted job, so it isn't scored again."
           action={
             <Select aria-label="Clear the Archive" value={clearDays} onChange={(event) => changeClearDays(Number(event.target.value))}>
               {ARCHIVE_CLEAR_OPTIONS.map((option) => (
@@ -301,6 +303,7 @@ export function DataSection({
           <p className="text-meta text-muted">
             One backup a night at 03:00. If the computer was off or asleep then, it catches up a couple of minutes after Scout starts.
           </p>
+          <BackupCleanup usage={backups.usage} />
           <BackupToDrive drive={backups.drive} />
         </div>
       </Card>
@@ -522,6 +525,64 @@ function BackupToDrive({ drive }: { drive: BackupStatus["drive"] }) {
           </a>
         )}
       </div>
+    </div>
+  );
+}
+
+/** "2.5 MB", "1.2 GB". */
+export function sizeOf(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+const OLDEST = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+/** How much the backups on this computer take, and Clear old backups: keep the last year… or none. */
+function BackupCleanup({ usage: initial }: { usage?: { count: number; bytes: number; oldest: string | null } }) {
+  const [usage, setUsage] = useState(initial);
+  const [keepDays, setKeepDays] = useState<number>(365);
+  const [asking, setAsking] = useState(false);
+  if (!usage) return null;
+  const choice = KEEP_BACKUPS.find((option) => option.days === keepDays) ?? KEEP_BACKUPS[0];
+  const clear = async () => {
+    setAsking(false);
+    const result = await clearOldBackups({ keepDays });
+    if (!result.ok) return toast(result.error);
+    setUsage({ ...result.data, oldest: result.data.oldest ? new Date(result.data.oldest).toISOString() : null });
+  };
+  return (
+    <div className="flex flex-col gap-2 rounded-control border border-line bg-surface px-4 py-3">
+      <p className="text-sm text-ink">
+        <b>{usage.count === 0 ? "No backups on this computer yet." : `${usage.count} ${usage.count === 1 ? "backup" : "backups"} on this computer, ${sizeOf(usage.bytes)} in all`}</b>
+        {usage.oldest && <span className="text-muted">, the oldest from {OLDEST.format(new Date(usage.oldest))}</span>}
+        {usage.count > 0 && "."}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select aria-label="Clear old backups" value={keepDays} onChange={(event) => setKeepDays(Number(event.target.value))}>
+          {KEEP_BACKUPS.map((option) => (
+            <option key={option.days} value={option.days}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
+        <Button variant="secondary" size="sm" disabled={usage.count === 0} onClick={() => setAsking(true)}>
+          Clear old backups
+        </Button>
+      </div>
+      <p className="text-meta text-muted">Only the backup files on this computer; your applications, profile and everything in Scout stay as they are.</p>
+      <ConfirmDialog
+        open={asking}
+        onOpenChange={setAsking}
+        title={keepDays === 0 ? "Delete all backups?" : `${choice.label} of backups?`}
+        description={
+          keepDays === 0
+            ? "Every backup file on this computer is deleted for good. Scout's data itself isn't touched, and the next nightly backup starts a new one."
+            : `Backups older than that are deleted for good. Scout's data itself isn't touched.`
+        }
+        confirmLabel={keepDays === 0 ? "Delete all" : "Delete older backups"}
+        onConfirm={() => void clear()}
+      />
     </div>
   );
 }

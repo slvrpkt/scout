@@ -63,14 +63,19 @@ export type PrefPosting = { title: string; description: string; remote: boolean 
 
 // "Hybrid", but not "hybrid cloud" and the like.
 const HYBRID = /\bhybrid\b(?!\s+(?:cloud|infrastructure|environments?|it\b|apps?|mobile|solutions?|architecture|integration|systems?|work ?loads?|vehicles?|data|networks?))|\b[1-4]\s*(?:-|–|to|or)?\s*[1-4]?\s*days?\s*(?:a|per|each|\/)?\s*week\b.{0,40}\b(?:office|on[- ]?site|in[- ]person)/i;
-const REMOTE = /\b(?:fully|100%|completely)\s+remote\b|\bremote[- ](?:first|only)\b|\bwork from (?:home|anywhere)\b|\bremote,? (?:us|usa|united states)\b/i;
+// "Fully remote", "100% U.S.-based remote", "a remote position" (but not "not a remote position"), "work from anywhere"…
+const REMOTE = /\b(?:fully|100%|completely)\s+(?:(?:u\.?s\.?|us|usa|united states)[- ]based\s+)?remote\b|\bremote[- ](?:first|only)\b|\bwork from (?:home|anywhere)\b|\bremote,? (?:us|usa|united states)\b|(?<!\bnot (?:an? )?)\bremote (?:position|role|job|opportunity)\b/i;
 const ONSITE = /\b(?:on[- ]?site|in[- ]office|in[- ]person)\b(?!\s*(?:or|\/)\s*remote)/i;
 
 /** Remote, hybrid or on-site, from the source's flag and the posting's words; null when it can't tell. */
 export function workStyleOf(posting: PrefPosting): WorkStyle | null {
   const text = `${posting.title}\n${posting.description}`;
+  // Said plainly, remote wins over a passing mention of hybrid work or an office:
+  // "Remote" in the title, or "fully remote", "remote-first", "work from anywhere"…
+  if (/\bremote\b/i.test(posting.title) && !HYBRID.test(posting.title)) return "remote";
+  if (REMOTE.test(text)) return "remote";
   if (HYBRID.test(text)) return "hybrid";
-  if (posting.remote === true || REMOTE.test(text)) return "remote";
+  if (posting.remote === true) return "remote";
   if (posting.remote === false || ONSITE.test(text)) return "onsite";
   return null;
 }

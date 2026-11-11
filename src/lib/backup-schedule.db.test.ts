@@ -8,6 +8,7 @@ import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { lastNightlyBackup, nextRun, pruneBackups, runNightlyBackup } from "./backup-schedule";
+import { backupUsage, clearBackups } from "./backups";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -83,5 +84,26 @@ describe("nightly backups (E10-7)", () => {
     await rm(path.join(dataDir.path, "backups"));
     await runNightlyBackup();
     expect((await loadSettings()).backupProblem).toBeNull();
+  });
+});
+
+describe("clearing old backups on this computer", () => {
+  it("keeps only the chosen stretch, or none, and says how much room they take", async () => {
+    const dir = path.join(dataDir.path, "backups");
+    const { mkdir } = await import("node:fs/promises");
+    await mkdir(dir, { recursive: true });
+    const now = new Date("2026-11-11T12:00:00.000Z");
+    const day = 24 * 60 * 60 * 1000;
+    for (const [name, ago] of [["dossier-backup-nightly-a.json", 5], ["dossier-backup-nightly-b.json", 40], ["dossier-backup-nightly-c.json", 400]] as const) {
+      await writeFile(path.join(dir, name), "x".repeat(1000));
+      const when = new Date(now.getTime() - ago * day);
+      await utimes(path.join(dir, name), when, when);
+    }
+    expect(await backupUsage()).toMatchObject({ count: 3, bytes: 3000 });
+    expect(await clearBackups(365, now)).toBe(1);
+    expect(await clearBackups(30, now)).toBe(1);
+    expect(await backups()).toEqual(["dossier-backup-nightly-a.json"]);
+    expect(await clearBackups(0, now)).toBe(1);
+    expect(await backupUsage()).toEqual({ count: 0, bytes: 0, oldest: null });
   });
 });

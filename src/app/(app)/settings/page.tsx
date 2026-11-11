@@ -10,6 +10,7 @@ import { COUNTRIES } from "@/lib/job-search/countries";
 import { loadSearch } from "@/lib/posting-searches";
 import { providerOption } from "@/lib/ai/provider-options";
 import { lastNightlyBackup } from "@/lib/backup-schedule";
+import { backupUsage } from "@/lib/backups";
 import { backupsDir } from "@/lib/backups";
 import { mcpUrl } from "@/lib/connector/oauth";
 import { exportFileName } from "@/lib/data-export";
@@ -147,6 +148,7 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
             retentionDays: env.DOSSIER_BACKUP_RETENTION_DAYS,
             dir: backupsDir(),
             lastRun: whenRan(await lastNightlyBackup()),
+            usage: await backupUsage().then((usage) => ({ ...usage, oldest: usage.oldest?.toISOString() ?? null })),
             problem: settings.backupProblem,
             drive: {
               on: settings.backupToDrive,
