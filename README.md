@@ -23,7 +23,7 @@
 
 Job hunting is exhausting. You read the same kinds of postings over and over, rewrite your resume for each one, and wonder whether an applicant tracking system (ATS) will even read it properly. Scout takes on the repetitive parts, so you can spend your energy on the jobs and the people that matter.
 
-Scout is built on [Dossier](https://github.com/AienTech/dossier), an open-source job application tracker by AienTech, and reshaped for job seekers in the US. I'm sharing it for free because looking for work is hard enough. If it helps you land your next role, that's all I hoped for. Use it as it is, change it, make it yours.
+Scout is a fork of [Dossier](https://github.com/AienTech/dossier), an open-source job application tracker by AienTech, adapted for job seekers in the US and available to anyone looking for work. It does the sifting, not the applying: it finds the postings that fit, scores how well each matches your resume, and grades your tailored resume against common US ATS standards. Where to apply, and what goes out, is always your call.
 
 > **Scout never applies for you.** Its agents search, read and score postings and prepare drafts. Nothing is sent, submitted or applied for until you do it yourself.
 
