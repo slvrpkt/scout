@@ -106,7 +106,28 @@ test("manual job search with filters", async ({ page }) => {
 });
 
 test("an application: tailored resume, ATS grade and the chat", async ({ page }) => {
-  const [ledgerly] = await sql<{ id: string }>(`SELECT id FROM "Application" WHERE company = 'Ledgerly' LIMIT 1`);
+  const [ledgerly] = await sql<{ id: string; postingText: string }>(`SELECT id, "postingText" FROM "Application" WHERE company = 'Ledgerly' LIMIT 1`);
+  // The whole posting, as a real one reads: the demo's is only its start, which the resume tab would flag as cut short.
+  if (ledgerly.postingText.trim().length < 1200) {
+    await sql(`UPDATE "Application" SET "postingText" = "postingText" || $2 WHERE id = $1`, [
+      ledgerly.id,
+      [
+        "",
+        "",
+        "What you'll do",
+        "- Own the end-to-end design of Ledgerly's payments experience, from invoice to payout, for small businesses across the US.",
+        "- Work with product managers and engineers from discovery through launch, and measure what changed once it ships.",
+        "- Run regular research with customers and support teams, and turn what you learn into clear, testable designs.",
+        "- Grow and maintain our design system with the engineers who build it, so every team ships consistent, accessible screens.",
+        "- Mentor other designers and share your work openly in critiques.",
+        "",
+        "What we offer",
+        "- Hybrid work from our Washington, DC office, three days a week.",
+        "- Health, dental and vision coverage, a 401(k) match and a yearly learning budget.",
+        "- Flexible time off and paid parental leave.",
+      ].join("\n"),
+    ]);
+  }
   await page.goto(`/applications/${ledgerly.id}`);
   await expect(page.getByRole("article", { name: "Resume" })).toContainText("Jane Doe");
   await shot(page, "application");
