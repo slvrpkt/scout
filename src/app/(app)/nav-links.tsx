@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/cn";
 import { isCurrent, NAV } from "@/lib/nav";
+import { useSectionOverride } from "@/lib/section-override";
 
 import { useSidebarCollapsed } from "./sidebar-frame";
 
@@ -18,6 +19,7 @@ const countTip = (href: string, count: number) => COUNT_TIPS[href]?.(count) ?? `
 
 export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
   const pathname = usePathname();
+  const override = useSectionOverride();
   const collapsed = useSidebarCollapsed();
   return (
     <nav aria-label="Main" className="flex flex-1 flex-col gap-1">
@@ -38,7 +40,7 @@ export function NavLinks({ counts }: { counts?: Record<string, number> } = {}) {
             ))}
           {items.map((item) => {
             const { href, label, icon: Icon } = item;
-            const active = isCurrent(item, pathname);
+            const active = isCurrent(item, pathname, override);
             return (
               <Link
                 key={href}

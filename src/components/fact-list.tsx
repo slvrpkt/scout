@@ -90,7 +90,7 @@ export function FactList({
         </ol>
       )}
       <div>
-        <Button variant="secondary" size="sm" onClick={() => void add()} disabled={adding}>
+        <Button title="Add a fact about you that every resume can use" variant="secondary" size="sm" onClick={() => void add()} disabled={adding}>
           + Add a fact
         </Button>
       </div>
@@ -129,7 +129,7 @@ function FactRow({
         onBlur={flush}
         className={cn(controlClassName, "min-h-[42px] resize-none px-3 py-[9px] leading-[1.5] [field-sizing:content] placeholder:text-muted")}
       />
-      <Button variant="danger-text" size="sm" className="mt-1.5" aria-label={`Remove fact ${number}`} onClick={onRemove}>
+      <Button title="Remove this fact" variant="danger-text" size="sm" className="mt-1.5" aria-label={`Remove fact ${number}`} onClick={onRemove}>
         Remove
       </Button>
     </li>

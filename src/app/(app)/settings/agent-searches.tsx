@@ -92,7 +92,7 @@ export function AgentSearches({
         <span className="text-sm text-muted">
           {searches.length} of {max} searches
         </span>
-        <Button
+        <Button title="Add another saved search for the agent to run"
           size="lg"
           className="min-h-12 px-7 text-base font-semibold"
           aria-disabled={adding || searches.length >= max || undefined}
@@ -229,7 +229,7 @@ function SearchCard({
   const titleCompany =
     companies.length === 0 && places.length > 0 ? ([search.query.keywords, ...skipRuleList(search.altTitles ?? "")].map(companyInTitle).find(Boolean) ?? null) : null;
   const toggle = (
-    <button
+    <button title="Open or close this search"
       type="button"
       aria-expanded={expanded}
       onClick={onToggle}
@@ -253,10 +253,10 @@ function SearchCard({
         {toggle}
         <div className="flex items-center gap-3">
           <span className={cn("text-meta", search.enabled ? "text-ink" : "text-muted")}>{search.enabled ? "Enabled" : "Disabled"}</span>
-          <Button variant="secondary" size="sm" onClick={onToggle}>
+          <Button title="Change this search" variant="secondary" size="sm" onClick={onToggle}>
             Edit
           </Button>
-          <Button variant="danger-text" size="sm" onClick={onRemove} aria-label={`Remove search ${number}`}>
+          <Button title="Delete this search" variant="danger-text" size="sm" onClick={onRemove} aria-label={`Remove search ${number}`}>
             <Trash2 aria-hidden="true" className="size-3.5" />
             Remove
           </Button>
@@ -271,7 +271,7 @@ function SearchCard({
         {toggle}
         <div className="flex items-center gap-3">
           {search.query.keywords.trim() && places.length === 0 && (
-            <Link href={searchHref(search.query)} className="text-meta font-medium text-ink underline underline-offset-2">
+            <Link title="Run this search yourself in Manual job search" href={searchHref(search.query)} className="text-meta font-medium text-ink underline underline-offset-2">
               Open in Manual job search
             </Link>
           )}
@@ -314,7 +314,7 @@ function SearchCard({
                 <p className="flex flex-wrap gap-x-2 text-meta text-muted">
                   Open in Manual job search, one location at a time:
                   {places.map((place) => (
-                    <Link key={place} href={searchHref({ ...search.query, place })} className="font-medium text-ink underline underline-offset-2">
+                    <Link title="Run this search for just this place in Manual job search" key={place} href={searchHref({ ...search.query, place })} className="font-medium text-ink underline underline-offset-2">
                       {place}
                     </Link>
                   ))}
@@ -345,7 +345,7 @@ function SearchCard({
       </Select>
       <SkipRules rules={skipRuleList(search.skipRules)} onChange={(rules) => void setSkipRules(rules)} />
       <div className="flex justify-end">
-        <Button variant="danger-text" size="sm" onClick={onRemove}>
+        <Button title="Delete this search" variant="danger-text" size="sm" onClick={onRemove}>
           <Trash2 aria-hidden="true" className="size-3.5" />
           Remove
         </Button>
@@ -384,7 +384,7 @@ function CompanyInTitleNote({ searchId, company, places, country }: { searchId: 
         Each location is searched on its own, so a title with “at {company}” across {places} {places === 1 ? "location" : "locations"} is {places} {places === 1 ? "request" : "requests"} on every run, which raises your monthly API cost. To get the same jobs for less, add {company} with + Add companies instead: it&apos;s searched once across {country}, and you can narrow the jobs by place afterwards with the Location filter in Agentic job search.
       </span>
       <div>
-        <Button variant="secondary" size="sm" onClick={close}>
+        <Button title="Close this note" variant="secondary" size="sm" onClick={close}>
           Got it
         </Button>
       </div>

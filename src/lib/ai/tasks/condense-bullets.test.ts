@@ -64,7 +64,7 @@ describe("condenseBullets", () => {
     const { data, promptVersion } = await condenseBullets(provider, { ...input, counts: [4] }, options);
     expect(calls).toBe(2);
     expect(data[4]).toHaveLength(4);
-    expect(promptVersion).toBe("condense-bullets@6");
+    expect(promptVersion).toBe("condense-bullets@7");
     expect(provider.calls[1].system).toContain("Keep every number this time.");
   });
 

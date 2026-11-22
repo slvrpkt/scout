@@ -3,6 +3,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import {
+  markSuggestionNotTrue,
+  setNoCoverLetter,
   addMatchSkill,
   addNote,
   deleteNote,
@@ -173,6 +175,16 @@ describe("saveUnit (E8-3)", () => {
   it("keeps a role's bullets one per line, without bullet characters", async () => {
     const result = await saveUnit({ ...edit, unitId: "experience:e1", expected: resume[1].text, text: "- Led the portal\n\n• Built the design system\n" });
     expect(result).toEqual({ ok: true, data: { text: "Led the portal\nBuilt the design system" } });
+  });
+
+  it("stores a job's skills once changed, right after the job, and shows the profile's again when emptied", async () => {
+    const job = resume.find((unit) => unit.id.startsWith("experience:"))!;
+    const unitId = `role-skills:${job.id.slice("experience:".length)}`;
+    expect(await saveUnit({ ...edit, unitId, expected: "", text: " Figma ,  Design systems, " })).toMatchObject({ ok: true });
+    const stored = await units();
+    expect(stored[stored.findIndex((unit) => unit.id === job.id) + 1]).toMatchObject({ id: unitId, text: "Figma, Design systems" });
+    expect(await saveUnit({ ...edit, unitId, expected: "Figma, Design systems", text: "  " })).toMatchObject({ ok: true });
+    expect(await units()).toEqual(resume);
   });
 
   it("refuses to overwrite a change made while editing", async () => {
@@ -632,5 +644,35 @@ describe("the email", () => {
     const first = await finishedRewrite({ units: email, previous: null });
     expect(await undoEmailRewrite({ id: "app-1", jobId: first.id })).toEqual({ ok: false, error: "There's nothing to undo." });
     expect(await saved()).toEqual(email);
+  });
+});
+
+describe("setNoCoverLetter", () => {
+  const note = async () => (await prisma().application.findUniqueOrThrow({ where: { id: "app-1" } })).thingsToNote;
+
+  it("says in Things To Note that no cover letter was sent, keeping what's there, and takes it out when turned back", async () => {
+    await prisma().application.update({ where: { id: "app-1" }, data: { thingsToNote: "Referred by Ana." } });
+    expect(await setNoCoverLetter({ id: "app-1", on: true })).toMatchObject({ ok: true });
+    expect(await note()).toBe("Referred by Ana.\nNo cover letter sent.");
+    // Twice is still once.
+    await setNoCoverLetter({ id: "app-1", on: true });
+    expect(await note()).toBe("Referred by Ana.\nNo cover letter sent.");
+    await setNoCoverLetter({ id: "app-1", on: false });
+    expect(await note()).toBe("Referred by Ana.");
+  });
+});
+
+describe("markSuggestionNotTrue", () => {
+  it("takes the suggestion off and keeps in Facts that it isn't true, once", async () => {
+    const suggestion = "The posting asks for Kanban. If you used it, add it.";
+    await prisma().application.update({ where: { id: "app-1" }, data: { resumeSuggestions: [suggestion, "Keep me."] } });
+    const result = await markSuggestionNotTrue({ id: "app-1", text: suggestion });
+    expect(result).toMatchObject({ ok: true });
+    expect((await prisma().application.findUniqueOrThrow({ where: { id: "app-1" } })).resumeSuggestions).toEqual(["Keep me."]);
+    const facts = await prisma().fact.findMany({ where: { applicationId: null } });
+    expect(facts).toHaveLength(1);
+    expect(facts[0].text).toMatch(/^Not true for me, so never suggest it: /);
+    await markSuggestionNotTrue({ id: "app-1", text: suggestion });
+    expect(await prisma().fact.count({ where: { applicationId: null } })).toBe(1);
   });
 });

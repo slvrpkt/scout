@@ -65,8 +65,9 @@ const WORDS: Record<string, Words> = {
     age: (years) => `Age ${years}`,
     // As the profile editor names them.
     levels: Object.fromEntries(LANGUAGE_LEVELS.map(({ value, label }) => [value, label])) as Record<LanguageLevel, string>,
-    hiringTeam: "Hiring team",
-    greeting: (company) => (company ? `Dear ${company} team,` : "Dear hiring team,"),
+    hiringTeam: "Hiring Manager",
+    // A business letter's: to a person when the posting names one (the AI writes that), with a colon.
+    greeting: () => "Dear Hiring Manager:",
   },
   nl: {
     profile: "Profiel",

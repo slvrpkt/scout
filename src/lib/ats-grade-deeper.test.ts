@@ -48,6 +48,12 @@ describe("the deeper ATS checks", () => {
     expect(result.match).toBeNull();
   });
 
+  it("doesn't ask you to check what your background already settles, like a clearance you hold", () => {
+    const requirements = [other("Must be able to obtain and maintain a Public Trust clearance"), other("Must be able to travel up to 25%")];
+    const verdicts = [{ requirement: "Must be able to obtain and maintain a Public Trust clearance", result: "covered" as const }];
+    expect(atsGrade({ content, sidebar: false, requirements, verdicts }).beforeApplying).toEqual(["Must be able to travel up to 25%"]);
+  });
+
   it("checks the phone and location, not only the email", () => {
     const bare = { ...content, contacts: ["me@example.com"] };
     const result = grade([], { city: "Utrecht", phone: "", linkedin: "" }, bare);

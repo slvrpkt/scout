@@ -17,7 +17,7 @@ const client = () => db.client!;
 beforeEach(() => resetDatabase(client()));
 afterAll(() => client().$disconnect());
 
-async function sentApplication() {
+async function sentApplication({ letterUsed = true }: { letterUsed?: boolean } = {}) {
   await client().profileField.create({ data: { key: "name", value: "Before Sending" } });
   await client().theme.create({ data: { id: "mine", name: "Mine", headFont: "GEIST", bodyFont: "GEIST", accent: "#111111" } });
   const { id } = await client().application.create({
@@ -25,6 +25,8 @@ async function sentApplication() {
       company: "Ledgerly",
       role: "Project Manager",
       postingUrl: "https://example.com/jobs/1",
+      // Downloaded before it was marked applied, unless a test says otherwise.
+      letterUsedAt: letterUsed ? new Date() : null,
       documents: {
         create: [
           { kind: "RESUME", units: demoResumeUnits(), themeId: "mine" },
@@ -36,6 +38,27 @@ async function sentApplication() {
   const change = await applyStatusChange(client(), id, "SENT", new Date());
   return { id, change };
 }
+
+describe("a cover letter never used", () => {
+  it("isn't counted as sent: the application is marked No cover letter, and Things To Note says so", async () => {
+    const { id } = await sentApplication({ letterUsed: false });
+    expect(await client().application.findUniqueOrThrow({ where: { id } })).toMatchObject({ noCoverLetter: true, thingsToNote: "No cover letter used." });
+    expect((await client().sentDocument.findMany({ where: { applicationId: id } })).map((copy) => copy.kind)).toEqual(["RESUME"]);
+  });
+
+  it("comes back when the send is undone", async () => {
+    const { id, change } = await sentApplication({ letterUsed: false });
+    if (change.outcome !== "changed") throw new Error("not sent");
+    await undoStatusChange(client(), change.event.id);
+    expect(await client().application.findUniqueOrThrow({ where: { id } })).toMatchObject({ noCoverLetter: false, thingsToNote: "", status: "DRAFT" });
+  });
+
+  it("is kept as sent once it was downloaded, copied or emailed", async () => {
+    const { id } = await sentApplication();
+    expect(await client().application.findUniqueOrThrow({ where: { id } })).toMatchObject({ noCoverLetter: false, thingsToNote: "" });
+    expect((await client().sentDocument.findMany({ where: { applicationId: id }, orderBy: { kind: "asc" } })).map((copy) => copy.kind).sort()).toEqual(["COVER_LETTER", "RESUME"]);
+  });
+});
 
 describe("sent copies", () => {
   it("stay as they went out when the profile, the theme and the document change, and only they show", async () => {

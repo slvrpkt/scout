@@ -3,13 +3,16 @@ import { z } from "zod";
 import { matchSchema, type Extracted, type Match } from "@/lib/application-data";
 import { experienceMonths, formatMonthYear, languageLevelLabel, sameName, type ProfileData } from "@/lib/profile";
 
-import { system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
+import { profileForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
 
-export const MATCH_REQUIREMENTS_VERSION = "match-requirements@1";
+export const MATCH_REQUIREMENTS_VERSION = "match-requirements@3";
 
-// The model only says which profile skill or language each requirement is
-// about; code decides covered, partial or gap from the profile itself, so the
-// match is deterministic and explainable (NEW-4, E7-4).
+// The model says which profile skill or language each requirement is about,
+// and, reading the whole background, whether the profile shows it. Code
+// decides covered, partial or gap: from the profile's skills when one fits,
+// so that part stays deterministic (NEW-4, E7-4), and from the model's
+// verdict and its named evidence for the rest (degrees, duties, experience).
+const verdicts = ["shown", "implied", "not_shown"] as const;
 const answerSchema = z.object({
   matches: z.array(
     z.object({
@@ -19,18 +22,37 @@ const answerSchema = z.object({
       skill: z.string().nullable(),
       /** A language from the profile's list, or null. */
       language: z.string().nullable(),
+      /** Whether the whole profile shows it: outright, implied by what it does show, or not at all. */
+      verdict: z.preprocess((value) => value ?? "not_shown", z.enum(verdicts)),
+      /** What in the profile shows or implies it, named, e.g. "B.S. in Computer Science, State University". */
+      evidence: z.preprocess((value) => value ?? "", z.string()),
     }),
   ),
 });
 
-const INSTRUCTIONS = `You compare a job's requirements with a candidate's skills and languages.
+const INSTRUCTIONS = `You compare a job's requirements with a candidate's whole background: education, roles and what they did in them, projects, skills, certifications and languages.
 
-For each numbered requirement, answer which ONE of the candidate's skills it is about, if any, and which of the candidate's languages, if any. Copy names exactly as they appear in the candidate's lists. Match on meaning ("Strong prototyping skills in Figma" is about "Figma"; "Has built or maintained a design system" is about "Design systems"), but don't stretch: when no skill really fits, answer null. Answer every requirement once.`;
+For each numbered requirement:
+- skill: which ONE of the candidate's skills it is about, if any, copied exactly as it appears in candidateSkills. Match on meaning ("Strong prototyping skills in Figma" is about "Figma"; "Has built or maintained a design system" is about "Design systems"), but don't stretch: when no skill really fits, null.
+- language: which of the candidate's languages it is about, if any, or null.
+- verdict: whether the profile as a whole shows the candidate meets it.
+  - "shown": the profile states it, in a degree, a role, a bullet, a skill or a certification.
+  - "implied": nothing states it, but what the profile shows makes it very likely, e.g. "produced artifacts for all phases of the SDLC" is implied by roles as a developer, a business or QA analyst and a project manager; "stakeholder communication" by years leading client projects. Not a guess: something named in the profile must point to it.
+  - "not_shown": nothing in the profile shows or implies it. A named tool, product, certification or license (PMP, Jira, a CPA) is never implied: it's shown or not.
+- evidence: for "shown" and "implied", what in the profile backs it, named, in a few words, e.g. "B.S. in Information Technology, George Mason University" or "Developer at Acme, BA at Initech, PM at Globex". Empty for "not_shown".
 
-export type MatchInput = { requirements: Extracted["requirements"]; profile: ProfileData; today?: Date };
+Degrees: judge the level and the field. A higher degree meets a lower one (a master's meets "a bachelor's"). Computer science, information technology, information systems, any engineering (nanosystems included), math, statistics, data science (applied data science included), physics and business analytics are STEM and technology fields; "or a related field" takes in close neighbours. "Or equivalent experience" is met by enough years in the field. Never call a requirement not_shown when the profile shows it. Answer every requirement once.`;
+
+export type MatchInput = {
+  requirements: Extracted["requirements"];
+  profile: ProfileData;
+  today?: Date;
+  /** This job's resume as the candidate edited it, when regrading it: what it says is theirs to say, and counts as shown. */
+  resumeText?: string;
+};
 
 /** NEW-4: each requirement covered, partial or a gap, with its evidence. */
-export const matchRequirements: Task<MatchInput, Match> = async (provider, { requirements, profile, today = new Date() }, { signal }) => {
+export const matchRequirements: Task<MatchInput, Match> = async (provider, { requirements, profile, today = new Date(), resumeText = "" }, { signal }) => {
   const needsModel = requirements.some((requirement) => requirement.kind !== "years");
   const answer = needsModel
     ? await provider.complete({
@@ -38,15 +60,21 @@ export const matchRequirements: Task<MatchInput, Match> = async (provider, { req
         messages: [
           {
             role: "user",
-            content: JSON.stringify(
-              {
-                requirements: requirements.map((requirement, index) => ({ number: index, text: requirement.text, kind: requirement.kind, skill: requirement.skill })),
-                candidateSkills: profile.skills.map((skill) => skill.name),
-                candidateLanguages: profile.languages.map((language) => language.name),
-              },
-              null,
-              2,
-            ),
+            content: [
+              `The requirements:\n${JSON.stringify(
+                requirements.map((requirement, index) => ({ number: index, text: requirement.text, kind: requirement.kind, skill: requirement.skill })),
+                null,
+                2,
+              )}`,
+              `candidateSkills: ${JSON.stringify(profile.skills.map((skill) => skill.name))}`,
+              `candidateLanguages: ${JSON.stringify(profile.languages.map((language) => language.name))}`,
+              `The candidate's whole profile:\n${profileForPrompt(profile)}`,
+              ...(resumeText.trim()
+                ? [
+                    `The candidate's resume for this job, as they edited it. What it says is true for them: it counts as shown, like the profile, and evidence from it names the resume part, e.g. "your resume's Fieldnote role":\n${resumeText.trim().slice(0, 30_000)}`,
+                  ]
+                : []),
+            ].join("\n\n"),
           },
         ],
         schema: answerSchema,
@@ -70,7 +98,7 @@ type Item = Match["items"][number];
 
 function classify(
   requirement: Extracted["requirements"][number],
-  mapped: { skill: string | null; language: string | null } | undefined,
+  mapped: { skill: string | null; language: string | null; verdict?: (typeof verdicts)[number]; evidence?: string } | undefined,
   profile: ProfileData,
   today: Date,
 ): Item {
@@ -106,10 +134,14 @@ function classify(
     profile.skills.find((entry) => mapped?.skill && sameSkill(entry.name, mapped.skill)) ??
     profile.skills.find((entry) => requirement.skill && sameSkill(entry.name, requirement.skill));
   if (!skill) {
+    // No skill of the profile's fits: the reading of the whole background decides, with what backs it.
+    const evidence = mapped?.evidence?.trim().slice(0, 200) ?? "";
+    if (mapped?.verdict === "shown" && evidence) return { ...base, result: "covered", note: evidence };
+    if (mapped?.verdict === "implied" && evidence) return { ...base, result: "partial", note: `Implied by ${evidence}; worth naming outright` };
     return {
       ...base,
       result: "gap",
-      note: requirement.kind === "skill" ? "Not in your profile yet" : "Nothing in your profile, so I'll address it honestly in the letter",
+      note: requirement.kind === "skill" ? "Not in your profile yet" : "Not shown in your profile",
     };
   }
   const roles = profile.experience.filter((entry) => entry.skillIds.includes(skill.id));

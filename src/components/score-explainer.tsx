@@ -60,7 +60,7 @@ export function ScoreExplainer({
                 </Dialog.Description>
               </div>
             </div>
-            <Dialog.Close aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
+            <Dialog.Close title="Close this window" aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
               <span aria-hidden="true" className="text-lg leading-none">
                 ×
               </span>
@@ -121,7 +121,7 @@ export function ScoreExplainer({
           {onRescore && (
             <div className="flex justify-end">
               <Dialog.Close asChild>
-                <Button variant="secondary" size="sm" onClick={onRescore}>
+                <Button title="Score this job again, with your current settings" variant="secondary" size="sm" onClick={onRescore}>
                   Score again
                 </Button>
               </Dialog.Close>

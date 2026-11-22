@@ -44,7 +44,7 @@ export function CostLimitsForm({ centers, limits }: { centers: readonly CostCent
         </div>
       ))}
       <div className="flex justify-end">
-        <Button aria-disabled={saving || undefined} onClick={() => !saving && save()}>
+        <Button title="Save your spending limits" aria-disabled={saving || undefined} onClick={() => !saving && save()}>
           {saving ? "Saving…" : "Save limits"}
         </Button>
       </div>

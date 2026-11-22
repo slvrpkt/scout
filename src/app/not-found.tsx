@@ -11,7 +11,7 @@ export default function NotFound() {
         standalone
         title="There's no page here"
         actions={
-          <Link href="/" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+          <Link title="Go to the dashboard" href="/" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
             Go to the dashboard
           </Link>
         }

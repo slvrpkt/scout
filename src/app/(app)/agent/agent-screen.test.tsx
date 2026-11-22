@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@/components/toast";
 import type { AgentCandidateView, AgentView } from "@/lib/agent/view";
 
-import { agentToday, dismissAgentCandidate, prepareAgentDraft, restoreAgentCandidate, runAgentNow, saveAgentPosting, scoreWaitingNow } from "./actions";
+import { agentToday, dismissAgentCandidate, lookOnCompanySite, prepareAgentDraft, restoreAgentCandidate, runAgentNow, saveAgentPosting, scoreWaitingNow } from "./actions";
 import { AgentScreen } from "./agent-screen";
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
@@ -20,6 +20,7 @@ vi.mock("./actions", () => ({
   agentToday: vi.fn(async () => ({ ok: true, data: { scored: 0, drafted: 0, inList: 0, skipped: 0, waiting: 0, scoring: false } })),
   scoreWaitingNow: vi.fn(async () => ({ ok: true, data: { jobId: "score-1", reused: false } })),
   saveAgentPosting: vi.fn(async () => ({ ok: true, data: null })),
+  lookOnCompanySite: vi.fn(async () => ({ ok: true, data: { jobId: "source-1" } })),
 }));
 
 const card = (id: string, score: number, extra: Partial<AgentCandidateView> = {}): AgentCandidateView => ({
@@ -48,6 +49,7 @@ const card = (id: string, score: number, extra: Partial<AgentCandidateView> = {}
   ...extra,
 });
 const view: AgentView = {
+  recurring: { questions: [], roles: [] },
   enabled: true,
   autoDraft: false,
   minScore: 70,
@@ -61,6 +63,7 @@ const view: AgentView = {
   waiting: 0,
   lastResults: { found: 133, waiting: 0, scored: 72, setAside: 61, atMin: 28, below: 35, drafted: 3, skipped: 6, archived: 0 },
   allResults: { found: 900, waiting: 0, scored: 500, setAside: 400, atMin: 120, below: 300, drafted: 20, skipped: 50, archived: 10, since: "2026-11-10T14:15:00.000Z" },
+  periodResults: { today: { found: 40, waiting: 0, scored: 25, setAside: 15, atMin: 8, below: 14, drafted: 1, skipped: 2, archived: 0, from: "2026-11-13" }, week: { found: 260, waiting: 3, scored: 150, setAside: 107, atMin: 40, below: 95, drafted: 5, skipped: 10, archived: 0, from: "2026-11-09" }, month: { found: 520, waiting: 3, scored: 300, setAside: 217, atMin: 80, below: 190, drafted: 10, skipped: 20, archived: 0, from: "2026-11-01" } },
   runsPerDay: 3,
   times: ["07:00"],
   lastRun: { at: "Tue 20 Oct, 07:00", message: "2 new postings are waiting for a look." },
@@ -92,7 +95,7 @@ describe("jobs waiting for a score", () => {
   it("keeps today's counts and the waiting line up to date without reloading", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      vi.mocked(agentToday).mockResolvedValue({ ok: true, data: { scored: 61, drafted: 2, inList: 54, skipped: 6, waiting: 5, scoring: true, running: true, results: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0 }, all: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0, since: null } } });
+      vi.mocked(agentToday).mockResolvedValue({ ok: true, data: { scored: 61, drafted: 2, inList: 54, skipped: 6, waiting: 5, scoring: true, running: true, results: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0 }, all: { found: 133, waiting: 5, scored: 61, setAside: 67, atMin: 20, below: 30, drafted: 2, skipped: 9, archived: 0, since: null }, periods: { today: { found: 40, waiting: 0, scored: 25, setAside: 15, atMin: 8, below: 14, drafted: 1, skipped: 2, archived: 0, from: "2026-11-13" }, week: { found: 260, waiting: 3, scored: 150, setAside: 107, atMin: 40, below: 95, drafted: 5, skipped: 10, archived: 0, from: "2026-11-09" }, month: { found: 520, waiting: 3, scored: 300, setAside: 217, atMin: 80, below: 190, drafted: 10, skipped: 20, archived: 0, from: "2026-11-01" } } } });
       open({ waiting: 22 });
       await act(() => vi.advanceTimersByTimeAsync(15_000));
       expect(screen.getByText("Last run", { selector: "dt" }).nextElementSibling).toHaveTextContent("133new postings found61 scored · 5 being scored now");
@@ -118,8 +121,13 @@ describe("AgentScreen (E16-6)", () => {
   const shown = (name: RegExp) => screen.getByRole("button", { name });
   const found = () => within(screen.getByRole("list", { name: "What it found" })).getAllByRole("button").map((item) => item.textContent);
 
-  it("shows everything at first, drafts first, with the one picked beside them: Review Opportunity and Archive, no Approve", async () => {
+  it("opens on Drafts to review, All last; under All, drafts first, with the one picked beside them: Review Opportunity and Archive, no Approve", async () => {
+    const user = userEvent.setup();
     open();
+    expect(shown(/^Drafts to review/)).toHaveAttribute("aria-pressed", "true");
+    const filters = within(screen.getByRole("group", { name: "Show" })).getAllByRole("button");
+    expect(filters.at(-1)).toHaveTextContent(/^All/);
+    await user.click(shown(/^All/));
     expect(shown(/^All/)).toHaveAttribute("aria-pressed", "true");
     expect(found()).toHaveLength(4);
     expect(found()[0]).toContain("Posting d1");
@@ -153,8 +161,8 @@ describe("AgentScreen (E16-6)", () => {
 
   it("lists scored postings best first, and shows the one picked with its reasons, red flags, error and link", async () => {
     const user = userEvent.setup();
-    open();
-    await user.click(shown(/^Scored postings/));
+    open({ drafts: [] });
+    await user.click(shown(/^Drafts to review/));
     expect(found().map((text) => text?.match(/Posting s\d/)?.[0])).toEqual(["Posting s1", "Posting s2"]);
     expect(screen.getByRole("list", { name: "Why it fits" })).toHaveTextContent("Reason for s1");
     expect(screen.getByText("German required")).toBeInTheDocument();
@@ -169,8 +177,8 @@ describe("AgentScreen (E16-6)", () => {
 
   it("opens a posting without a draft on its own page from its title, preparing nothing", async () => {
     const user = userEvent.setup();
-    open();
-    await user.click(shown(/^Scored postings/));
+    open({ drafts: [] });
+    await user.click(shown(/^Drafts to review/));
     expect(within(screen.getByRole("heading", { level: 3 })).getByRole("link", { name: "Posting s1" })).toHaveAttribute("href", "/agent/posting/s1");
     expect(prepareAgentDraft).not.toHaveBeenCalled();
   });
@@ -188,8 +196,8 @@ describe("AgentScreen (E16-6)", () => {
 
   it("labels Adzuna's postings with a link to Adzuna, as its terms ask", async () => {
     const user = userEvent.setup();
-    open({ scored: [card("s1", 84, { source: "ADZUNA", url: "https://www.adzuna.nl/land/ad/1" }), card("s2", 72)] });
-    await user.click(shown(/^Scored postings/));
+    open({ drafts: [], scored: [card("s1", 84, { source: "ADZUNA", url: "https://www.adzuna.nl/land/ad/1" }), card("s2", 72)] });
+    await user.click(shown(/^Drafts to review/));
     expect(screen.getByRole("link", { name: "Jobs by Adzuna (opens in a new tab)" })).toHaveAttribute("href", "https://www.adzuna.nl");
   });
 
@@ -212,6 +220,18 @@ describe("AgentScreen (E16-6)", () => {
     expect(screen.getByText("Last run's scores")).toBeInTheDocument();
   });
 
+  it("shows today, this week (Monday to Sunday) and this month so far", async () => {
+    open();
+    await userEvent.click(screen.getByRole("radio", { name: "Today" }));
+    expect(screen.getByText("Today", { selector: "dt" }).nextElementSibling).toHaveTextContent("Fri, Nov 13, since midnight40postings found25 scored · 15 set aside by your settings before scoring");
+    expect(screen.getByText("Today's scores").nextElementSibling).toHaveTextContent("870 and up14Below 701Drafted2Skipped by your rules");
+    await userEvent.click(screen.getByRole("radio", { name: "This week" }));
+    expect(screen.getByText("This week", { selector: "dt" }).nextElementSibling).toHaveTextContent("Mon, Nov 9 – Sun, Nov 15260postings found150 scored · 107 set aside by your settings before scoring · 3 waiting for a score");
+    await userEvent.click(screen.getByRole("radio", { name: "This month" }));
+    expect(screen.getByText("This month", { selector: "dt" }).nextElementSibling).toHaveTextContent("November 2026520postings found");
+    expect(screen.getByText("This month's scores").nextElementSibling).toHaveTextContent("8070 and up190Below 70");
+  });
+
   it("shows how the job works, Remote, Hybrid or On-site, on its list card and its big card", () => {
     open({ scored: [card("s1", 84, { remote: true }), card("s2", 72, { description: "Hybrid: 3 days a week in the office." })] }, "s1");
     expect(within(screen.getByRole("list", { name: "What it found" })).getAllByText("Remote")).toHaveLength(1);
@@ -219,24 +239,57 @@ describe("AgentScreen (E16-6)", () => {
     expect(screen.getAllByText("Remote")).toHaveLength(2);
   });
 
-  it("lists the highest score first under All, drafts or not", () => {
+  it("shows drafts at the draft score under Drafts to review, and score bands ten points apart below it, drafts or not", async () => {
+    const user = userEvent.setup();
+    const drafts = [card("d1", 84, { applicationId: "app-1" }), card("d2", 74, { applicationId: "app-2" })];
+    const belowMinimum = [card("b1", 66), card("b2", 52), card("b3", 31)];
+    open({ minScore: 80, drafts, scored: [], belowMinimum: [card("s1", 77), ...belowMinimum] });
+    expect(shown(/^Drafts to review/)).toHaveTextContent("Drafts to review · 80+ 1");
+    expect(shown(/^70–79/)).toHaveTextContent("70–79 2");
+    expect(shown(/^60–69/)).toHaveTextContent("60–69 1");
+    expect(shown(/^Below 60/)).toHaveTextContent("Below 60 2");
+    await user.click(shown(/^Drafts to review/));
+    expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["d1"]);
+    // An older draft below the bar is in its band, with its draft.
+    await user.click(shown(/^70–79/));
+    expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["s1", "d2"]);
+    await user.click(shown(/^60–69/));
+    expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["b1"]);
+    await user.click(shown(/^Below 60/));
+    expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["b2", "b3"]);
+    // No tab of its own for postings waiting for their draft: they're under Drafts to review, saying so.
+    expect(screen.queryByRole("button", { name: /waiting for a draft/i })).not.toBeInTheDocument();
+  });
+
+  it("lists postings at the draft score still waiting for their draft under Drafts to review, saying so", async () => {
+    const user = userEvent.setup();
+    open({ minScore: 80, drafts: [card("d1", 91, { applicationId: "app-1" })], scored: [card("s1", 84)], belowMinimum: [] }, "s1");
+    expect(shown(/^Drafts to review/)).toHaveTextContent("Drafts to review · 80+ 2");
+    await user.click(shown(/^Drafts to review/));
+    expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["d1", "s1"]);
+    expect(screen.getAllByText("Waiting for a draft").length).toBeGreaterThan(0);
+  });
+
+  it("lists the highest score first under All, drafts or not", async () => {
+    const user = userEvent.setup();
     open({ drafts: [card("d1", 81, { applicationId: "app-1" })], scored: [card("s1", 95), card("s2", 72)], belowMinimum: [card("b1", 40)] });
+    await user.click(shown(/^All/));
     expect(found().map((text) => text?.match(/Posting ([a-z]\d)/)?.[1])).toEqual(["s1", "d1", "s2", "b1"]);
   });
 
   it("keeps postings below the minimum score under their own filter, and filters like Manual job search", async () => {
     const user = userEvent.setup();
-    open();
-    await user.click(shown(/^Scored postings/));
+    open({ drafts: [] });
+    await user.click(shown(/^Drafts to review/));
     expect(screen.queryByText("Posting b1")).not.toBeInTheDocument();
-    await user.click(shown(/^Below 70/));
+    await user.click(shown(/^Below 50/));
     expect(found()[0]).toContain("Posting b1");
-    await user.click(shown(/^Scored postings/));
+    await user.click(shown(/^Drafts to review/));
     await user.type(screen.getByRole("searchbox", { name: "Search what it found" }), "s2");
     expect(found()).toHaveLength(1);
     expect(screen.queryByRole("checkbox", { name: "Remote only" })).not.toBeInTheDocument();
     await user.selectOptions(screen.getByRole("combobox", { name: "Score" }), "90+");
-    expect(screen.getByText("No postings waiting for a draft.")).toBeInTheDocument();
+    expect(screen.getByText("Nothing matches these filters.")).toBeInTheDocument();
   });
 
   it("filters by a lowest score, keeping everything above it", async () => {
@@ -250,18 +303,29 @@ describe("AgentScreen (E16-6)", () => {
 
   it("prepares a draft from a scored posting", async () => {
     const user = userEvent.setup();
-    open();
-    await user.click(shown(/^Scored postings/));
+    open({ drafts: [] });
+    await user.click(shown(/^Drafts to review/));
     await user.click(screen.getByRole("button", { name: "Prepare draft" }));
     expect(prepareAgentDraft).toHaveBeenCalledWith({ candidateId: "s1" });
     expect(screen.getByRole("button", { name: /Preparing draft…/ })).toBeInTheDocument();
   });
 
+  it("looks on the company's website from a posting that hasn't been, and says what a look found", async () => {
+    open({ scored: [card("s1", 84), card("s2", 81, { sourceCheck: "found", sourceUrl: "https://careers.acme.com/jobs/2" }), card("s3", 76, { sourceCheck: "not found" })] }, "s1");
+    await userEvent.click(screen.getByRole("button", { name: "Look on company website" }));
+    expect(lookOnCompanySite).toHaveBeenCalledWith({ candidateId: "s1" });
+    expect(screen.getByRole("button", { name: "Looking on company website…" })).toBeInTheDocument();
+
+    open({ scored: [card("s2", 81, { sourceCheck: "found", sourceUrl: "https://careers.acme.com/jobs/2" })] }, "s2");
+    expect(screen.getAllByText("✓ Found on the company's site: its own description and apply page").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: /Open posting/ }).some((link) => link.getAttribute("href") === "https://careers.acme.com/jobs/2")).toBe(true);
+  });
+
   it("archives a scored posting at once, with Undo", async () => {
     const user = userEvent.setup();
     vi.mocked(dismissAgentCandidate).mockResolvedValueOnce({ ok: true, data: { archivedApplicationId: null } });
-    open();
-    await user.click(shown(/^Scored postings/));
+    open({ drafts: [] });
+    await user.click(shown(/^Drafts to review/));
     await user.click(screen.getByRole("button", { name: /Posting s2/ }));
     await user.click(screen.getByRole("button", { name: "Archive" }));
     expect(dismissAgentCandidate).toHaveBeenCalledWith({ candidateId: "s2" });
@@ -301,7 +365,7 @@ describe("AgentScreen (E16-6)", () => {
 
   it("says when there's nothing yet", () => {
     open({ drafts: [], scored: [], belowMinimum: [], lastRun: null, autoDraft: true });
-    expect(screen.getByText("Nothing waiting yet. A run puts the postings that fit you best here.")).toBeInTheDocument();
+    expect(screen.getByText(/^No drafts yet\. After a run, new postings scoring/)).toBeInTheDocument();
     expect(screen.getByText("Last run", { selector: "dt" }).nextElementSibling).toHaveTextContent("Not yet");
   });
 });

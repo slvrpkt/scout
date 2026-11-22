@@ -80,7 +80,7 @@ export function ConnectorSection({ initial, address }: { initial: { on: boolean;
                 <code className="min-w-0 flex-1 rounded-control border border-line-input bg-input px-3 py-2 font-mono text-[13px] [overflow-wrap:anywhere]">
                   {address}
                 </code>
-                <Button variant="secondary" size="sm" onClick={() => void copy()}>
+                <Button title="Copy this address" variant="secondary" size="sm" onClick={() => void copy()}>
                   Copy
                 </Button>
               </div>
@@ -124,7 +124,7 @@ export function ConnectorSection({ initial, address }: { initial: { on: boolean;
                 {redirects.map((uri) => (
                   <li key={uri} className="flex flex-wrap items-center gap-3">
                     <code className="min-w-0 flex-1 font-mono text-[13px] [overflow-wrap:anywhere]">{uri}</code>
-                    <Button variant="text" size="sm" onClick={() => void removeRedirect(uri)}>
+                    <Button title="Remove this address" variant="text" size="sm" onClick={() => void removeRedirect(uri)}>
                       Remove <span className="sr-only">{uri}</span>
                     </Button>
                   </li>
@@ -148,7 +148,7 @@ export function ConnectorSection({ initial, address }: { initial: { on: boolean;
                   }
                 }}
               />
-              <Button variant="secondary" onClick={() => void addRedirect()}>
+              <Button title="Add this address" variant="secondary" onClick={() => void addRedirect()}>
                 Add
               </Button>
             </div>
@@ -159,7 +159,7 @@ export function ConnectorSection({ initial, address }: { initial: { on: boolean;
               What an app reads through the connector goes to whoever runs it. For Claude, that&apos;s Anthropic, with your Claude account, as anything in a chat:
               your profile without its contact details, the postings and applications it works on, and your searches. Private notes and the letter&apos;s sender
               and signature stay out.{" "}
-              <a href="https://github.com/slvrpkt/scout/blob/main/PRIVACY.md#mcp-connector" target="_blank" rel="noopener noreferrer" className={LINK}>
+              <a title="Read what the connector shares, in a new tab" href="https://github.com/slvrpkt/scout/blob/main/PRIVACY.md#mcp-connector" target="_blank" rel="noopener noreferrer" className={LINK}>
                 Privacy → MCP connector
               </a>{" "}
               has the details.
@@ -169,7 +169,7 @@ export function ConnectorSection({ initial, address }: { initial: { on: boolean;
               connector.
             </p>
             <div>
-              <Button variant="secondary" onClick={() => void track(disconnectApps({})).then(toastResult)}>
+              <Button title="Sign out every app connected to Scout" variant="secondary" onClick={() => void track(disconnectApps({})).then(toastResult)}>
                 Disconnect all apps
               </Button>
               <p className="mt-2 text-meta text-muted">Signs Claude and every other app out. Changing your password or DOSSIER_SECRET does too.</p>

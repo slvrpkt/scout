@@ -47,7 +47,7 @@ export function KeyField({
           keyState === "none" ? (
             <>
               Get one from{" "}
-              <a href={getKey.href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">
+              <a title="Get a key from the provider, in a new tab" href={getKey.href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-ink">
                 {getKey.text}
               </a>
               .
@@ -64,7 +64,7 @@ export function KeyField({
         }}
       />
       {(keyState === "set" || keyState === "unreadable") && (
-        <Button variant="text" size="sm" className="self-start" onClick={() => void onSave({ action: "clear" })}>
+        <Button title="Delete the saved key" variant="text" size="sm" className="self-start" onClick={() => void onSave({ action: "clear" })}>
           Remove saved key
         </Button>
       )}

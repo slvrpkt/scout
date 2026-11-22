@@ -22,7 +22,7 @@ const initial: AgentSettings = {
   minScore: 70,
   dailyScores: 150,
   dailyDrafts: 30,
-  autoDraft: false, scoreShares: [], draftShares: [], draftScore: 80, dailyGoal: 150, titleSkip: [] 
+  autoDraft: false, runSaturday: true, runSunday: true, scoreShares: [], draftShares: [], dailyGoal: 150, titleSkip: [] 
 };
 const countries = [
   { code: "de", name: "Germany" },
@@ -59,6 +59,15 @@ describe("Settings → Job agent (E16-7)", () => {
     await user.selectOptions(screen.getAllByLabelText("Drafts")[0], "30");
     await user.click(screen.getByRole("button", { name: "Raise to 40" }));
     expect(saveAgentSettings).toHaveBeenLastCalledWith(expect.objectContaining({ draftShares: [30, 10], dailyDrafts: 40 }));
+  });
+
+  it("switches the runs off on Saturdays and Sundays, one toggle each", async () => {
+    open();
+    await userEvent.click(screen.getByRole("switch", { name: /Run on Saturdays/ }));
+    expect(saveAgentSettings).toHaveBeenLastCalledWith({ runSaturday: false });
+    expect(screen.getByText("Off: no job search on Saturdays. Run now still works.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: /Run on Sundays/ }));
+    expect(saveAgentSettings).toHaveBeenLastCalledWith({ runSunday: false });
   });
 
   it("is off until it's turned on", async () => {

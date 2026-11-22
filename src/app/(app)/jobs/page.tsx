@@ -59,6 +59,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
       history={history}
       counts={{ ...postingCounts, searches }}
       today={now.toISOString()}
+      initialSelected={typeof params.select === "string" ? params.select : null}
     />
   );
 }

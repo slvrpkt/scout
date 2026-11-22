@@ -37,12 +37,12 @@ export function AgentPosting({ posting, archived, minScore }: { posting: AgentCa
     // The agent's green tint, as on Agentic job search.
     <div className="flex min-h-full flex-col bg-agent-tint">
       <div className="mx-auto flex w-full max-w-[960px] flex-col gap-4 px-10 pt-8 pb-20">
-        <Link href="/agent" className="self-start text-meta text-muted underline-offset-2 hover:text-ink hover:underline">
+        <Link title="Back to the list of jobs the agent found, where you left off" href={`/agent?select=${encodeURIComponent(posting.id)}`} className="self-start text-meta text-muted underline-offset-2 hover:text-ink hover:underline">
           ← Agentic job search
         </Link>
         {archived ? (
           <CandidateCard candidate={posting} minScore={minScore} full>
-            <Button size="sm" aria-disabled={pending || undefined} onClick={putBack}>
+            <Button title="Bring this job back from the Archive to the agent's list" size="sm" aria-disabled={pending || undefined} onClick={putBack}>
               Put back
             </Button>
             <OpenPosting url={posting.url} />

@@ -55,7 +55,7 @@ export function StatusControl({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button
+          <button title="Change where this application stands: applied, interview, offer and so on"
             type="button"
             aria-label={`Status: ${label}`}
             className="flex items-center gap-[9px] rounded-full border border-line-control bg-card px-3.5 py-[9px] text-sm font-medium hover:border-line-strong data-[state=open]:border-primary"
@@ -96,7 +96,7 @@ export function StatusControl({
           onOpenChange={(open) => setInterview(open ? "edit" : null)}
         />
       )}
-      {shown === ApplicationStatus.DRAFT && <Button onClick={() => move(ApplicationStatus.SENT)}>Mark as applied</Button>}
+      {shown === ApplicationStatus.DRAFT && <Button title="Mark this application as applied, once you've submitted it" onClick={() => move(ApplicationStatus.SENT)}>Mark as applied</Button>}
     </>
   );
 }

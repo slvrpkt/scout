@@ -1,6 +1,6 @@
 import "server-only";
 
-import { unitsSchema } from "@/lib/application-data";
+import { matchSchema, unitsSchema } from "@/lib/application-data";
 import { DocumentKind, VersionCause } from "@/generated/prisma/enums";
 import { loadDocuments } from "@/lib/application-documents";
 import { ATS_ATTEMPTS, ATS_GOAL, atsGrade, type AtsGrade } from "@/lib/ats-grade";
@@ -22,6 +22,7 @@ export function gradeOf({ application, profile, resume, extracted, includeRefere
     content,
     sidebar: !template && hasSidebar(layout),
     requirements: extracted?.requirements ?? [],
+    verdicts: matchSchema.safeParse(application.match).data?.items ?? [],
     extras: {
       title: extracted?.title ?? application.role,
       years: Math.floor(experienceMonths(profile, new Date()) / 12),

@@ -3,9 +3,9 @@ import { z } from "zod";
 import type { ProfileData } from "@/lib/profile";
 import { bulletBudgets, byRecency } from "@/lib/resume-fit";
 
-import { CANDIDATE_VOICE, NO_EM_DASHES, outcomeWriting, profileForPrompt, system, type Task } from "./prompt-parts";
+import { bulletStory, CANDIDATE_VOICE, NO_EM_DASHES, outcomeWriting, profileForPrompt, system, type Task } from "./prompt-parts";
 
-export const BASE_BULLETS_VERSION = "base-bullets@5";
+export const BASE_BULLETS_VERSION = "base-bullets@6";
 
 // The base resume's versions, for sending when there's no job to tailor to:
 // every point polished (Full), or the strongest chosen for the candidate's
@@ -19,14 +19,14 @@ export type BaseBullets = Record<string, string[]>;
 
 const FULL = `You polish the experience on a candidate's resume, as JSON. Nothing is chosen or left out: this is their complete version.
 
-- roles: every role from the profile, by id, with every one of its points as its own bullet, in the same order.
+- roles: every role from the profile, by id, with every one of its points as its own bullet, put in the order of the bullet story below.
 - Fix spelling, grammar and capital letters; past tense for roles that have ended and present tense for a current one; start each bullet with a strong verb.
 - Keep every fact as it is: numbers, tools, names, results. Never merge, split, drop or add a point. Reword a point so it reads as an accomplishment (what was led or done, its scope, and its result) where its own words support that; otherwise only tidy it.`;
 
 const CHOSEN = (title: string, pages: number) => `You choose and polish the experience for a candidate's ${pages}-page resume, as JSON. There's no particular job: it's the version they send when someone asks for a resume, so it shows them at their best as a ${title}.
 
 - roles: every role from the profile, by id, with as many bullets as "Bullets per role" gives it, chosen from its points: the strongest for a ${title}, with results and numbers first. Two closely related points may become one bullet.
-- Put each role's bullets in order of importance, the most important first: if the resume still runs long, bullets go from the end.
+- Order each role's bullets as the bullet story below says.
 - Each bullet is one line, starts with a strong verb, and keeps the facts as written: numbers, tools, names, results. Fix spelling and grammar; past tense for roles that have ended, present for a current one.
 - Add nothing: no number, tool, result or duty the role's points don't state.`;
 
@@ -64,7 +64,7 @@ export const writeBaseBullets: Task<BaseBulletsInput, BaseBullets> = async (prov
     })
     .join("\n");
   const answer = await provider.complete({
-    system: system(budgets ? CHOSEN(title.trim() || "professional in their field", maxPages ?? 2) : FULL, outcomeWriting("base"), CANDIDATE_VOICE, NO_EM_DASHES),
+    system: system(budgets ? CHOSEN(title.trim() || "professional in their field", maxPages ?? 2) : FULL, bulletStory(`what a ${title.trim() || "professional in their field"} is hired for most`), outcomeWriting("base"), CANDIDATE_VOICE, NO_EM_DASHES),
     messages: [{ role: "user", cached: `The candidate's profile:\n${profileForPrompt(profile)}`, content: `Bullets per role:\n${perRole}` }],
     schema: answerSchema,
     schemaName: "base_bullets",

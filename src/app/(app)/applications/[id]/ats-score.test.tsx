@@ -2,10 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { rewriteToA } from "./actions";
+import { regradeResume, rewriteToA } from "./actions";
 import { AtsScore } from "./ats-grade-card";
 
-vi.mock("./actions", () => ({ rewriteToA: vi.fn(async () => ({ ok: true, data: null })) }));
+vi.mock("./actions", () => ({ rewriteToA: vi.fn(async () => ({ ok: true, data: null })), regradeResume: vi.fn(async () => ({ ok: true, data: null })) }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("@/components/toast", () => ({ toastResult: (result: unknown) => result, toast: vi.fn() }));
 
@@ -26,6 +26,20 @@ const grade = {
 beforeEach(() => vi.mocked(rewriteToA).mockClear());
 
 describe("AtsScore", () => {
+  it("regrades a draft's resume beside its score, and from the grade's window", async () => {
+    const user = userEvent.setup();
+    render(<AtsScore id="app-1" grade={grade} draft />);
+    await user.click(screen.getByRole("button", { name: "Regrade resume" }));
+    expect(regradeResume).toHaveBeenCalledWith({ id: "app-1" });
+    await user.click(screen.getByRole("button", { name: /ATS score C/ }));
+    expect(await screen.findByText(/Made the changes it asked for/)).toBeInTheDocument();
+  });
+
+  it("offers no regrade once applied", () => {
+    render(<AtsScore id="app-1" grade={grade} draft={false} />);
+    expect(screen.queryByRole("button", { name: "Regrade resume" })).not.toBeInTheDocument();
+  });
+
   it("shows the score in a circle, and on click why and what would raise it, with no rewrite while the profile hasn't changed", async () => {
     const user = userEvent.setup();
     render(<AtsScore id="app-1" grade={grade} draft />);

@@ -4,7 +4,7 @@ import { extractedSchema, requirementSchema, type Extracted } from "@/lib/applic
 
 import { postingForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
 
-export const EXTRACT_POSTING_VERSION = "extract-posting@2";
+export const EXTRACT_POSTING_VERSION = "extract-posting@3";
 
 // What the model returns. The deadline is free text here and checked in
 // code, since models like to answer "15 Oct" rather than an ISO date. Small
@@ -26,6 +26,7 @@ const answerSchema = z.object({
   ),
   asksForReferences: z.boolean(),
   language: z.string().nullable(),
+  traps: z.preprocess((value) => value ?? [], z.array(z.object({ term: z.string(), why: z.string() }))),
 });
 
 const INSTRUCTIONS = `You read job postings and pull out their details as JSON.
@@ -42,7 +43,8 @@ const INSTRUCTIONS = `You read job postings and pull out their details as JSON.
   - "other" for anything else, such as domain experience.
   Leave the fields that don't apply null.
 - asksForReferences: true only if the posting explicitly asks applicants to provide references; otherwise false.
-- language: the language the posting is written in, as its English name.`;
+- language: the language the posting is written in, as its English name.
+- traps: anything the posting asks for that doesn't exist: a made-up programming language, tool, framework, certification or method (e.g. "Cribbage" listed as a programming language), which employers plant to catch resumes written by AI that copy the posting's words. term is the made-up name as the posting writes it; why says in one short sentence why it isn't real. Only names you're confident don't exist: real but rare or new tools, internal product names and company jargon aren't traps. Usually there are none: then [].`;
 
 /** NEW-3: title, company, role, location, work mode, salary, deadline, typed requirements and language. */
 export const extractPosting: Task<{ posting: string; today?: Date }, Extracted> = async (provider, { posting, today = new Date() }, { signal }) => {
@@ -77,6 +79,7 @@ export const extractPosting: Task<{ posting: string; today?: Date }, Extracted> 
       title: answer.title?.trim() || (role && company ? `${role} · ${company}` : null),
       deadline: isoDate(answer.deadline),
       requirements: answer.requirements.filter((requirement) => requirement.text.trim()),
+      traps: answer.traps.filter((trap) => trap.term.trim()).slice(0, 10).map((trap) => ({ term: trap.term.trim().slice(0, 100), why: trap.why.trim().slice(0, 300) })),
     }),
     promptVersion: EXTRACT_POSTING_VERSION,
   };

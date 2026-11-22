@@ -29,6 +29,8 @@ const row = (extra: Partial<ApplicationRow> = {}): ApplicationRow => ({
   created: "15 Sep 2026",
   employer: { type: "GOVERNMENT", chosen: null, auto: true },
   latestEvent: null,
+  events: [],
+  expectedSalary: "",
   appliedVia: { value: null, auto: true },
   thingsToNote: "",
   salary: "",
@@ -43,6 +45,7 @@ const HEADER = [
   "Company",
   "Role",
   "Salary",
+  "Expected Salary",
   "Posting Link",
   "Source",
   "Employer",
@@ -76,6 +79,11 @@ describe("the Job application log's Google Sheet", () => {
     const table = sheetTable([
       row({
         latestEvent: { kind: "CALL", body: "Talked to Sam, next round Monday" },
+        events: [
+          { kind: "CALL", body: "Talked to Sam, next round Monday", on: "24 Sep 2026" },
+          { kind: "SALARY", body: "$120,000", on: "20 Sep 2026" },
+        ],
+        expectedSalary: "$120,000",
         salary: "$110,000–$130,000",
         postingUrl: "https://jobs.example.com/1",
         appliedVia: { value: "Greenhouse", auto: true },
@@ -86,8 +94,8 @@ describe("the Job application log's Google Sheet", () => {
     ]);
     expect(table.map((cells) => cells.map((cell) => cell.text))).toEqual([
       HEADER,
-      ["Ledgerly", "Senior Product Designer", "$110,000–$130,000", "Click here", "Manual", "Government", "14 Sep 2026", "3 Dec 2026", "Amsterdam", "Hybrid 2 days", "Greenhouse", "Applied", "20 Sep 2026", "Click here", "Click here", "Call: Talked to Sam, next round Monday", "26 Sep 2026"],
-      ['Acme, "Labs"', "=HYPERLINK(1)", "Not listed", "", "Agentic", "", "Created 15 Sep 2026", "", "Not given", "", "", "Rejected (Archived)", "20 Sep 2026", "Not in Drive yet", "Not in Drive yet", "", "26 Sep 2026"],
+      ["Ledgerly", "Senior Product Designer", "$110,000–$130,000", "$120,000", "Click here", "Manual", "Government", "14 Sep 2026", "3 Dec 2026", "Amsterdam", "Hybrid 2 days", "Greenhouse", "Applied", "20 Sep 2026", "Click here", "Click here", "24 Sep 2026 · Call: Talked to Sam, next round Monday\n20 Sep 2026 · Expected salary: $120,000", "26 Sep 2026"],
+      ['Acme, "Labs"', "=HYPERLINK(1)", "Not listed", "", "", "Agentic", "", "Created 15 Sep 2026", "", "Not given", "", "", "Rejected (Archived)", "20 Sep 2026", "Not in Drive yet", "Not in Drive yet", "", "26 Sep 2026"],
     ]);
     expect(table[1].filter((cell) => cell.link).map((cell) => cell.link)).toEqual([
       "https://jobs.example.com/1",
@@ -99,8 +107,8 @@ describe("the Job application log's Google Sheet", () => {
   it("says Remote for a remote job, not a vague place", () => {
     expect(sheetLocation({ location: "Anywhere", mode: "Remote" })).toBe("Remote");
     expect(sheetLocation({ location: "", mode: "Fully remote" })).toBe("Remote");
-    expect(sheetLocation({ location: "Columbia, MD", mode: "Remote" })).toBe("Remote · Columbia, MD");
-    expect(sheetLocation({ location: "Columbia, MD", mode: "Hybrid" })).toBe("Columbia, MD");
+    expect(sheetLocation({ location: "Arlington, VA", mode: "Remote" })).toBe("Remote · Arlington, VA");
+    expect(sheetLocation({ location: "Arlington, VA", mode: "Hybrid" })).toBe("Arlington, VA");
   });
 
   it("is an Excel file: the header bold white on blue and frozen, links as formulas, the rest wrapped, text never a formula", () => {
@@ -111,7 +119,7 @@ describe("the Job application log's Google Sheet", () => {
     expect(styles).toContain('<fgColor rgb="FF1F3A5F"/>');
     expect(sheet).toContain('state="frozen"');
     expect(sheet).toContain('<c r="A1" t="inlineStr" s="1"><is><t xml:space="preserve">Company</t></is></c>');
-    expect(sheet).toContain('<c r="D2" t="str" s="3"><f>HYPERLINK(&quot;https://jobs.example.com/1?a=&quot;&quot;b&quot;&quot;&quot;,&quot;Click here&quot;)</f>');
+    expect(sheet).toContain('<c r="E2" t="str" s="3"><f>HYPERLINK(&quot;https://jobs.example.com/1?a=&quot;&quot;b&quot;&quot;&quot;,&quot;Click here&quot;)</f>');
     expect(sheet).toContain('<c r="B2" t="inlineStr" s="2"><is><t xml:space="preserve">=HYPERLINK(1)</t></is></c>');
   });
 

@@ -1,16 +1,20 @@
 import { z } from "zod";
 
+import { keptSuggestions } from "@/lib/suggestion-filter";
 import type { AIProvider } from "@/lib/ai/provider";
 import { unitsSchema, type Extracted, type Match, type Unit } from "@/lib/application-data";
 import { publicationLabel } from "@/lib/citation";
 import { documentLabels, ENGLISH_LABELS, languagesLine, type DocumentLabels } from "@/lib/document-labels";
 import { fewSkills } from "@/lib/resume-content";
+import { stripTraps, trapsForPrompt, type ScreeningTrap } from "@/lib/screening-traps";
 import { resumePublications, type ProfileData } from "@/lib/profile";
 import { bulletBudgets, byRecency } from "@/lib/resume-fit";
 
 import { guardSources, guardUnits } from "../fact-guard";
 
 import {
+  bulletStory,
+  SUMMARY_STORY,
   applicationFacts,
   postingForPrompt,
   READ_THE_POSTING,
@@ -30,18 +34,19 @@ import {
   type TaskResult,
 } from "./prompt-parts";
 
-export const TAILOR_RESUME_VERSION = "tailor-resume@26";
+export const TAILOR_RESUME_VERSION = "tailor-resume@32";
 
 const answerSchema = z.object({
   /** The job title at the top of this resume. */
   headline: z.preprocess((value) => value ?? "", z.string()),
-  summary: z.string(),
   roles: z.array(z.object({ id: z.string(), bullets: z.array(z.string()), skills: z.preprocess((value) => value ?? [], z.array(z.string())) })),
   projects: z.array(z.object({ id: z.string(), bullets: z.array(z.string()) })),
   education: z.array(z.object({ id: z.string(), notes: z.string() })),
   /** The Skills and the Tools & Platforms sections, for this job: groups of the profile's own names. */
   skillGroups: z.preprocess((value) => value ?? [], z.array(z.object({ group: z.string(), names: z.array(z.string()) }))),
   toolGroups: z.preprocess((value) => value ?? [], z.array(z.object({ group: z.string(), names: z.array(z.string()) }))),
+  /** Written last, after the roles, projects and skills it sums up. */
+  summary: z.string(),
   /** Two pages only: why this job is worth a third, or null. */
   thirdPageReason: z.preprocess((value) => value ?? null, z.string().nullable()),
   /** Ideas for the candidate to vet, which would make this a better match. */
@@ -59,15 +64,26 @@ const INSTRUCTIONS = `You tailor a candidate's resume to one job, as JSON.
 The profile may hold far more than fits: every role, project, skill, degree and fact the candidate wrote is material to choose from. Choose what this job can use best, and leave out what it can't. Align all of it with the job description: lead with what the posting asks for, and say it in the posting's own terms wherever the profile backs them, without claiming anything the profile doesn't show.
 
 - headline: the job title at the top of the resume. Use this posting's title when the candidate's experience backs it up, as it does when they've done the same kind of work under a similar title; otherwise leave it empty, and the candidate's usual title is used. Never put certifications or anything else here.
-- summary: 2–3 sentences in the first person without "I" at the start of every sentence, about the candidate as this job would see them.
-- roles: every role from the profile, by id, with as many bullets as "Bullets per role" gives it: choose that many of the role's points, the ones that matter most to this job, and rewrite them for it. Two closely related points may become one bullet. Put each role's bullets in order of importance to this job, the most important first: when the resume runs long, bullets go from the end. Make sure each of the posting's requirements that the profile backs is covered by at least one bullet somewhere. Keep each bullet to one line, and start with a verb.
+- summary: written last, after the roles, projects and skills, as the summary story below says: 3–4 sentences.
+- roles: every role from the profile, by id, with as many bullets as "Bullets per role" gives it: choose that many of the role's points, the ones that matter most to this job, and rewrite them for it. Two closely related points may become one bullet. Order each role's bullets as the bullet story below says. Make sure each of the posting's requirements that the profile backs is covered by at least one bullet somewhere. Keep each bullet to one line, and start with a verb.
 - projects: every project from the profile, by id, with 1–3 bullets each, written like the roles' bullets: what was built and what it shows that this job cares about.
 - roles' skills: for each role, only the few skills from the candidate's skill list that this job cares about most and that this role used, most relevant first. They print on one line under its bullets, so usually 3 to 6 and never more than fit one line. Use the posting's own word when it means the same as the candidate's, e.g. "CI/CD pipelines" for "Continuous Delivery". Only skills the role's bullets or the skill list back.
 - education: every entry by id, with its notes shortened or left empty.
 - skillGroups: the resume's Skills section, for this job. From the candidate's skills only: first the ones this posting asks for or would value, then the closely related ones around them that make the candidate stronger for it. In a few groups with short headings that fit this job (the candidate's own headings where they fit), the most relevant group and name first. Use each name as the candidate wrote it, or the posting's word for the same thing. Leave out what doesn't help this job.
 - toolGroups: the resume's Tools & Platforms section, the same way, from the candidate's tools and platforms only.
 - thirdPageReason: null, unless told otherwise below.
-- suggestions: up to 5 short ideas for the candidate to vet, each one sentence, for what would make this resume a better match. Name what the posting asks for that the profile doesn't show or shows weakly, and say what to add if it's true for them, e.g. "The posting asks for Jira. If you've used it, add it to your Northwind Logistics role." Never assume it's true, and never put these on the resume. An empty list when there's nothing worth raising.
+- suggestions: up to 5 short ideas for the candidate to vet, each one or two sentences, for what would make this resume a stronger match. Read the whole profile (education, roles and their bullets, projects, skills, certifications) before raising anything, and name the evidence. Three kinds, in this order:
+  - Implied but not said: the profile points to it, but the resume doesn't say it in the posting's terms. Name what points to it and what to add if it's true, e.g. "Your roles as developer, BA/QA and PM span the SDLC, but the resume doesn't name the artifacts. If true, add a bullet naming them (requirements specs, test plans, release notes) to your Northwind Logistics role."
+  - Shown but buried: the profile has it, but the resume leaves out something this job makes a core duty, or tucks it away in an old role. A skill already anywhere on the resume, its Skills or Tools section included, isn't buried: an ATS and a recruiter both find it there. Don't suggest moving it into a role's bullets.
+  - Not shown: the posting asks for it and nothing in the profile shows or implies it, e.g. "The posting asks for PMP; your profile doesn't show one. If you hold it, add it under Certifications." Never assume it's true.
+  Judge by meaning, never by matching words. Before raising anything, read the resume and the profile for it under any name: what they show, say in other words or clearly imply is covered, and isn't a suggestion.
+  Degrees: never raise a degree as missing or as not meeting the posting. Any bachelor's or higher in a science, technology, engineering or math field (computer science, IT, information systems, any engineering including nanosystems, math, statistics, physics, data science, business analytics) meets a STEM, technical, engineering or "computer science or related field" degree, and a higher degree meets a lower one. A degree in another field than one the posting prefers is left alone: say nothing about it. The one degree idea allowed: when the degree's own name hides that it meets the ask, how the resume could say so (e.g. "B.Sc. in Nanosystems Engineering (Engineering)").
+  Never raise:
+  - A tool, skill or certification already anywhere on the resume, its Skills or Tools & Platforms sections included, to have it named in a role's bullets as well.
+  - A nice-to-have, plus or preferred item the profile doesn't show (a certification "as a plus", a preferred industry); nor anything that ends with "if not, no action is needed".
+  - Generic soft skills to name outright (problem solving, communication, interpersonal, organizational, customer service, teamwork): the work shows them.
+  - Logistics that aren't resume content: travel, relocation, hours, start date, salary, location.
+  Only what a recruiter for this job would weigh and the candidate can act on in a minute: a required skill or duty the resume doesn't show although the profile points to it, or a required item the profile doesn't show at all. Fewer, better ideas: two that matter beat five that don't, and an empty list is fine. Don't flatter: no idea that only says the resume is good. Never put these on the resume. An empty list when there's nothing worth raising.
 - The profile's publications go on the resume word for word, so don't answer with them; the summary may mention them.`;
 
 /** So applicant tracking systems see the match: the posting's own words for what the candidate has really done. */
@@ -83,10 +99,10 @@ function pageFit(maxPages: number | null | undefined): string | null {
     return "The resume has to fit on one page: keep the summary to two sentences, make every bullet short, and keep education and project notes to a few words.";
   }
   if (maxPages === 2) {
-    return "The resume has to fit on two pages: keep the summary to three sentences, and keep education and project notes short. Write it for two pages either way. Two pages is right for nearly every job. Only in the rare case where this job's requirements and the candidate's relevant experience truly can't be done justice in two pages, set thirdPageReason to one plain sentence telling the candidate why a third page would be worth it for this job; otherwise leave it null.";
+    return "The resume has to fit on two pages: keep the summary to three or four sentences, and keep education and project notes short. Write it for two pages either way. Two pages is right for nearly every job. Only in the rare case where this job's requirements and the candidate's relevant experience truly can't be done justice in two pages, set thirdPageReason to one plain sentence telling the candidate why a third page would be worth it for this job; otherwise leave it null.";
   }
   if (maxPages === 3) {
-    return "The resume may run to three pages, and no further: keep the summary to three sentences, and use the extra room for more detail on the older roles, the projects and the education notes where this job can use it. Don't pad it to fill the pages.";
+    return "The resume may run to three pages, and no further: keep the summary to three or four sentences, and use the extra room for more detail on the older roles, the projects and the education notes where this job can use it. Don't pad it to fill the pages.";
   }
   if (maxPages === null) {
     return "There is no page limit, so keep everything the candidate wrote: every role and project, older ones included, keeps every point as a bullet of its own, every skill stays, and education notes stay in full. Only clean up the wording: clear, correct and consistent. This comes before anything about fewer bullets or leaving things out.";
@@ -119,6 +135,8 @@ export const tailorResume = async (
   const answer = await provider.complete({
     system: system(
       INSTRUCTIONS,
+      bulletStory("the posting's top 5 to 10 requirements"),
+      SUMMARY_STORY,
       READ_THE_POSTING,
       pageFit(options.maxPages),
       truthfulness(options.strict),
@@ -142,6 +160,7 @@ export const tailorResume = async (
           posting.trim() && `The posting, in full:\n${postingForPrompt(posting)}`,
           `Bullets per role:\n${bulletsPerRole(profile, options.maxPages)}`,
           applicationFacts(facts),
+          trapsForPrompt(extracted.traps ?? []),
           focus.length > 0 &&
             `The last version didn't cover these, in the posting's words. Work in each one the profile backs, using those words; leave out any it doesn't:\n${focus.map((item) => `- ${item}`).join("\n")}`,
         ]
@@ -155,13 +174,17 @@ export const tailorResume = async (
     signal: options.signal,
   });
   // The languages line in the resume's language: the chosen one, or the posting's. Each role keeps to its budget, and with no limit everything stays.
-  const units = resumeUnits(profile, options.maxPages === null ? keepEverything(profile, answer) : capRoles(profile, answer, options.maxPages), documentLabels(options.language ?? extracted.language));
+  // A word the posting planted as a screening trap never makes it in, whatever the model wrote.
+  const units = withoutTraps(
+    resumeUnits(profile, options.maxPages === null ? keepEverything(profile, answer) : capRoles(profile, answer, options.maxPages), documentLabels(options.language ?? extracted.language)),
+    extracted.traps ?? [],
+  );
   // E6-6: in strict mode, note what the profile and posting don't back.
   return {
     data: options.strict ? guardUnits(units, guardSources(profile, extracted, posting, facts)) : units,
     promptVersion: TAILOR_RESUME_VERSION,
     thirdPageReason: (options.maxPages === 2 && answer.thirdPageReason?.trim().slice(0, 300)) || null,
-    suggestions: answer.suggestions.map((idea) => idea.trim().slice(0, 300)).filter(Boolean).slice(0, 5),
+    suggestions: keptSuggestions(answer.suggestions),
   };
 };
 
@@ -212,6 +235,19 @@ export function keepEverything(profile: ProfileData, answer: Answer): Answer {
     projects: whole(answer.projects, profile.projects),
     education: answer.education.filter((entry) => entry.notes.trim()),
   };
+}
+
+/** Units with every screening trap term taken out; a unit it empties is dropped. */
+export function withoutTraps(units: Unit[], traps: readonly ScreeningTrap[]): Unit[] {
+  if (traps.length === 0) return units;
+  return units.flatMap((unit) => {
+    const text = unit.text
+      .split("\n")
+      .map((line) => stripTraps(line, traps).trim())
+      .filter((line) => line && !/^[-•*,;:.\s]*$/.test(line))
+      .join("\n");
+    return text || !unit.text.trim() ? [{ ...unit, text }] : [];
+  });
 }
 
 /**

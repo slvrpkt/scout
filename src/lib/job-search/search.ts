@@ -124,6 +124,8 @@ export const foundPostingSchema = z.object({
     .array(z.object({ kind: z.enum(["direct", "linkedin", "source"]), url: z.string().max(2000).refine((url) => safeLink(url) !== "", "Not a web address."), publisher: z.string().max(100) }))
     .max(3)
     .optional(),
+  /** The company's website, when the source says (JSearch): where to look for the posting on its own site. */
+  employerSite: z.string().max(500).optional(),
   /** Found by a company search: the distance from your ZIP code doesn't rule it out. */
   companySearch: z.boolean().optional(),
   /** Where the job is on the map, when the source says: for the distance from your ZIP code. */

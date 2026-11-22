@@ -43,7 +43,7 @@ export function SendWithGmail({
   if (sender.from === null) {
     if (sender.reason === "not-configured") return null;
     return (
-      <a href={sender.reason === "no-permission" ? "/api/google/connect?scopes=send" : "/settings?section=google"} className={buttonClassName("secondary", "md")}>
+      <a title="Connect Gmail, to send this email from Scout" href={sender.reason === "no-permission" ? "/api/google/connect?scopes=send" : "/settings?section=google"} className={buttonClassName("secondary", "md")}>
         {sender.reason === "no-permission" ? "Allow sending with Gmail" : "Connect Gmail to send"}
       </a>
     );
@@ -61,7 +61,7 @@ export function SendWithGmail({
 
   return (
     <AlertDialog.Root open={open} onOpenChange={setOpen}>
-      <Button
+      <Button title="Send this email from your Gmail account"
         aria-disabled={sending || checking || !ready || undefined}
         onClick={() => {
           if (sending || checking) return;
@@ -111,8 +111,8 @@ export function SendWithGmail({
             </div>
           </AlertDialog.Description>
           <div className="mt-2 flex justify-end gap-2">
-            <AlertDialog.Cancel className={buttonClassName("secondary", "sm")}>Cancel</AlertDialog.Cancel>
-            <AlertDialog.Action className={buttonClassName("primary", "sm", "hover:text-on-primary")} onClick={send}>
+            <AlertDialog.Cancel title="Go back without sending" className={buttonClassName("secondary", "sm")}>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action title="Send the email from your Gmail now" className={buttonClassName("primary", "sm", "hover:text-on-primary")} onClick={send}>
               {check.problems.length > 0 || check.unclear ? "Send anyway" : "Send now"}
             </AlertDialog.Action>
           </div>

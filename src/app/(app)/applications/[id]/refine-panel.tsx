@@ -35,6 +35,9 @@ const SUBTITLES: Record<Tab, string> = {
   notes: "Switch to the resume, cover letter or email to make changes.",
 };
 
+/** How many changes the list holds before they're sent together. */
+export const MAX_CHANGES = 5;
+
 /** The changes on the list, as one request: a single one as it is, several numbered. */
 export function batchRequest(changes: readonly string[]): string {
   if (changes.length === 1) return changes[0];
@@ -44,11 +47,18 @@ export function batchRequest(changes: readonly string[]): string {
 /**
  * "Refine with AI" (APP-7): the conversation about this application's
  * documents, with suggestions and a box to ask for a change. Changes are
- * gathered first: Enter (or a suggestion) adds one to the list, and Apply
- * sends them all as one request, which costs about the same as one change.
+ * always gathered first: Enter, Add or a suggestion puts one on the list (up
+ * to MAX_CHANGES, each with its ×), and only Send all sends them, as one
+ * request, which costs about the same as one change.
  * It sticks to the side of the documents, and moves below them on narrow
  * windows.
  */
+/** What a prefilled suggestion leaves for you to say. */
+export const FILL_IN = "[fill in:";
+
+/** A suggestion as a message to complete: it, then what's true for you, still to fill in. */
+export const suggestionRequest = (suggestion: string) => `${suggestion.trim()}\nWhat's true for me: ${FILL_IN} what you did, in which role, and its result]`;
+
 export function RefinePanel({
   tab,
   messages,
@@ -59,6 +69,7 @@ export function RefinePanel({
   onSend,
   aiReady,
   focusRequest,
+  prefill = null,
   children,
 }: {
   tab: Tab;
@@ -73,6 +84,8 @@ export function RefinePanel({
   aiReady: boolean;
   /** Goes up when the box should take focus, e.g. after "Ask AI". */
   focusRequest: number;
+  /** Text put in the box to complete and send, e.g. a suggestion after "Yes, add it"; `n` goes up for each. */
+  prefill?: { text: string; n: number } | null;
   /** Under each message, by id: e.g. its Undo link (E8-6). */
   children?: (message: ChatEntry) => ReactNode;
 }) {
@@ -86,25 +99,41 @@ export function RefinePanel({
     if (focusRequest > 0) input.current?.focus();
   }, [focusRequest]);
 
-  /** Adds a change to the list; nothing is sent yet. */
+  // A suggestion to complete: in the box, focused, with the part to fill in selected.
+  const [blank, setBlank] = useState(false);
+  const [prefilled, setPrefilled] = useState(0);
+  if (prefill && prefill.n !== prefilled) {
+    setPrefilled(prefill.n);
+    setDraft(prefill.text);
+    setBlank(false);
+  }
+  useEffect(() => {
+    if (!prefill) return;
+    const box = input.current;
+    if (!box) return;
+    box.focus();
+    const start = prefill.text.indexOf(FILL_IN);
+    if (start >= 0) requestAnimationFrame(() => box.setSelectionRange(start, prefill.text.indexOf("]", start) + 1));
+  }, [prefill]);
+
+  const full = changes.length >= MAX_CHANGES;
+  /** Adds a change to the list; nothing is sent yet. A full list keeps the text in the box. */
   const add = (text: string) => {
     const change = text.trim();
-    if (!change) return;
+    if (!change || full) return;
+    // What only you know isn't filled in yet.
+    if (change.includes(FILL_IN)) return setBlank(true);
+    setBlank(false);
     setList({ tab, changes: changes.includes(change) ? changes : [...changes, change] });
     setDraft("");
   };
   const remove = (change: string) => setList({ tab, changes: changes.filter((entry) => entry !== change) });
-  // What Apply sends: the list, and what's still in the box.
-  const toApply = [...changes, ...(draft.trim() && !changes.includes(draft.trim()) ? [draft.trim()] : [])];
-  const apply = async () => {
-    if (toApply.length === 0 || thinking) return;
-    const before = { draft, changes };
-    setDraft("");
+  // Send all sends the list, and only the list: what's in the box goes on it first.
+  const sendAll = async () => {
+    if (changes.length === 0 || thinking) return;
+    const before = changes;
     setList({ tab, changes: [] });
-    if (!(await onSend(batchRequest(toApply)))) {
-      setDraft(before.draft);
-      setList({ tab, changes: before.changes });
-    }
+    if (!(await onSend(batchRequest(before)))) setList({ tab, changes: before });
   };
 
   return (
@@ -122,7 +151,7 @@ export function RefinePanel({
             <p className="mt-1 rounded-control bg-surface px-2.5 py-1.5 text-meta leading-[1.45] text-muted">
               <b className="text-ink">Only this application changes.</b> Edits here stay with this {tab === "resume" ? "resume" : tab === "letter" ? "cover letter" : "email"} and never go back to your
               Profile. For a lasting change, one every future resume uses,{" "}
-              <Link href="/profile" className="font-medium text-ink underline underline-offset-2">
+              <Link title="Open your profile, for a change every future resume uses" href="/profile" className="font-medium text-ink underline underline-offset-2">
                 edit your Profile
               </Link>
               .
@@ -147,7 +176,7 @@ export function RefinePanel({
           {!aiReady && tab !== "posting" && (
             <p className="text-meta text-muted">
               Refining needs an AI provider.{" "}
-              <Link href="/settings?section=ai" className="font-medium text-ink underline underline-offset-2">
+              <Link title="Choose an AI provider in Settings" href="/settings?section=ai" className="font-medium text-ink underline underline-offset-2">
                 Choose one in Settings
               </Link>
             </p>
@@ -155,7 +184,7 @@ export function RefinePanel({
           {aiReady && suggestions.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {suggestions.map((suggestion) => (
-                <button
+                <button title="Add this change to your list"
                   key={suggestion}
                   type="button"
                   aria-disabled={thinking || changes.includes(suggestion) || undefined}
@@ -170,18 +199,21 @@ export function RefinePanel({
           {/* The changes gathered so far: Apply sends them together. */}
           {changes.length > 0 && (
             <section aria-label="Changes to make" className="flex flex-col gap-1.5 rounded-card border border-line bg-card px-3 py-2.5">
-              <p className="text-label font-medium text-ink">Changes to make ({changes.length})</p>
+              <p className="text-label font-medium text-ink">
+                Changes to make ({changes.length} of {MAX_CHANGES})
+              </p>
               <ol className="flex flex-col gap-1">
                 {changes.map((change, index) => (
                   <li key={change} className="flex items-start gap-2 text-sm">
                     <span className="flex-none text-muted tabular-nums">{index + 1}.</span>
                     <span className="flex-1">{change}</span>
-                    <button type="button" aria-label={`Remove “${change}”`} onClick={() => remove(change)} className="flex-none rounded-full px-1 leading-none text-muted hover:text-ink">
+                    <button title="Take this change off the list" type="button" aria-label={`Remove “${change}”`} onClick={() => remove(change)} className="flex-none rounded-full px-1 leading-none text-muted hover:text-ink">
                       ×
                     </button>
                   </li>
                 ))}
               </ol>
+              {full && <p className="text-meta text-muted">That&apos;s {MAX_CHANGES}: send these, or remove one to add another.</p>}
             </section>
           )}
           <div className="flex flex-col gap-2 rounded-card border border-line-input bg-input px-3 py-2.5 focus-within:border-primary">
@@ -189,7 +221,7 @@ export function RefinePanel({
               <div className="flex">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-track py-1 pr-1.5 pl-2.5 text-label">
                   About: {target.label}
-                  <button
+                  <button title="Ask about the whole document again, not just this section"
                     type="button"
                     aria-label={`Stop asking about the ${target.name}`}
                     onClick={onClearTarget}
@@ -207,12 +239,12 @@ export function RefinePanel({
               value={draft}
               placeholder={
                 target
-                  ? `What should change in the ${target.name}?\nPress Enter to add it, then Apply changes.`
-                  : "Type a change and press Enter to add it, e.g. “sound more confident”.\nAdd all your changes first, then press Apply changes."
+                  ? `What should change in the ${target.name}?\nPress Enter to add it to the list, then Send all.`
+                  : "Type a change and press Enter to add it, e.g. “sound more confident”.\nAdd up to 5 changes to the list, then press Send all."
               }
               onChange={(event) => setDraft(event.target.value)}
               onKeyDown={(event) => {
-                // Enter sends, Shift+Enter starts a new line; not while an input method is composing.
+                // Enter adds it to the list, Shift+Enter starts a new line; not while an input method is composing.
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
                   add(draft);
@@ -220,11 +252,19 @@ export function RefinePanel({
               }}
               className="w-full resize-none bg-transparent text-sm leading-normal text-ink outline-none placeholder:text-muted"
             />
+            {blank && (
+              <p role="alert" className="text-meta text-warning">
+                Fill in the part in brackets first: only you know what&apos;s true.
+              </p>
+            )}
             <div className="flex items-center justify-between">
               <span className="text-xs text-muted">Shift+Enter for a new line</span>
               <span className="flex gap-2">
-                <Button size="sm" className="px-3.5 py-[7px]" aria-disabled={thinking || toApply.length === 0 || undefined} onClick={() => void apply()}>
-                  {toApply.length > 1 ? `Apply ${toApply.length} changes` : "Apply changes"}
+                <Button title="Add this change to the list; send up to 5 at once" size="sm" variant="secondary" className="px-3.5 py-[7px]" aria-disabled={!draft.trim() || full || undefined} onClick={() => add(draft)}>
+                  Add
+                </Button>
+                <Button title="Make every change on the list now" size="sm" className="px-3.5 py-[7px]" aria-disabled={thinking || changes.length === 0 || undefined} onClick={() => void sendAll()}>
+                  {changes.length > 0 ? `Send all (${changes.length})` : "Send all"}
                 </Button>
               </span>
             </div>

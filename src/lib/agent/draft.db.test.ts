@@ -29,6 +29,15 @@ vi.mock("@/lib/profile-data", async () => {
 // The source gives the whole text unless a test says otherwise.
 const source = vi.hoisted(() => ({ text: null as string | null, failWriting: 0 }));
 vi.mock("@/lib/job-search/find", () => ({ fullText: vi.fn(async (posting: { description: string; complete: boolean }) => (posting.complete ? posting.description : source.text)) }));
+// Looking on the company's site finds nothing unless a test says otherwise.
+const look = vi.hoisted(() => ({ result: { found: false, score: null as number | null, skipped: false }, sourceUrl: null as string | null }));
+vi.mock("./source-check", () => ({
+  checkSource: vi.fn(async (candidateId: string) => {
+    const found = look.result.found ? { description: `Ledgerly's own posting for a Senior Product Designer, Payments. ${"Design calm payment flows with Figma prototypes. ".repeat(30)}`, complete: true } : {};
+    await db.client!.agentCandidate.update({ where: { id: candidateId }, data: { sourceCheck: look.result.found ? "found" : "not found", sourceUrl: look.sourceUrl, ...found } });
+    return look.result;
+  }),
+}));
 // A fake AI that answers each step of reading and writing.
 vi.mock("@/lib/ai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai")>()),
@@ -88,10 +97,38 @@ beforeEach(async () => {
   await resetDatabase(prisma());
   await seedBuiltIns(prisma());
   Object.assign(source, { text: null, failWriting: 0 });
+  Object.assign(look, { result: { found: false, score: null, skipped: false }, sourceUrl: null });
   // Trimming renders PDFs: not what these tests are about.
   await saveSettings({ pageLimit: "none" });
 });
 afterAll(() => prisma().$disconnect());
+
+describe("looking on the company's site first", () => {
+  it("applies on the company's page when it was found there", async () => {
+    Object.assign(look, { result: { found: true, score: 88, skipped: false }, sourceUrl: "https://careers.ledgerly.example/jobs/1" });
+    const { id } = await candidate();
+    const applicationId = await draftCandidate(id, context(), { auto: true });
+    expect(await prisma().application.findUniqueOrThrow({ where: { id: applicationId } })).toMatchObject({ postingUrl: "https://careers.ledgerly.example/jobs/1" });
+  });
+
+  it("holds an automatic draft its own posting scores below the minimum, but Prepare draft writes it", async () => {
+    await saveSettings({ agentMinScore: 70 });
+    look.result = { found: true, score: 62, skipped: false };
+    const { id } = await candidate();
+    await expect(draftCandidate(id, context(), { auto: true })).rejects.toThrow("Not drafted: scored 62 from Ledgerly's own posting, below your minimum of 70.");
+    expect(await prisma().agentCandidate.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "SCORED", applicationId: null });
+
+    // Looked once: Prepare draft doesn't look again, and writes it.
+    expect(await draftCandidate(id, context())).toBeTruthy();
+  });
+
+  it("archives an automatic draft its own posting matches a What to skip rule for", async () => {
+    look.result = { found: true, score: 80, skipped: true };
+    const { id } = await candidate();
+    await expect(draftCandidate(id, context(), { auto: true })).rejects.toThrow("Not drafted: Ledgerly's own posting matches one of your");
+    expect(await prisma().agentCandidate.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: "DISMISSED", applicationId: null });
+  });
+});
 
 describe("preparing a draft (E16-5)", () => {
   it("writes it like New application, as an agent draft waiting for review", async () => {

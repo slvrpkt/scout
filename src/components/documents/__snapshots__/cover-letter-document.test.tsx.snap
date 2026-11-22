@@ -62,7 +62,10 @@ exports[`CoverLetterDocument > renders the prototype's letter 1`] = `
     data-unit="recipient"
   >
     <p>
-      Ledgerly · Hiring team
+      Hiring Manager
+    </p>
+    <p>
+      Ledgerly
     </p>
     <p>
       Amsterdam
@@ -72,7 +75,7 @@ exports[`CoverLetterDocument > renders the prototype's letter 1`] = `
     class="_greeting_fa1ef7"
     data-unit="greeting"
   >
-    Dear Ledgerly team,
+    Dear Hiring Manager:
   </div>
   <div
     class="_paragraphs_fa1ef7"

@@ -31,8 +31,8 @@ describe("CoverLetterDocument", () => {
     const page = screen.getByRole("article", { name: "Cover letter" });
     expect(page).toHaveTextContent(/^Jane Doejane\.doe@example\.com/);
     expect(screen.getByText("September 27, 2026")).toBeInTheDocument();
-    expect(screen.getByText("Ledgerly · Hiring team")).toBeInTheDocument();
-    expect(screen.getByText("Dear Ledgerly team,")).toBeInTheDocument();
+    expect(screen.getByText("Hiring Manager")).toBeInTheDocument();
+    expect(screen.getByText("Dear Hiring Manager:")).toBeInTheDocument();
     expect(page.querySelectorAll("[data-unit^='paragraph:']")).toHaveLength(4);
     expect(page).toHaveTextContent(/Kind regards,Jane Doe$/);
   });
@@ -60,8 +60,8 @@ describe("CoverLetterDocument", () => {
 
   it("addresses the hiring team when the company is unknown", () => {
     render(<CoverLetterDocument {...letter} company="" location="" />);
-    expect(screen.getByText("Hiring team")).toBeInTheDocument();
-    expect(screen.getByText("Dear hiring team,")).toBeInTheDocument();
+    expect(screen.getByText("Hiring Manager")).toBeInTheDocument();
+    expect(screen.getByText("Dear Hiring Manager:")).toBeInTheDocument();
   });
 
   it("writes a Persian letter right to left (E5-8)", () => {
@@ -98,13 +98,13 @@ describe("the letter's own frame (E8-11)", () => {
     expect([...page.querySelectorAll("[data-unit='recipient'] p")].map((line) => line.textContent)).toEqual(["Ledgerly GmbH", "z. Hd. Frau Doe", "Hamburg"]);
     expect(screen.getByText("Sehr geehrte Frau Doe,")).toBeInTheDocument();
     expect(page).toHaveTextContent(/Mit freundlichen GrüßenJane M\. Doe$/);
-    expect(page).not.toHaveTextContent(/Dear|Hiring team/);
+    expect(page).not.toHaveTextContent(/Dear|Hiring Manager/);
   });
 
   it("fills in only the parts a letter doesn't store", () => {
     render(<CoverLetterDocument {...letter} units={[{ id: "greeting", label: "Greeting", text: "Hello Ledgerly!" }, ...demoLetterUnits()]} />);
     expect(screen.getByText("Hello Ledgerly!")).toBeInTheDocument();
     expect(screen.getByText("27 September 2026")).toBeInTheDocument();
-    expect(screen.queryByText("Dear Ledgerly team,")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dear Hiring Manager:")).not.toBeInTheDocument();
   });
 });

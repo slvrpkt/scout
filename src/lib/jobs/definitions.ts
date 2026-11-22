@@ -4,6 +4,7 @@ import "server-only";
 // after a restart. Import each module that calls defineJob() here.
 import "./read-posting";
 import "./write-documents";
+import "./prepare-draft";
 import "./regenerate-unit";
 import "./refine";
 import "./write-email";

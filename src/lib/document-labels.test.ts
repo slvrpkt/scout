@@ -47,8 +47,8 @@ describe("document labels", () => {
   });
 
   it("greets the company's team where the language does, and a cover-all greeting otherwise", () => {
-    expect(ENGLISH_LABELS.greeting("Ledgerly")).toBe("Dear Ledgerly team,");
-    expect(ENGLISH_LABELS.greeting("")).toBe("Dear hiring team,");
+    expect(ENGLISH_LABELS.greeting("Ledgerly")).toBe("Dear Hiring Manager:");
+    expect(ENGLISH_LABELS.greeting("")).toBe("Dear Hiring Manager:");
     expect(documentLabels("German").greeting("Ledgerly")).toBe("Sehr geehrte Damen und Herren,");
     expect(documentLabels("Chinese (Simplified)").greeting("Ledgerly")).toBe("尊敬的Ledgerly招聘团队：");
   });

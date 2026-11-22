@@ -34,7 +34,7 @@ export function WaitNotice({
       className="fixed top-6 left-1/2 z-50 flex w-[min(520px,calc(100vw-32px))] -translate-x-1/2 items-start gap-4 rounded-card border border-line bg-card px-5 py-4 text-sm text-ink shadow-lg"
     >
       <p className="flex-1 leading-relaxed">{message}</p>
-      <Button size="sm" onClick={onClose}>
+      <Button title="Close this notice" size="sm" onClick={onClose}>
         OK ({left})
       </Button>
     </div>

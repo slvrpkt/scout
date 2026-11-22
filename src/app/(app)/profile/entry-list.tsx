@@ -182,7 +182,7 @@ export function EntryList<T extends { id: string }>({
           ) : mode === "manual" ? (
             <>
               <span>In your own order.</span>
-              <Button variant="text" size="sm" onClick={() => void sortByDate()}>
+              <Button title="Put the entries in date order, newest first" variant="text" size="sm" onClick={() => void sortByDate()}>
                 Sort by date
               </Button>
             </>

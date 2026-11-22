@@ -25,7 +25,7 @@ export function CoverLetterChoice({ id, skipped }: { id: string; skipped: boolea
     });
   if (!skipped) {
     return (
-      <Button variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={() => choose(true)}>
+      <Button title="Skip the cover letter for this application" variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={() => choose(true)}>
         {pending ? "Saving…" : "I don't plan to use a cover letter"}
       </Button>
     );
@@ -64,7 +64,7 @@ function SkippedLetter({ pending, onUndo }: { pending: boolean; onUndo: () => vo
           Only the resume goes: the cover letter can&apos;t be downloaded, isn&apos;t attached in Gmail, and isn&apos;t saved to Google Drive. A letter already written is
           kept, in case you change your mind.
         </p>
-        <Button variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={onUndo}>
+        <Button title="Bring back the cover letter for this application" variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={onUndo}>
           {pending ? "Saving…" : "Use a cover letter after all"}
         </Button>
       </div>

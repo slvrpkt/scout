@@ -51,14 +51,14 @@ export function AddEventDialog({
                 <Dialog.Title className="font-serif text-[22px] leading-tight">Add an event</Dialog.Title>
                 <Dialog.Description className="text-sm text-muted">{[row.role, row.company].filter(Boolean).join(" at ")}</Dialog.Description>
               </div>
-              <Dialog.Close aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
+              <Dialog.Close title="Close this window" aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×
                 </span>
               </Dialog.Close>
             </div>
             <EventComposer applicationId={row.id} autoFocus onAdded={() => onOpenChange(false)} />
-            <Link href={`/applications/${row.id}?tab=notes`} className="self-start text-meta text-muted underline underline-offset-2 hover:text-ink">
+            <Link title="Open this application's full activity" href={`/applications/${row.id}?tab=notes`} className="self-start text-meta text-muted underline underline-offset-2 hover:text-ink">
               See all of its activity
             </Link>
           </Dialog.Content>
@@ -69,24 +69,30 @@ export function AddEventDialog({
 }
 
 /**
- * The table's Activity column: the latest event's text, a few lines
- * of it (three lines), with More for everything that happened (as on the Activity tab), and
+ * The table's Activity column: every event added, newest first, a couple of
+ * lines each, with More for everything that happened (as on the Activity tab), and
  * Add Event, which is always there for the next one.
  */
-export function ActivityCell({ row }: { row: Pick<ApplicationRow, "id" | "role" | "company" | "latestEvent"> }) {
+export function ActivityCell({ row }: { row: Pick<ApplicationRow, "id" | "role" | "company" | "latestEvent" | "events"> }) {
   const [showing, setShowing] = useState(false);
   const more = useRef<HTMLButtonElement>(null);
   return (
     <div className="flex flex-col items-start gap-1.5">
-      {row.latestEvent && (
-        <p className="line-clamp-3 text-meta text-ink">
-          <span className="font-medium">{NOTE_KINDS[row.latestEvent.kind]}:</span> {row.latestEvent.body}
-        </p>
+      {/* Every event added, newest first, each a couple of lines: More has them whole, with everything else that happened. */}
+      {row.events.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {row.events.map((event, index) => (
+            <li key={index} className="line-clamp-2 text-meta text-ink">
+              <span className="text-muted">{event.on} · </span>
+              <span className="font-medium">{NOTE_KINDS[event.kind]}:</span> {event.body}
+            </li>
+          ))}
+        </ul>
       )}
       <span className="flex items-center gap-2">
         <AddEventButton row={row} />
         {row.latestEvent && (
-          <button ref={more} type="button" onClick={() => setShowing(true)} className="text-meta text-muted underline underline-offset-2 hover:text-ink">
+          <button title="Show everything logged for this application" ref={more} type="button" onClick={() => setShowing(true)} className="text-meta text-muted underline underline-offset-2 hover:text-ink">
             More{" "}
             <span className="sr-only">about {[row.role, row.company].filter(Boolean).join(" at ")}</span>
           </button>
@@ -123,7 +129,7 @@ function ActivityDialog({ row, onClose, returnFocusTo }: { row: Pick<Application
                 <Dialog.Title className="font-serif text-[22px] leading-tight">Activity</Dialog.Title>
                 <Dialog.Description className="text-sm text-muted">{[row.role, row.company].filter(Boolean).join(" at ")}</Dialog.Description>
               </div>
-              <Dialog.Close aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
+              <Dialog.Close title="Close this window" aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×
                 </span>
@@ -157,7 +163,7 @@ function ActivityDialog({ row, onClose, returnFocusTo }: { row: Pick<Application
                 ))}
               </ol>
             )}
-            <Link href={`/applications/${row.id}?tab=notes`} className="self-start text-meta text-muted underline underline-offset-2 hover:text-ink">
+            <Link title="Open this application's Activity tab" href={`/applications/${row.id}?tab=notes`} className="self-start text-meta text-muted underline underline-offset-2 hover:text-ink">
               Open its Activity tab
             </Link>
           </Dialog.Content>
@@ -173,7 +179,7 @@ export function AddEventButton({ row }: { row: Pick<ApplicationRow, "id" | "role
   const button = useRef<HTMLButtonElement>(null);
   return (
     <>
-      <button ref={button} type="button" onClick={() => setOpen(true)} className={buttonClassName("secondary", "sm")}>
+      <button title="Log an event for this application: a call, an interview, an offer" ref={button} type="button" onClick={() => setOpen(true)} className={buttonClassName("secondary", "sm")}>
         Add event{" "}
         <span className="sr-only">for {[row.role, row.company].filter(Boolean).join(" at ")}</span>
       </button>

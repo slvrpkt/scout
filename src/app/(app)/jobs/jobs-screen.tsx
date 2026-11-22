@@ -32,6 +32,8 @@ import { SearchFields, uncoveredCountry } from "./search-fields";
 import { SearchFilters } from "./search-filters";
 
 export type JobsScreenProps = {
+  /** The posting to show picked when the search opens (?select=), the one you came back from. */
+  initialSelected?: string | null;
   /** The source chosen in Settings; null while job search is off. */
   source: JobSource | null;
   /** The Bundesagentur für Arbeit is chosen, but its note isn't accepted yet: it isn't searched until then (#223). */
@@ -74,6 +76,7 @@ export function JobsScreen({
   history = [],
   counts,
   today,
+  initialSelected = null,
 }: JobsScreenProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -86,11 +89,13 @@ export function JobsScreen({
     <>
       <PageHeader
         title="Manual job search"
-        description={`Search ${source ? SOURCE_INFO[source].name : "job postings"} for postings near you, then start an application from the one you like.`}
+        wide
+        description={`Search ${source ? SOURCE_INFO[source].name : "job postings"} for postings near you, then start an application from the one you like. Found a job on your own, or someone emailed you one? Use + New manual application.`}
         actions={
           // Only here: a posting found elsewhere, pasted or by its link.
           <Link
             href="/new?fresh=1"
+            title="For a job you found yourself, or one someone sent you: paste its description or link to start an application."
             className={buttonClassName(
               "primary",
               "md",
@@ -203,6 +208,7 @@ export function JobsScreen({
             key={search.id}
             mode="search"
             search={search}
+            initialSelected={initialSelected}
             today={today}
             scoreInClaude={scoreInClaude}
             onSearchAgain={() => run(search.query)}
@@ -276,10 +282,11 @@ function SearchForm({
       aria-label="Search postings"
       noValidate
       onSubmit={submit}
-      className="mx-10 mb-7 flex flex-col gap-5 rounded-panel border border-line-card bg-card p-6"
+      // Kept short, so the postings start high on the page: smaller fields, everything on one line on a wide screen.
+      className="mx-10 mb-5 flex flex-col gap-3 rounded-panel border border-line-card bg-card px-4 py-3 [&_input]:h-9 [&_select]:h-9 [&_select]:py-1.5"
     >
-      {/* What and where: what you're after, with Search, then the place, each row lined up. */}
-      <div className="grid grid-cols-1 items-start gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-12">
+      {/* What and where: what you're after, the place, and Search at the end. */}
+      <div className="grid grid-cols-1 items-start gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-12 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.6fr)_minmax(0,1.4fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)_auto]">
         <SearchFields
           value={form}
           onChange={set}
@@ -287,25 +294,25 @@ function SearchForm({
           countries={countries}
           errors={errors}
           cells={{
-            what: "sm:col-span-2 lg:col-span-6",
-            where: "lg:col-span-4",
-            country: "lg:col-span-3",
-            within: "lg:col-span-2",
-            posted: "lg:col-span-3",
+            what: "sm:col-span-2 lg:col-span-6 xl:col-span-1",
+            where: "lg:col-span-4 xl:col-span-1",
+            country: "lg:col-span-3 xl:col-span-1",
+            within: "lg:col-span-2 xl:col-span-1",
+            posted: "lg:col-span-3 xl:col-span-1",
           }}
           afterWhat={
             <>
               <Input
                 label="Company (optional)"
-                className="lg:col-span-4"
+                className="lg:col-span-4 xl:col-span-1"
                 value={form.company ?? ""}
                 placeholder="Only this company's jobs, e.g. Accenture"
                 onChange={(event) => set({ company: event.target.value })}
               />
-              <div className="flex items-end sm:col-span-2 lg:col-span-2 lg:h-full lg:pb-px">
-                <Button
+              <div className="flex items-end sm:col-span-2 lg:col-span-2 lg:h-full lg:pb-px xl:order-last xl:col-span-1">
+                <Button title="Search for postings that match"
                   type="submit"
-                  className="w-full"
+                  className="w-full xl:px-6"
                   aria-disabled={pending || undefined}
                 >
                   {pending ? "Searching…" : "Search"}
@@ -315,7 +322,7 @@ function SearchForm({
           }
         />
       </div>
-      <div className="border-t border-line pt-5">
+      <div className="border-t border-line pt-2.5">
         <SearchFilters rows value={form} onChange={set} source={source} />
       </div>
     </form>
@@ -355,18 +362,18 @@ function ViewTabs({
   return (
     <nav
       aria-label="Manual job search views"
-      className="flex flex-wrap gap-1.5 px-10 pb-[18px]"
+      className="-mt-4 flex flex-wrap gap-1.5 px-10 pb-3"
     >
       {/* Saved jobs have their own page now, Saved for later. */}
       {tabs
         .filter((tab) => tab.view !== "saved")
         .map((tab) => (
-          <Link
+          <Link title="Switch view"
             key={tab.view}
             href={tab.href}
             aria-current={tab.view === view ? "page" : undefined}
             className={cn(
-              "flex items-baseline gap-1.5 rounded-control border px-3 py-2 text-control",
+              "flex items-baseline gap-1.5 rounded-control border px-3 py-1.5 text-control",
               tab.view === view
                 ? "border-primary bg-selected font-medium text-primary-text hover:text-primary-text"
                 : "border-line-field bg-card text-ink hover:border-line-strong hover:bg-hover hover:text-ink",
@@ -392,7 +399,7 @@ function NoSource() {
         (LinkedIn, Indeed and more) or Adzuna. Pick one in Settings. Until then,
         nothing is sent anywhere.
       </p>
-      <Link
+      <Link title="Choose where to search for jobs, in Settings"
         href={SETTINGS_HREF}
         className={buttonClassName(
           "primary",
@@ -429,14 +436,14 @@ function SearchProblem({
     >
       <p className="text-sm">{message}</p>
       {toSettings ? (
-        <Link
+        <Link title="Open the job search settings"
           href={SETTINGS_HREF}
           className={buttonClassName("secondary", "sm")}
         >
           Open Settings → Job search
         </Link>
       ) : problem === "unavailable" ? (
-        <Button variant="secondary" size="sm" onClick={onRetry}>
+        <Button title="Try the search again" variant="secondary" size="sm" onClick={onRetry}>
           Try again
         </Button>
       ) : null}

@@ -28,7 +28,7 @@ export function SettingsScreen({ section, children }: { section: SettingsSection
       <div className="flex flex-wrap items-start gap-x-12 gap-y-8 px-10 pb-20">
         <nav aria-label="Settings sections" className="flex max-w-[220px] min-w-[200px] flex-[1_1_200px] flex-col gap-0.5">
           {SETTINGS_SECTIONS.map((entry) => (
-            <Link
+            <Link title="Go to this part of Settings"
               key={entry.id}
               href={settingsSectionHref(entry.id)}
               aria-current={entry.id === section ? "page" : undefined}

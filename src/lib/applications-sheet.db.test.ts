@@ -136,7 +136,7 @@ describe("syncing the log to Google Sheets", () => {
     await syncSheet();
     await syncSheet();
     expect(sheets()).toHaveLength(1);
-    expect(sheets()[0].csv).toBe("Company,Role,Salary,Posting Link,Source,Employer,Posted,Apply By,Location,Things To Note,Applied Using,Status,Applied,Resume & Cover Letter,Job Description,Activity,Updated");
+    expect(sheets()[0].csv).toBe("Company,Role,Salary,Expected Salary,Posting Link,Source,Employer,Posted,Apply By,Location,Things To Note,Applied Using,Status,Applied,Resume & Cover Letter,Job Description,Activity,Updated");
   });
 
   it("makes a new sheet in a renamed main folder, or when the old one was deleted", async () => {

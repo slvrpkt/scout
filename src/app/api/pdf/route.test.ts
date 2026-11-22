@@ -13,6 +13,11 @@ import { GET as GET_HELD } from "./[id]/route";
 import { GET, POST } from "./route";
 
 vi.mock("@/lib/auth/session", () => ({ getSession: vi.fn() }));
+vi.mock("@/lib/ai/config", async (original) => ({
+  ...(await original<typeof import("@/lib/ai/config")>()),
+  isAiConfigured: vi.fn(async () => false),
+  isAiUsable: vi.fn(async () => false),
+}));
 vi.mock("@/lib/pdf/render", () => ({ renderPdf: vi.fn() }));
 vi.mock("@/lib/pdf/pages", () => ({ countPdfPages: vi.fn() }));
 vi.mock("@/lib/profile-data", () => ({ loadProfileName: vi.fn(), loadProfile: vi.fn(async () => ({})) }));
@@ -105,7 +110,9 @@ describe("GET /api/pdf", () => {
       expect.objectContaining({ where: { id: "app1" }, select: expect.objectContaining({ documents: { where: { kind: "COVER_LETTER" }, select: { id: true } } }) }),
     );
     // A send on the employer's site most likely uploads what was downloaded last (Google Drive backup).
-    expect(prisma.application.updateMany).toHaveBeenLastCalledWith({ where: { id: "app1" }, data: { lastDownloadFormat: "PDF" } });
+    expect(prisma.application.updateMany).toHaveBeenCalledWith({ where: { id: "app1" }, data: { lastDownloadFormat: "PDF" } });
+    // The cover letter was downloaded: marking it applied keeps it as sent.
+    expect(prisma.application.updateMany).toHaveBeenLastCalledWith({ where: { id: "app1" }, data: { letterUsedAt: expect.any(Date) } });
   });
 
   it("refuses the cover letter of an application marked No cover letter, but not its resume", async () => {

@@ -16,13 +16,16 @@ import { toast, toastResult } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  ApplicationStatus,
   DocumentKind,
-  type ApplicationStatus,
   type DateFormat,
   type PaperSize,
   type Tone,
 } from "@/generated/prisma/enums";
 import { type Match, type Requirement, type Unit } from "@/lib/application-data";
+import { letterText, type ApplyPage } from "@/lib/apply-steps";
+import type { ScreeningTrap } from "@/lib/screening-traps";
+import { TrapWarning } from "@/components/trap-warning";
 import { EMAIL_UNITS, WRITTEN_EMAIL_UNITS } from "@/lib/application-email";
 import { documentLabels } from "@/lib/document-labels";
 import { defaultFrame, isFrameUnit, isParagraph, withFrame, WRITTEN_FRAME_UNITS } from "@/lib/letter-frame";
@@ -35,12 +38,13 @@ import type { JobView } from "@/lib/jobs/runner";
 import type { WriteEmailResult } from "@/lib/jobs/write-email";
 import type { FactItem, ProfileData } from "@/lib/profile";
 import type { RefineSuggestions } from "@/lib/refine-suggestions";
-import { runningHeader } from "@/lib/resume-content";
+import { roleSkillsUnit, runningHeader } from "@/lib/resume-content";
 import { hasSidebar, type ThemeData } from "@/lib/themes";
 import { cleanUnitText, isPublicationUnit, unitName } from "@/lib/unit-text";
 
 import {
   addMatchSkill,
+  applicationStampOf,
   leaveOutUnit,
   putBackTrimmed,
   restoreUnit,
@@ -54,7 +58,8 @@ import {
   undoEmailRewrite,
   undoMessage,
 } from "./actions";
-import { ApplicationHeader } from "./application-header";
+import { useLivePage } from "@/hooks/use-live-page";
+import { ApplicationHeader, type ApplicationSection } from "./application-header";
 import { ApplicationMenu } from "./application-menu";
 import { ConversationTab } from "./conversation-tab";
 import { EmailTab, type Attachments } from "./email-tab";
@@ -66,6 +71,8 @@ import { DismissDraft } from "./dismiss-draft";
 import { LogPager } from "./log-pager";
 import { isHeadingUnit, withHeadingUnits } from "@/lib/resume-heading";
 import { useAnyRewriting } from "./rewriting";
+import { ApplySteps } from "./apply-steps";
+import { UndoApplied } from "./undo-applied";
 import { DownloadMenu } from "./download-menu";
 import { CoverLetterChoice, RegenerateLetter } from "./cover-letter-choice";
 import { SaveApplicationButton } from "./save-application-button";
@@ -74,11 +81,11 @@ import type { LogNeighbours } from "@/lib/applications-data";
 import { NotesTab, type DriveState } from "./notes-tab";
 import { PostingTab, type PostingData } from "./posting-tab";
 import { LetterOverNotice } from "./letter-over-notice";
-import { LetterPending } from "./letter-pending";
+import { LetterPending, LetterUnwritten } from "./letter-pending";
 import { OutdatedNotice } from "./outdated-notice";
 import { PostingChangedNotice } from "./posting-changed-notice";
 import { looksCutShort, shortPostingWarning } from "@/lib/posting-length";
-import { RefinePanel, type ChatEntry } from "./refine-panel";
+import { RefinePanel, suggestionRequest, type ChatEntry } from "./refine-panel";
 import { ResumeSuggestions } from "./resume-suggestions";
 import { StatusControl } from "./status-control";
 import { ThemeMenu } from "./theme-menu";
@@ -135,6 +142,8 @@ export type ApplicationViewProps = {
     noCoverLetter?: boolean;
     /** When it was marked Applied (sent); null before. */
     appliedAt?: Date | null;
+    /** The change that marked it applied, while it's still the latest: Undo beside the date puts it back. */
+    undoAppliedEventId?: string | null;
     /** Whether its job is on Saved for later; null once it's been applied to. */
     saved?: boolean | null;
     /** The job agent's find it was drafted from, while it waits for review: Archive moves both to the archive. */
@@ -147,6 +156,14 @@ export type ApplicationViewProps = {
     resumePagesReason?: string | null;
     /** Ideas from the AI for matching this job better, to vet. */
     resumeSuggestions?: string[];
+    /** The ones you dismissed, folded away under the rest. */
+    dismissedSuggestions?: string[];
+    /** Where to apply, for Quick Apply; null without a link. */
+    applyPage?: ApplyPage | null;
+    /** Its job agent find, while it hasn't been looked for on the company's site: Quick Apply looks when opened. */
+    unlookedCandidateId?: string | null;
+    /** Looked for on the company's site and not found there. */
+    notOnCompanySite?: boolean;
   };
   /** The browser's time zone as it last told the server, for the interview's time. */
   timeZone?: string;
@@ -166,6 +183,8 @@ export type ApplicationViewProps = {
   letter: DocumentData | null;
   /** The cover letter being drafted now, the first time a job agent draft is opened. */
   letterJobId?: string | null;
+  /** A draft's letter not written yet, with automatic letters off: Write cover letter writes it. */
+  letterUnwritten?: boolean;
   /** The job description was replaced after the resume was written: offer a rewrite. */
   postingNewer?: boolean;
   /** They're the copies that were sent, so they can only be read. */
@@ -198,6 +217,8 @@ export type ApplicationViewProps = {
   pageLimit?: number | null;
   /** The date on the letter, at UTC midnight. */
   letterDate: Date;
+  /** Words the posting seems to have planted as resume screening traps: never written into the documents. */
+  traps?: ScreeningTrap[];
   /** "5/7 match" on the Job posting tab, when the requirements were matched. */
   score: { hit: number; total: number } | null;
   initialTab: Tab;
@@ -212,6 +233,10 @@ export type ApplicationViewProps = {
   suggestions: RefineSuggestions;
   /** Its place in the Job application log, for Previous and Next; null when the log doesn't show it. */
   neighbours?: LogNeighbours | null;
+  /** Where it belongs, for the breadcrumb and the sidebar: the search it came from until you apply; the Job application log when left out. */
+  section?: ApplicationSection;
+  /** A fingerprint of what the page was drawn from: it redraws when that changes elsewhere. */
+  stamp?: string | null;
 };
 
 /**
@@ -248,8 +273,10 @@ export function ApplicationView({
   atsGrade = null,
   suggestionsJobId = null,
   letterJobId = null,
+  letterUnwritten = false,
   postingNewer = false,
   letterDate,
+  traps = [],
   score,
   initialTab,
   aiReady,
@@ -258,6 +285,8 @@ export function ApplicationView({
   refining,
   suggestions,
   neighbours = null,
+  section,
+  stamp = null,
 }: ApplicationViewProps) {
   const router = useRouter();
   const [tab, setTab] = useState(initialTab);
@@ -270,6 +299,15 @@ export function ApplicationView({
   const letterTheme = themeChoice ? { ...themeChoice, textPoints: letter?.theme.textPoints } : letter?.theme;
   const [, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
+  // Changed elsewhere (the job agent, a background job, another tab): drawn again, but never under an edit.
+  const live = useLivePage(
+    stamp,
+    async () => {
+      const result = await applicationStampOf({ id: application.id });
+      return result.ok ? result.data : null;
+    },
+    editing !== null,
+  );
   // Texts being saved, shown in place until the page has the saved version.
   const [saving, showSaving] = useOptimistic(NOTHING_SAVING, (texts, { key, text }: { key: string; text: string }) => ({
     ...texts,
@@ -292,6 +330,8 @@ export function ApplicationView({
   // Replies being undone, shown as undone until the page has it.
   const [undoing, showUndoing] = useOptimistic<readonly string[], string>([], (current, id) => [...current, id]);
   const [chatFocus, focusChat] = useState(0);
+  // "Yes, add it" on a suggestion: put in the chat box to complete and send.
+  const [prefill, setPrefill] = useState<{ text: string; n: number } | null>(null);
   const [rewrites, setRewrites] = useState<Readonly<Record<string, Rewrite>>>(() =>
     Object.fromEntries(rewritingAtLoad.map(({ jobId, document, unitId }) => [keyOf(document, unitId), { jobId, revision: 0 }])),
   );
@@ -325,11 +365,19 @@ export function ApplicationView({
   const themeMenu = (current: ThemeData) =>
     frozen ? current.name : <ThemeMenu themes={themes} baseThemeId={baseThemeId} current={current} onChange={changeTheme} />;
 
-  const save = (kind: DocumentKind, unit: Unit, text: string) => {
+  const save = (kind: DocumentKind, unit: Unit, text: string, skills?: { unit: Unit; text: string }) => {
     const key = keyOf(kind, unit.id);
     startTransition(async () => {
       showSaving({ key, text: cleanUnitText(unit.id, text) });
-      const result = await saveUnit({ id: application.id, document: kind, unitId: unit.id, text, expected: unit.text });
+      // The skills under a job first: then the job's own save redraws both.
+      if (skills) {
+        const saved = await saveUnit({ id: application.id, document: kind, unitId: skills.unit.id, text: skills.text, expected: skills.unit.text });
+        if (!saved.ok) {
+          toast(saved.error);
+          return;
+        }
+      }
+      const result = text === unit.text && skills ? { ok: true as const } : await saveUnit({ id: application.id, document: kind, unitId: unit.id, text, expected: unit.text });
       if (!result.ok) {
         // The editor stays open with what was typed.
         toast(result.error);
@@ -571,6 +619,8 @@ export function ApplicationView({
       const unit = units.find((entry) => entry.id === id);
       if (!unit) return plainUnit({ id, className, head, children });
       const key = keyOf(kind, id);
+      // A job's skills line, edited with its bullets (unless the theme doesn't print it).
+      const skillsOf = kind === DocumentKind.RESUME && !resume?.theme.noRoleSkills ? roleSkillsUnit(units, profile, id) : null;
       const written =
         kind === DocumentKind.EMAIL
           ? WRITTEN_EMAIL_UNITS.has(id)
@@ -590,7 +640,8 @@ export function ApplicationView({
           flashing={flashing.keys.has(key)}
           onEdit={() => setEditing(key)}
           onCancel={() => setEditing(null)}
-          onSave={(text) => save(kind, unit, text)}
+          skills={skillsOf}
+          onSave={(text, skillsText) => save(kind, unit, text, skillsOf && skillsText !== undefined ? { unit: skillsOf, text: skillsText } : undefined)}
           onRegenerate={written ? () => void regenerate(kind, unit, { stored: stored.has(id) }) : undefined}
           // The chat only edits parts the letter stores.
           onAskAi={written && stored.has(id) ? () => askAbout(kind, unit) : undefined}
@@ -620,7 +671,6 @@ export function ApplicationView({
   const letterStored = new Set(letter?.units.map((unit) => unit.id));
   const emailUnits = email && shown(DocumentKind.EMAIL, email);
   const paragraphs = letterUnits?.filter(isParagraph).map((unit) => unit.text) ?? [];
-  const hint = "Hover a section to edit or regenerate it";
 
   const restore = async (version: ViewedVersion) => {
     setRestoring(true);
@@ -638,7 +688,7 @@ export function ApplicationView({
   );
   /** "History" next to a document's label, and the banner over an earlier version. */
   const historyButton = (document: DocumentKind) => (
-    <Button variant="text" size="sm" onClick={() => setHistoryOf(document)}>
+    <Button title="See earlier versions of this document and restore one" variant="text" size="sm" onClick={() => setHistoryOf(document)}>
       History
     </Button>
   );
@@ -648,10 +698,10 @@ export function ApplicationView({
         You&apos;re looking at the version from {version.when}: {version.label}.
       </span>
       <span className="flex items-center gap-3">
-        <Button size="sm" aria-disabled={restoring || undefined} onClick={() => void (restoring ? undefined : restore(version))}>
+        <Button title="Make this earlier version the current one" size="sm" aria-disabled={restoring || undefined} onClick={() => void (restoring ? undefined : restore(version))}>
           Restore this version
         </Button>
-        <Button variant="secondary" size="sm" className="bg-input" onClick={() => setViewing(null)}>
+        <Button title="Go back to the current version" variant="secondary" size="sm" className="bg-input" onClick={() => setViewing(null)}>
           Back to the current one
         </Button>
       </span>
@@ -666,6 +716,19 @@ export function ApplicationView({
     // window: the document scrolls in its column and the panel keeps its input
     // in view. Narrower, the panel moves below and the page scrolls as usual.
     <div className="@container/page flex flex-1 flex-col">
+    {live.changed && (
+      <div role="status" className="flex items-center justify-between gap-3 border-b border-line bg-selected px-6 py-2 text-sm">
+        <span>This application changed elsewhere. It updates when you finish editing, or now:</span>
+        <Button title="Reload the page to show the latest changes" size="sm" variant="secondary" onClick={live.refresh}>
+          Refresh
+        </Button>
+      </div>
+    )}
+    {live.updated && (
+      <span role="status" className="fixed right-6 bottom-6 z-30 rounded-full border border-line-popover bg-card px-3 py-1.5 text-meta text-muted shadow-menu">
+        Updated with the latest changes
+      </span>
+    )}
     <Tabs value={tab} onValueChange={selectTab} className="flex flex-1 flex-col @min-[780px]/page:h-panel @min-[780px]/page:flex-none">
       {Object.entries(rewrites).map(([key, { jobId, revision }]) =>
         jobId ? (
@@ -688,18 +751,25 @@ export function ApplicationView({
         title={application.title}
         meta={meta}
         pager={neighbours && <LogPager neighbours={neighbours} />}
+        section={section}
         actions={
           <>
             {application.archived && <span className="rounded-full bg-track px-3 py-1.5 text-meta text-muted">Archived</span>}
             {/* Once applied, when: before that, Mark as applied beside it says what's left to do. */}
             {application.appliedAt && (
-              <span role="status" className="rounded-full bg-success-surface px-3 py-1.5 text-meta text-success">
-                Marked as applied on{" "}
-                {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", ...(timeZone ? { timeZone } : {}) }).format(application.appliedAt)}
+              <span role="status" className="flex items-center gap-2 rounded-full bg-success-surface px-3 py-1.5 text-meta text-success">
+                <span>
+                  Marked as applied on{" "}
+                  {new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", ...(timeZone ? { timeZone } : {}) }).format(application.appliedAt)}
+                </span>
+                {application.undoAppliedEventId && <UndoApplied eventId={application.undoAppliedEventId} />}
               </span>
             )}
             {application.saved != null && <SaveApplicationButton key={String(application.saved)} id={application.id} saved={application.saved} />}
             {application.awaitingReview && application.reviewCandidateId && <DismissDraft candidateId={application.reviewCandidateId} />}
+            {application.status === ApplicationStatus.DRAFT && !frozen && (
+              <ApplySteps id={application.id} page={application.applyPage ?? null} lookFor={application.unlookedCandidateId ?? null} notFound={application.notOnCompanySite ?? false} company={application.company} letter={letterUnits && !application.noCoverLetter && !letterUnwritten && !letterJobId ? letterText(letterUnits) || null : null} letterUnwritten={letterUnwritten || Boolean(letterJobId)} />
+            )}
             <StatusControl id={application.id} status={application.status} interviewAt={application.nextInterviewAt} timeZone={timeZone} />
             {(resume || letter) && !(tab === "letter" && application.noCoverLetter) && (
               // The document on screen, as a PDF or a Word file; from the other tabs, the resume (E8-8). Not a letter marked "No cover letter".
@@ -711,17 +781,17 @@ export function ApplicationView({
       >
         {/* Its underline runs the header's full width, under the padding too. */}
         <TabsList aria-label="Application" className="-mx-10 px-10">
-          <TabsTrigger value="resume">Custom tailored resume</TabsTrigger>
-          <TabsTrigger value="letter">Custom tailored cover letter</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
+          <TabsTrigger title="The resume written for this job: review it, edit it and download it" value="resume">Custom tailored resume</TabsTrigger>
+          <TabsTrigger title="The cover letter for this job, when you want one" value="letter">Custom tailored cover letter</TabsTrigger>
+          <TabsTrigger title="A short email to send with your application" value="email">Email</TabsTrigger>
           {gmail && (gmail.reading || gmail.emails.length > 0) && (
-            <TabsTrigger value="conversation">
+            <TabsTrigger title="Your Gmail conversation with this employer" value="conversation">
               {waiting > 0 ? `Conversation · ${waiting} new` : gmail.emails.length > 0 ? `Conversation · ${gmail.emails.length}` : "Conversation"}
             </TabsTrigger>
           )}
-          <TabsTrigger value="posting">{score ? `Job posting · ${score.hit}/${score.total} match` : "Job posting"}</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="notes">{notes > 0 ? `Events / Notes · ${notes}` : "Events / Notes"}</TabsTrigger>
+          <TabsTrigger title="The job description, and how well your profile matches each requirement" value="posting">{score ? `Job posting · ${score.hit}/${score.total} match` : "Job posting"}</TabsTrigger>
+          <TabsTrigger title="Everything that happened with this application, in order" value="activity">Activity</TabsTrigger>
+          <TabsTrigger title="Log interviews, calls, offers and notes for this application" value="notes">{notes > 0 ? `Events / Notes · ${notes}` : "Events / Notes"}</TabsTrigger>
         </TabsList>
       </ApplicationHeader>
 
@@ -730,14 +800,20 @@ export function ApplicationView({
           {resume && resumeTheme && resumeUnits ? (
             <DocumentPreview
               meta={!viewed(DocumentKind.RESUME) && !frozen && atsGrade ? <AtsScore id={application.id} grade={atsGrade} draft={application.status === "DRAFT"} profileNewer={outdated} /> : undefined}
-              caption={viewed(DocumentKind.RESUME) || frozen ? undefined : hint}
               runningHeader={runningHeader(profile.basics)}
               side={
                 viewed(DocumentKind.RESUME) || frozen ? undefined : (
                   <ResumeSuggestions
                     updating={updatingSuggestions}
                     beforeApplying={atsGrade?.beforeApplying ?? []}
-                    items={application.resumeSuggestions?.length ? application.resumeSuggestions : (atsGrade?.missing ?? []).map((item) => `The posting asks for ${item}. If you have it, add it to your resume.`)}
+                    // Only the AI's, which read the resume and profile by meaning; none is a fine answer.
+                    items={application.resumeSuggestions ?? []}
+                    id={application.id}
+                    dismissed={application.dismissedSuggestions ?? []}
+                    onAdd={(suggestion) => {
+                      setTarget(null);
+                      setPrefill((current) => ({ text: suggestionRequest(suggestion), n: (current?.n ?? 0) + 1 }));
+                    }}
                   />
                 )
               }
@@ -748,9 +824,10 @@ export function ApplicationView({
                 const over = pageLimit !== null && pages > pageLimit;
                 const noSkills = resume.theme.noRoleSkills === true;
                 const short = looksCutShort(posting.text);
-                if (!over && !noSkills && !outdated && !resume.trimmed?.length && !short && !postingNewer) return undefined;
+                if (!over && !noSkills && !outdated && !resume.trimmed?.length && !short && !postingNewer && traps.length === 0) return undefined;
                 return (
                   <div className="flex flex-col gap-2">
+                    {traps.length > 0 && <TrapWarning traps={traps} />}
                     {short && (
                       <p role="alert" className="text-meta font-medium text-error">
                         {shortPostingWarning(posting.text)}
@@ -799,6 +876,8 @@ export function ApplicationView({
             <CoverLetterChoice id={application.id} skipped />
           ) : letterJobId ? (
             <LetterPending jobId={letterJobId} />
+          ) : letterUnwritten ? (
+            <LetterUnwritten id={application.id} />
           ) : letter && letterTheme && letterUnits ? (
             <DocumentPreview
               label={
@@ -816,7 +895,6 @@ export function ApplicationView({
                   {!frozen && <RegenerateLetter id={application.id} />}
                 </div>
               }
-              caption={viewed(DocumentKind.COVER_LETTER) || frozen ? undefined : hint}
               notice={(pages) => (viewed(DocumentKind.COVER_LETTER) ? versionBanner(viewed(DocumentKind.COVER_LETTER)!) : frozen ? frozenNote : pages > 1 ? <LetterOverNotice id={application.id} /> : undefined)}
             >
               <TailoredLetter
@@ -901,13 +979,14 @@ export function ApplicationView({
           onSend={send}
           aiReady={aiReady}
           focusRequest={chatFocus}
+          prefill={prefill}
         >
           {(message) =>
             message.canUndo &&
             (message.undone || undoing.includes(message.id) ? (
               <span className="px-1 text-label text-muted">Undone</span>
             ) : (
-              <button
+              <button title="Undo the changes this message made"
                 type="button"
                 onClick={() => undo(message)}
                 className="px-1 text-label text-muted underline underline-offset-3 hover:text-ink"

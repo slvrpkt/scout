@@ -52,7 +52,7 @@ export function MatchRows({
                 {item.note && <p className="text-meta text-muted">{item.note}</p>}
               </div>
               {item.result === "gap" && skill && (
-                <Button variant="secondary" size="sm" className="flex-none" onClick={() => onAddSkill(index, skill)}>
+                <Button title="Add this skill to your profile" variant="secondary" size="sm" className="flex-none" onClick={() => onAddSkill(index, skill)}>
                   + Add to profile
                 </Button>
               )}

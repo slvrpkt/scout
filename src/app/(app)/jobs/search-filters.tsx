@@ -39,7 +39,7 @@ function Choices<V extends string>({
     );
   if (row)
     return (
-      <fieldset className="grid min-w-0 items-center gap-x-4 gap-y-1.5 sm:grid-cols-[150px_1fr]">
+      <fieldset className="grid min-w-0 items-center gap-x-3 gap-y-1 sm:grid-cols-[120px_1fr]">
         <legend className="contents">
           <span className="text-label text-muted" title={hint}>
             {label}
@@ -55,7 +55,11 @@ function Choices<V extends string>({
             />
           ))}
         </div>
-        {warning && <span className="text-meta text-warning sm:col-start-2">{warning}</span>}
+        {warning && (
+          <span className="text-meta text-warning sm:col-start-2">
+            {warning}
+          </span>
+        )}
       </fieldset>
     );
   return (
@@ -65,7 +69,7 @@ function Choices<V extends string>({
         {options.map((option) => {
           const on = chosen.includes(option.value);
           return (
-            <button
+            <button title="Pick this; pick none to get any"
               key={option.value}
               type="button"
               aria-pressed={on}
@@ -98,12 +102,12 @@ function ChoiceButton({
   onClick: () => void;
 }) {
   return (
-    <button
+    <button title="Pick this; pick none to get any"
       type="button"
       aria-pressed={on}
       onClick={onClick}
       className={cn(
-        "rounded-control border px-2.5 py-1.5 text-control",
+        "rounded-control border px-2.5 py-1 text-control",
         on
           ? "border-primary bg-selected font-medium text-primary-text"
           : "border-line-field bg-card hover:border-line-strong hover:bg-hover",
@@ -149,7 +153,7 @@ export function SearchFilters({
       }}
       className={cn(
         "rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink placeholder:text-muted focus-visible:border-primary",
-        rows && "w-full max-w-[240px]",
+        rows && "h-8 w-full max-w-[240px] py-1",
       )}
     />
   );
@@ -160,8 +164,9 @@ export function SearchFilters({
     });
   if (rows)
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-meta text-muted">
+      // Two to a line on a wide screen.
+      <div className="grid gap-x-8 gap-y-2 lg:grid-cols-2">
+        <p className="text-xs text-muted lg:col-span-2">
           Leave a row with nothing picked to get any. A posting that
           doesn&apos;t say still shows.
         </p>
@@ -171,7 +176,11 @@ export function SearchFilters({
           options={WORK_MODES}
           chosen={value.workModes ?? []}
           onChange={workModes}
-          warning={source === "ADZUNA" && value.remoteOnly ? "Adzuna has no remote filter, so this adds “remote” to your search." : undefined}
+          warning={
+            source === "ADZUNA" && value.remoteOnly
+              ? "Adzuna has no remote filter, so this adds “remote” to your search."
+              : undefined
+          }
         />
         <Choices
           row
@@ -188,7 +197,7 @@ export function SearchFilters({
           chosen={value.types ?? []}
           onChange={(types) => onChange({ types })}
         />
-        <div className="grid min-w-0 items-center gap-x-4 gap-y-1.5 sm:grid-cols-[150px_1fr]">
+        <div className="grid min-w-0 items-center gap-x-3 gap-y-1 sm:grid-cols-[120px_1fr]">
           <span className="flex items-center gap-1.5 text-label text-muted">
             Salary at least
             <span

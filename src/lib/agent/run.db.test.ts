@@ -124,7 +124,7 @@ beforeEach(async () => {
   await resetDatabase(prisma());
   Object.assign(fake, { postings: page, searches: 0, source: "JSEARCH", ai: true, failOn: null, onScore: () => {} });
   // One run a day, as the limit tests expect: 3 in any 24 hours.
-  await saveSettings({ agentEnabled: true, agentTimes: ["07:00"], agentAutoDraft: false, agentDraftScore: 0, scoringPrefs: NEUTRAL_SCORING_PREFS });
+  await saveSettings({ agentEnabled: true, agentTimes: ["07:00"], agentAutoDraft: false, scoringPrefs: NEUTRAL_SCORING_PREFS });
   await setSearches(query);
 });
 afterAll(() => prisma().$disconnect());
@@ -378,11 +378,11 @@ describe("runAgentScan (E16-3)", () => {
   });
 
   it("searches each location on its own, leaving the distance to the source", async () => {
-    await prisma().agentSearch.updateMany({ data: { places: "Gaithersburg, Maryland\nCalifornia" } });
+    await prisma().agentSearch.updateMany({ data: { places: "Reston, Virginia\nCalifornia" } });
     vi.mocked(searchPostings).mockClear();
     await runAgentScan({ manual: false }, context(), now);
     const asked = vi.mocked(searchPostings).mock.calls.map(([, , query]) => [query.place, query.anyDistance]);
-    expect(asked).toEqual([["Gaithersburg, Maryland", true], ["California", true]]);
+    expect(asked).toEqual([["Reston, Virginia", true], ["California", true]]);
   });
 
   it("applies the skip rules of every search that found a job, though it's scored once", async () => {

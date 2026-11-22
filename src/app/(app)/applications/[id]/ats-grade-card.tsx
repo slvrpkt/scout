@@ -11,7 +11,7 @@ import { toast, toastResult } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { ATS_GOAL, type AtsGrade } from "@/lib/ats-grade";
 
-import { rewriteToA } from "./actions";
+import { regradeResume, rewriteToA } from "./actions";
 
 /** What changed between two grades, in words; null when nothing did. */
 export function gradeChange(before: AtsGrade, after: AtsGrade): string | null {
@@ -56,15 +56,28 @@ export function AtsScore({ id, grade, draft, profileNewer = false }: { id: strin
     startTransition(async () => {
       if (toastResult(await rewriteToA({ id })).ok) router.refresh();
     });
+  const [regrading, startRegrade] = useTransition();
+  const regrade = () =>
+    !regrading &&
+    startRegrade(async () => {
+      if (toastResult(await regradeResume({ id })).ok) router.refresh();
+    });
   const reached = grade.score >= ATS_GOAL;
   const toFix = grade.missing.length + grade.fixes.length;
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
+      <span className="inline-flex flex-none items-center gap-1.5">
       <Dialog.Trigger className="inline-flex flex-none items-center gap-2 rounded-full whitespace-nowrap hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus" title="Why this ATS score">
         <span aria-hidden="true">ATS score</span>
         <ScoreBadge score={grade.score} letter={grade.letter} />
         <span className="sr-only">: ATS score {grade.letter}, why it got this score</span>
       </Dialog.Trigger>
+      {draft && (
+        <Button variant="text" size="sm" aria-disabled={regrading || undefined} onClick={regrade} title="Check the resume against the posting again, with your edits">
+          {regrading ? "Regrading…" : "Regrade resume"}
+        </Button>
+      )}
+      </span>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content className="fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100vh-32px)] w-[min(600px,calc(100vw-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-dialog border border-line-popover bg-card p-6 shadow-menu">
@@ -79,7 +92,7 @@ export function AtsScore({ id, grade, draft, profileNewer = false }: { id: strin
                 </Dialog.Description>
               </div>
             </div>
-            <Dialog.Close aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
+            <Dialog.Close title="Close this window" aria-label="Close" className="grid size-8 place-items-center rounded-control text-muted hover:bg-hover hover:text-ink">
               <span aria-hidden="true" className="text-lg leading-none">
                 ×
               </span>
@@ -173,6 +186,14 @@ export function AtsScore({ id, grade, draft, profileNewer = false }: { id: strin
             </section>
           )}
 
+          {draft && (
+            <div className="flex items-center justify-between gap-3 rounded-control bg-surface px-3 py-2 text-sm">
+              <span className="text-muted">Made the changes it asked for? Regrade to count what you added.</span>
+              <Button title="Grade the resume again against the posting, after your edits" variant="secondary" size="sm" aria-disabled={regrading || undefined} onClick={regrade}>
+                {regrading ? "Regrading…" : "Regrade resume"}
+              </Button>
+            </div>
+          )}
           {change && (
             <p role="status" className="rounded-control bg-surface px-3 py-2 text-sm">
               Since your last change: {change}
@@ -181,7 +202,7 @@ export function AtsScore({ id, grade, draft, profileNewer = false }: { id: strin
           {/* Only after the profile changed: a rewrite then adds what's new in it. Otherwise the chat does this, for this job. */}
           {draft && !reached && profileNewer && (
             <div className="flex justify-end">
-              <Button aria-disabled={pending || undefined} onClick={rewrite}>
+              <Button title="Rewrite this resume from your updated profile, aiming for an A" aria-disabled={pending || undefined} onClick={rewrite}>
                 {pending ? "Rewriting, up to 3 tries…" : "Rewrite from my updated Profile"}
               </Button>
             </div>

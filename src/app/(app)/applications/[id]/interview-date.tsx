@@ -55,7 +55,7 @@ export function InterviewDate({
 
   return (
     <Popover.Root open={open} onOpenChange={onOpenChange}>
-      <Popover.Trigger
+      <Popover.Trigger title="Set or change the date of the next interview"
         aria-label={shown ? `Next interview: ${formatDateTime(shown, zone)}. Change` : "Add the interview date"}
         className="flex items-center gap-2 rounded-full border border-line-control bg-card px-3.5 py-[9px] text-sm hover:border-line-strong data-[state=open]:border-primary"
       >
@@ -111,14 +111,14 @@ function InterviewForm({
       <Input type="datetime-local" label="Date and time" value={value} onChange={(event) => setValue(event.target.value)} required />
       <div className="flex items-center gap-2">
         {initial && (
-          <Button variant="danger-text" size="sm" onClick={() => onSave(null)}>
+          <Button title="Remove the interview date" variant="danger-text" size="sm" onClick={() => onSave(null)}>
             Remove
           </Button>
         )}
-        <Button variant="secondary" size="sm" className="ml-auto" onClick={onCancel}>
+        <Button title="Close without saving" variant="secondary" size="sm" className="ml-auto" onClick={onCancel}>
           {asking ? "Skip" : "Cancel"}
         </Button>
-        <Button type="submit" size="sm">
+        <Button title="Save the interview date" type="submit" size="sm">
           Save
         </Button>
       </div>

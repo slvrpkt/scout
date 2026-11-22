@@ -61,7 +61,7 @@ export function LoginForm({ next }: { next?: string }) {
       <div className="flex flex-col gap-[7px]">
         <div className="flex justify-between text-label text-muted">
           <label htmlFor="password">Password</label>
-          <button
+          <button title="Show or hide the password as you type"
             type="button"
             aria-label={visible ? "Hide password" : "Show password"}
             aria-controls="password"
@@ -101,7 +101,7 @@ export function LoginForm({ next }: { next?: string }) {
         onChange={(event) => setRemember(event.target.checked)}
       />
 
-      <Button type="submit" size="lg" disabled={pending}>
+      <Button title="Sign in to Scout" type="submit" size="lg" disabled={pending}>
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>

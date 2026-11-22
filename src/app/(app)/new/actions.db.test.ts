@@ -7,7 +7,11 @@ import { createTestClient, resetDatabase } from "@/test/db";
 
 import { seedBuiltIns } from "../../../../prisma/seed/built-ins";
 
-import { createApplication, startWritingDocuments } from "./actions";
+import { createApplicationFromDocuments } from "@/lib/application-create";
+import { readPostingJob } from "@/lib/jobs/read-posting";
+import { writeDocumentsJob } from "@/lib/jobs/write-documents";
+
+import { startPreparingDraft } from "./actions";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -57,7 +61,7 @@ async function finishedJobs() {
       type: "read-posting",
       status: "DONE",
       input: { posting: "Ledgerly is hiring a Senior Product Designer." },
-      result: { extracted, extractedWith: "extract-posting@1", match, matchedWith: "match-requirements@1" },
+      result: { extracted, extractedWith: "extract-posting@1", match, matchedWith: "match-requirements@3" },
     },
   });
   await prisma().job.create({
@@ -76,6 +80,32 @@ async function finishedJobs() {
   });
 }
 
+/**
+ * Creates the application from the finished jobs, as Prepare draft's last
+ * step does (prepare-draft.ts): the shared step every draft is made with.
+ */
+async function createApplication({ writeJobId, details: shown, postingUrl, postingId = null, startupId = null }: { writeJobId: string; details: typeof details; postingUrl: string; postingId?: string | null; startupId?: string | null }) {
+  try {
+    const write = await prisma().job.findUniqueOrThrow({ where: { id: writeJobId } });
+    const input = writeDocumentsJob.input.parse(write.input);
+    const read = await prisma().job.findUniqueOrThrow({ where: { id: input.readJobId } });
+    const reading = readPostingJob.result.parse(read.result);
+    const id = await createApplicationFromDocuments({
+      reading: { posting: readPostingJob.input.parse(read.input).posting, ...reading },
+      documents: writeDocumentsJob.result.parse(write.result),
+      match: input.match,
+      details: shown,
+      postingUrl: postingUrl && !/^https?:\/\//.test(postingUrl) ? `https://${postingUrl}` : postingUrl,
+      tone: input.tone,
+      note: input.note,
+      claim: { kind: "manual", writeJobId, readJobId: input.readJobId, postingId, startupId },
+    });
+    return { ok: true as const, data: id };
+  } catch (error) {
+    return { ok: false as const, error: (error as Error).message };
+  }
+}
+
 beforeEach(async () => {
   await resetDatabase(prisma());
   await seedBuiltIns(prisma());
@@ -83,28 +113,41 @@ beforeEach(async () => {
 });
 afterAll(() => prisma().$disconnect());
 
-describe("startWritingDocuments", () => {
-  it("writes from the posting as read, with the details as edited (E7-6)", async () => {
-    await finishedJobs();
-    expect(await startWritingDocuments({ readJobId: "read-job", details, match, tone: "WARM", note: "Hi" })).toEqual({ ok: true, data: "write-job" });
-    expect(vi.mocked(startJob).mock.calls[0][1]).toMatchObject({
-      readJobId: "read-job",
-      posting: "Ledgerly is hiring a Senior Product Designer.",
-      extracted: { company: "Ledgerly B.V.", title: "Designer at Ledgerly", salary: null, deadline: "2026-10-20", requirements: extracted.requirements },
-      tone: "WARM",
-      note: "Hi",
+describe("startPreparingDraft", () => {
+  it("keeps a pasted posting in Saved for later at once, link or not, and prepares its draft; again updates the same one", async () => {
+    const first = await startPreparingDraft({ posting: "Ledgerly is hiring a designer.", postingUrl: "" });
+    if (!first.ok) throw new Error(first.error);
+    expect(first.data).toMatchObject({ jobId: "write-job", postingId: expect.any(String) });
+    expect(await prisma().posting.findUniqueOrThrow({ where: { id: first.data.postingId! } })).toMatchObject({
+      pasted: true,
+      title: "Pasted posting",
+      url: "",
+      description: "Ledgerly is hiring a designer.",
+      savedAt: expect.any(Date),
+      applicationId: null,
     });
+    // The job prepares the draft from it, and the application links to it.
+    expect(vi.mocked(startJob).mock.calls[0][1]).toEqual({ posting: "Ledgerly is hiring a designer.", postingUrl: "", postingId: first.data.postingId, startupId: null });
+
+    const again = await startPreparingDraft({ posting: "Ledgerly is hiring a senior designer.", postingUrl: "jobs.ledgerly.example/1", postingId: first.data.postingId });
+    expect(again).toMatchObject({ ok: true, data: { postingId: first.data.postingId } });
+    expect(await prisma().posting.count()).toBe(1);
+    expect(await prisma().posting.findUniqueOrThrow({ where: { id: first.data.postingId! } })).toMatchObject({ description: "Ledgerly is hiring a senior designer.", url: "https://jobs.ledgerly.example/1" });
   });
 
-  it("needs a finished reading", async () => {
-    expect(await startWritingDocuments({ readJobId: "gone", details, match, tone: "WARM", note: "" })).toMatchObject({
-      ok: false,
-      error: "That reading of the posting is no longer available. Read the posting again.",
-    });
+  it("keeps no posting for a startup it writes to", async () => {
+    expect(await startPreparingDraft({ posting: "Acme builds robots.", startupId: "startup-1" })).toMatchObject({ ok: true, data: { postingId: null } });
+    expect(await prisma().posting.count()).toBe(0);
+  });
+
+  it("refuses a link that isn't a web address, keeping nothing", async () => {
+    expect(await startPreparingDraft({ posting: "Ledgerly is hiring.", postingUrl: "javascript:alert(1)" })).toMatchObject({ ok: false });
+    expect(await prisma().posting.count()).toBe(0);
+    expect(startJob).not.toHaveBeenCalled();
   });
 });
 
-describe("createApplication", () => {
+describe("creating the application (the last step of every draft)", () => {
   it("creates the draft, both documents in the base theme and the first message, in one go (E7-6)", async () => {
     await finishedJobs();
     const result = await createApplication({ writeJobId: "write-job", details, postingUrl: "jobs.ledgerly.example/42" });
@@ -122,7 +165,7 @@ describe("createApplication", () => {
       postingText: "Ledgerly is hiring a Senior Product Designer.",
       extracted: { company: "Ledgerly" },
       extractedWith: "extract-posting@1",
-      matchedWith: "match-requirements@1",
+      matchedWith: "match-requirements@3",
       tone: "FORMAL",
       language: "English",
     });
@@ -182,7 +225,7 @@ describe("createApplication", () => {
     expect(text("signature")).toBe("Jane Doe");
     expect(text("date")).toBe(new Intl.DateTimeFormat("de", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(calendarDay()));
     // This job's letter came without a recipient or greeting, so German ones stand in.
-    expect(text("recipient")).toMatch(/^Ledgerly B\.V\. · Personalabteilung/);
+    expect(text("recipient")).toMatch(/^Personalabteilung\nLedgerly B\.V\./);
     expect(text("greeting")).toBe("Sehr geehrte Damen und Herren,");
     expect(await prisma().documentVersion.findFirstOrThrow({ where: { documentId: letter.id } })).toMatchObject({ units });
   });
@@ -197,17 +240,6 @@ describe("createApplication", () => {
     const ids = [first, second, third].filter((result) => result.ok).map((result) => (result.ok ? result.data : ""));
     expect(new Set(ids).size).toBe(1);
     expect(await prisma().application.count()).toBe(1);
-  });
-
-  it("refuses a link that isn't a web address, and documents that aren't ready", async () => {
-    await finishedJobs();
-    expect(await createApplication({ writeJobId: "write-job", details, postingUrl: "javascript:alert(1)" })).toMatchObject({ ok: false });
-    await prisma().job.update({ where: { id: "write-job" }, data: { status: "RUNNING" } });
-    expect(await createApplication({ writeJobId: "write-job", details, postingUrl: "" })).toMatchObject({
-      ok: false,
-      error: "Those documents aren't ready. Try creating the application again.",
-    });
-    expect(await prisma().application.count()).toBe(0);
   });
 
   it("trims the resume to its page limit and says what was cut (E10-10)", async () => {

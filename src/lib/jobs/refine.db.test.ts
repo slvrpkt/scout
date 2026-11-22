@@ -63,11 +63,29 @@ describe("refineJob (E8-5)", () => {
     expect(saved).toMatchObject({
       role: "AI",
       text: "Trimmed your summary.",
-      writtenWith: "refine-chat@8",
+      writtenWith: "refine-chat@13",
       previousTone: null,
       edits: [{ document: "RESUME", unitId: "summary", text: "Designer of calm tools.", previousText: resume[0].text }],
     });
     expect((await units("RESUME"))[0].text).toBe("Designer of calm tools.");
+  });
+
+  it("asks first when it's unclear, changing nothing", async () => {
+    provider.current = reply({ reply: "1. Which role should it go under?\n2. Is it instead of a bullet, or one more?" });
+    const result = await ask("Add the migration work");
+    expect(result.edited).toEqual([]);
+    expect((await lastMessage()).text).toMatch(/^1\. Which role/);
+    expect(await units("RESUME")).toEqual(resume);
+  });
+
+  it("keeps in the Profile what the candidate says is true for every job, once", async () => {
+    await prisma().fact.create({ data: { applicationId: null, text: "Held a Public Trust clearance.", sort: 1 } });
+    provider.current = reply({ reply: "Added to your Profile too.", profileFacts: ["Led the state benefits system modernization.", "held a public trust clearance."] });
+    await ask("Yes, add it for every job");
+    expect((await prisma().fact.findMany({ where: { applicationId: null }, orderBy: { sort: "asc" } })).map((fact) => fact.text)).toEqual([
+      "Held a Public Trust clearance.",
+      "Led the state benefits system modernization.",
+    ]);
   });
 
   it("edits the email, which the model sees once there is one", async () => {

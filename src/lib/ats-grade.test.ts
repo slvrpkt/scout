@@ -36,6 +36,43 @@ describe("atsGrade", () => {
     expect(atsGrade({ content, sidebar: false, requirements: [{ text: "Quantum chromodynamics lattice theory", skill: null }, text] }).missing).toEqual(["Quantum chromodynamics lattice theory"]);
   });
 
+  it("follows the requirement check for duties and degrees, but matches named tools word for word", () => {
+    const duty = { text: "Artifacts for all phases of the SDLC", skill: null, kind: "other" as const };
+    const degree = { text: "PhD in a STEM field", skill: null, kind: "other" as const };
+    const tool = { text: "Experience with Kubernetes", skill: "Kubernetes", kind: "skill" as const };
+    const requirements = [duty, degree, tool];
+    expect(atsGrade({ content, sidebar: false, requirements }).missing).toEqual([degree.text, "Kubernetes", duty.text]);
+    const verdicts = [
+      { requirement: duty.text, result: "partial" as const },
+      { requirement: degree.text, result: "covered" as const },
+      // The check can't vouch for a named tool the resume doesn't name.
+      { requirement: tool.text, result: "covered" as const },
+    ];
+    expect(atsGrade({ content, sidebar: false, requirements, verdicts }).missing).toEqual(["Kubernetes"]);
+    // A gap verdict doesn't undo what the resume's own words show.
+    expect(atsGrade({ content, sidebar: false, requirements: [skill("Figma")], verdicts: [{ requirement: "Experience with Figma", result: "gap" }] }).missing).toEqual([]);
+  });
+
+  it("reads a slash as two things, both ways", () => {
+    const agile = { ...content, summary: `${content.summary} Agile delivery with Scrum teams across the SDLC/SELC.` };
+    const requirements = [{ text: "Agile/Scrum methodology", skill: "Agile/Scrum", kind: "skill" as const }, { text: "SELC", skill: "SELC", kind: "skill" as const }];
+    expect(atsGrade({ content: agile, sidebar: false, requirements }).missing).toEqual([]);
+    expect(atsGrade({ content, sidebar: false, requirements }).missing).toEqual(["Agile/Scrum", "SELC"]);
+  });
+
+  it("counts a named skill the check found once part of its name is on the resume", () => {
+    const selc = { ...content, summary: `${content.summary} Wrote SELC artifacts.` };
+    const requirement = { text: "Developing SELC documents", skill: "SELC documentation", kind: "skill" as const };
+    expect(atsGrade({ content: selc, sidebar: false, requirements: [requirement] }).missing).toEqual(["SELC documentation"]);
+    expect(atsGrade({ content: selc, sidebar: false, requirements: [requirement], verdicts: [{ requirement: requirement.text, result: "covered" }] }).missing).toEqual([]);
+    // Not when nothing of its name is there.
+    expect(atsGrade({ content, sidebar: false, requirements: [requirement], verdicts: [{ requirement: requirement.text, result: "covered" }] }).missing).toEqual(["SELC documentation"]);
+    // Nor for a broad word alone: Microsoft Project isn't Microsoft Office.
+    const office = { text: "Microsoft Office Suite", skill: "Microsoft Office", kind: "skill" as const };
+    const project = { ...content, summary: `${content.summary} Planned in Microsoft Project.` };
+    expect(atsGrade({ content: project, sidebar: false, requirements: [office], verdicts: [{ requirement: office.text, result: "covered" }] }).missing).toEqual(["Microsoft Office"]);
+  });
+
   it("uses career-ops' letters", () => {
     expect([95, 85, 75, 65, 50].map(letterOf)).toEqual(["A", "B", "C", "D", "F"]);
   });

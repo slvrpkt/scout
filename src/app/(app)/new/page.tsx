@@ -6,22 +6,20 @@ import { handsOffToClaude } from "@/lib/connector/handoff";
 import { DEMO_POSTING } from "@/lib/demo-profile";
 import { postingText } from "@/lib/job-search/search";
 import { prisma } from "@/lib/prisma";
-import { loadSettings } from "@/lib/settings-data";
 import { getStartup, startupPostingText } from "@/lib/startups/store";
 
 import { NewApplication } from "./new-application";
 
-export const metadata: Metadata = { title: "New application" };
+export const metadata: Metadata = { title: "New manual application" };
 
 /** Posting → details and match → tailored documents (PRD §6.4). Nothing is created until the last step. */
 export default async function NewApplicationPage({ searchParams }: PageProps<"/new">) {
   const { fresh, posting, startup: startupId } = await searchParams;
-  const [aiReady, ai, writeInClaude, applications, settings, fromFindJobs, startup] = await Promise.all([
+  const [aiReady, ai, writeInClaude, applications, fromFindJobs, startup] = await Promise.all([
     isAiConfigured(),
     loadAiConfig().catch(() => null),
     isAiUsable().then(handsOffToClaude),
     prisma.application.count({ where: { awaitingReview: false } }),
-    loadSettings(),
     // "Start application" on Find jobs (E14-8).
     typeof posting === "string" ? prisma.posting.findUnique({ where: { id: posting } }) : null,
     // "Write to them" on Startups (#222): what's known about the startup, without its addresses.
@@ -32,7 +30,6 @@ export default async function NewApplicationPage({ searchParams }: PageProps<"/n
       aiReady={aiReady}
       localModel={ai ? providerOption(ai.provider).local : false}
       writeInClaude={writeInClaude}
-      defaultTone={settings.defaultTone}
       fresh={fresh !== undefined}
       fromPosting={
         fromFindJobs

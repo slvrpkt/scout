@@ -125,6 +125,26 @@ const lines = (text: string) =>
 const SKILLS_LINE = 95;
 
 /** As many skills as fit the line under a job, the most relevant being first. */
+/** The line of skills under each job on a tailored resume: "role-skills:<job id>", comma-separated. */
+export const ROLE_SKILLS = "role-skills:";
+
+/**
+ * The skills under a job ("experience:<id>") as a unit to edit with it: the
+ * resume's own when it has them, otherwise drawn from the profile as the
+ * resume prints them. Null for anything that isn't a job.
+ */
+export function roleSkillsUnit(units: readonly Unit[], profile: ProfileData, roleUnitId: string): Unit | null {
+  if (!roleUnitId.startsWith("experience:")) return null;
+  const entryId = roleUnitId.slice("experience:".length);
+  const id = `${ROLE_SKILLS}${entryId}`;
+  const stored = units.find((unit) => unit.id === id);
+  if (stored) return stored;
+  const entry = profile.experience.find((candidate) => candidate.id === entryId);
+  if (!entry) return null;
+  const names = new Map(profile.skills.map((skill) => [skill.id, skill.name]));
+  return { id, label: `${entry.company || entry.role} skills`, text: fewSkills(entry.skillIds.flatMap((skillId) => names.get(skillId) ?? [])).join(", ") };
+}
+
 export function fewSkills(skills: readonly string[]): string[] {
   const kept: string[] = [];
   let length = 0;
@@ -161,13 +181,13 @@ export function resumeContent(
   // The base resume's two-page rule: what it left out (condense).
   const leftOut = new Set(condense?.leftOut ?? []);
 
-  const experience = (entry: ProfileData["experience"][number], bullets: string) => ({
+  const experience = (entry: ProfileData["experience"][number], bullets: string, ownDates = "") => ({
     id: entry.id,
     role: entry.role.trim(),
     // Where the company is, on the job's line.
     company: [entry.company, entry.location].map((part) => part.trim()).filter(Boolean).join(", "),
     descriptor: entry.descriptor.trim(),
-    dates: formatDateRange(entry, dates),
+    dates: ownDates || formatDateRange(entry, dates),
     bullets: lines(bullets),
     skills: fewSkills(entry.skillIds.flatMap((id) => skillNames.get(id) ?? [])),
   });
@@ -246,10 +266,12 @@ export function resumeContent(
     content.tools = text("tools").trim();
     content.experience = withUnit("experience:", profile.experience).map(({ entry, text: bullets }) => {
       // The skills line in this job's words, when it was written for it.
-      const skills = text(`role-skills:${entry.id}`).split(", ").map((skill) => skill.trim()).filter(Boolean);
-      // This resume's own title, company and place, when you changed them for it.
+      const skills = text(`${ROLE_SKILLS}${entry.id}`).split(",").map((skill) => skill.trim()).filter(Boolean);
+      // This resume's own title, company, place and dates, when you changed them for it.
       const head = units.some((unit) => unit.id === `${ROLE_HEAD}${entry.id}`) ? parseRoleHead(text(`${ROLE_HEAD}${entry.id}`)) : null;
-      const shown = experience(head ? { ...entry, role: head.role || entry.role, company: head.company || entry.company, location: head.location } : entry, bullets);
+      // Dates as the profile has them stay in the resume's own language.
+      const ownDates = head && head.dates !== formatDateRange(entry) ? head.dates : "";
+      const shown = experience(head ? { ...entry, role: head.role || entry.role, company: head.company || entry.company, location: head.location } : entry, bullets, ownDates);
       return skills.length > 0 ? { ...shown, skills: fewSkills(skills) } : shown;
     });
     // Where you live, as this resume says it.

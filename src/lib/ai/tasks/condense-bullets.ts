@@ -4,7 +4,7 @@ import { factSources, unverifiedFacts } from "../fact-guard";
 
 import { CANDIDATE_VOICE, humanizeRules, languageRule, NO_EM_DASHES, outcomeWriting, postingForPrompt, system, UNTRUSTED_POSTING, type Task } from "./prompt-parts";
 
-export const CONDENSE_BULLETS_VERSION = "condense-bullets@6";
+export const CONDENSE_BULLETS_VERSION = "condense-bullets@7";
 
 // The two-page rule's rewrite (resume-fit.ts): one job's bullets said again
 // in fewer bullets, keeping the facts, for each length the fit may need.
@@ -22,7 +22,7 @@ const INSTRUCTIONS = () => `You shorten one job's bullets on a resume to fit the
 - Add nothing: no number, name, tool or result that isn't in the original bullets.
 - Each bullet is at most two lines: under ${MAX_BULLET} characters. It starts with a verb and reads as a resume bullet, without a bullet sign.
 - Fewer bullets must take less room on the page: the whole version must be shorter than the original by about as much as it has fewer bullets. Merging two points means cutting words from both, not joining them whole. Drop filler, not facts; with very few bullets, keep the strongest facts and let the minor ones go.
-- With very few bullets, keep the most important results and their numbers first.
+- Keep the job's story in order: its first bullet, the business description (what the program was, its scope, outcome and users), stays first when there is one, then the points the job wants most, then the rest in the order the work flows. With very few bullets, keep the business description and the most important results and their numbers, and let the later points go.
 - versions: one entry per count asked for, with that count and its bullets.`;
 
 export type CondenseInput = {

@@ -18,13 +18,13 @@ export function ItemLink({ item, className, children }: { item: CalendarItem; cl
   if (!item.href) return <div className={classes}>{children}</div>;
   if (!item.external) {
     return (
-      <Link href={item.href} className={classes}>
+      <Link title="Open the application for this event" href={item.href} className={classes}>
         {children}
       </Link>
     );
   }
   return (
-    <a href={item.href} target="_blank" rel="noopener noreferrer" className={classes}>
+    <a title="Open this event in Google Calendar" href={item.href} target="_blank" rel="noopener noreferrer" className={classes}>
       {children}
       <span className="sr-only"> (opens Google Calendar in a new tab)</span>
     </a>

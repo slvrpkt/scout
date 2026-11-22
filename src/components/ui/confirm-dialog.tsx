@@ -43,8 +43,8 @@ export function ConfirmDialog({
           <AlertDialog.Title className="font-serif text-[22px] leading-tight">{title}</AlertDialog.Title>
           <AlertDialog.Description className="text-sm text-muted">{description}</AlertDialog.Description>
           <div className="mt-2 flex justify-end gap-2">
-            <AlertDialog.Cancel className={buttonClassName("secondary", "sm")}>Cancel</AlertDialog.Cancel>
-            <AlertDialog.Action className={buttonClassName("danger", "sm")} onClick={onConfirm}>
+            <AlertDialog.Cancel title="Go back without doing it" className={buttonClassName("secondary", "sm")}>Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action title="Do it" className={buttonClassName("danger", "sm")} onClick={onConfirm}>
               {confirmLabel}
             </AlertDialog.Action>
           </div>

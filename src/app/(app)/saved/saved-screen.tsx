@@ -122,11 +122,11 @@ export function SavedScreen({ postings, today }: { postings: ShownPosting[]; tod
         </Card>
         {pages > 1 && (
           <nav aria-label="Pages" className="flex flex-wrap items-center gap-2 text-meta text-muted">
-            <Button size="sm" variant="secondary" disabled={current === 0} onClick={() => setPage(current - 1)}>
+            <Button title="Show the previous page" size="sm" variant="secondary" disabled={current === 0} onClick={() => setPage(current - 1)}>
               Previous
             </Button>
             {Array.from({ length: pages }, (_, index) => (
-              <Button
+              <Button title="Go to this page"
                 key={index}
                 size="sm"
                 variant={index === current ? "primary" : "secondary"}
@@ -136,7 +136,7 @@ export function SavedScreen({ postings, today }: { postings: ShownPosting[]; tod
                 {index + 1}
               </Button>
             ))}
-            <Button size="sm" variant="secondary" disabled={current === pages - 1} onClick={() => setPage(current + 1)}>
+            <Button title="Show the next page" size="sm" variant="secondary" disabled={current === pages - 1} onClick={() => setPage(current + 1)}>
               Next
             </Button>
             <span>

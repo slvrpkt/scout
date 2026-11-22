@@ -28,7 +28,7 @@ export function AtsCard({ initial }: { initial: boolean }) {
       />
       <p className="text-meta text-muted">
         Format checks based on{" "}
-        <a href="https://github.com/career-ops-hq/career-ops" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2">
+        <a title="Open career-ops on GitHub, in a new tab" href="https://github.com/career-ops-hq/career-ops" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2">
           career-ops
         </a>{" "}
         (MIT). The grade is Scout&apos;s own measure, not a score from any ATS.

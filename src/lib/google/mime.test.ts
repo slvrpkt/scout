@@ -21,6 +21,16 @@ describe("buildMessage", () => {
     expect(decodeBody(message)).toBe("Hallo,\r\nanbei.");
   });
 
+  it("sends a formatted answer as HTML with a plain-text copy beside it", () => {
+    const message = buildMessage({ from: "jane@gmail.com", to: "anna@ledgerly.example", subject: "Re: Interview", body: "Tuesday works.", html: "<p><strong>Tuesday</strong> works.</p>" }, { boundary: "b2" });
+    expect(message).toContain('Content-Type: multipart/alternative; boundary="b2-alt"');
+    const parts = message.split("--b2-alt");
+    expect(parts[1]).toContain("Content-Type: text/plain; charset=UTF-8");
+    expect(parts[2]).toContain("Content-Type: text/html; charset=UTF-8");
+    const html = Buffer.from(parts[2].split("\r\n\r\n")[1].replace(/\r\n/g, ""), "base64").toString("utf8");
+    expect(html).toBe("<p><strong>Tuesday</strong> works.</p>");
+  });
+
   it("attaches files in a multipart message", () => {
     const message = buildMessage(
       { from: "jane@gmail.com", to: "jobs@ledgerly.example", subject: "Application", body: "Hi", attachments: [{ fileName: "Jane – Resume.pdf", contentType: "application/pdf", data: new Uint8Array([37, 80, 68, 70]) }] },

@@ -20,3 +20,5 @@ export { SUGGEST_RESUME_VERSION, suggestResume } from "./suggest-resume";
 export { PROOFREAD_PROFILE_VERSION, proofreadProfile, type ProofreadIssue } from "./proofread-profile";
 export { BASE_BULLETS_VERSION, writeBaseBullets, type BaseBullets } from "./base-bullets";
 export { GROUP_TOOLS_VERSION, groupTools } from "./group-tools";
+export { GROUP_SUGGESTIONS_VERSION, groupSuggestions, type RecurringTopic, type SuggestionItem } from "./group-suggestions";
+export { NAME_TOPIC_VERSION, nameTopic } from "./name-topic";

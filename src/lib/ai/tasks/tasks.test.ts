@@ -66,7 +66,7 @@ describe("extractPosting", () => {
   it("reads the posting as data and returns typed requirements with an ISO deadline (NEW-3)", async () => {
     const provider = model({ ...extracted, title: null, deadline: "15 October 2026", requirements: [...extracted.requirements, { text: " ", kind: "other", skill: null, years: null, language: null }] });
     const { data, promptVersion } = await extractPosting(provider, { posting: sample.ledgerly.posting, today }, options);
-    expect(promptVersion).toBe("extract-posting@2");
+    expect(promptVersion).toBe("extract-posting@3");
     expect(data).toMatchObject({ title: "Senior Product Designer · Ledgerly", deadline: "2026-10-15", asksForReferences: false, language: "English" });
     expect(data.requirements).toHaveLength(7);
     expect(sent(provider).messages[0].content).toMatch(/^<posting>\nLedgerly: Senior Product Designer/);
@@ -128,7 +128,7 @@ describe("matchRequirements", () => {
   it("classifies in code: covered with the roles as evidence, partial, gap (NEW-4)", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await matchRequirements(provider, { requirements: extracted.requirements, profile, today }, options);
-    expect(promptVersion).toBe("match-requirements@1");
+    expect(promptVersion).toBe("match-requirements@3");
     expect(sent(provider).effort).toBe("low");
     expect(data.items.map((item) => [item.requirement, item.result, item.note])).toEqual([
       ["5+ years of product design", "covered", "3 roles in your profile, since Sep 2015"],
@@ -136,10 +136,36 @@ describe("matchRequirements", () => {
       ["Runs user research independently", "covered", "Used at Northwind Logistics, Fieldnote"],
       ["Strong prototyping skills in Figma", "covered", "Used at Fieldnote"],
       ["Accessibility know-how (WCAG 2.2)", "gap", "Not in your profile yet"],
-      ["Experience with payments or fintech", "gap", "Nothing in your profile, so I'll address it honestly in the letter"],
+      ["Experience with payments or fintech", "gap", "Not shown in your profile"],
       ["Dutch is a plus", "covered", "Dutch: Native"],
     ]);
     expect(data.items[1]).toMatchObject({ skill: "Design systems", experienceIds: ["e1"] });
+  });
+
+  it("reads the whole background for what no skill covers: shown is covered, implied is partial, each with its evidence", async () => {
+    const answer = {
+      matches: [
+        { requirement: 0, skill: null, language: null, verdict: "shown", evidence: "B.A. in Interaction Design, Design Academy" },
+        { requirement: 1, skill: null, language: null, verdict: "implied", evidence: "design roles at Northwind Logistics and Fieldnote" },
+        { requirement: 2, skill: null, language: null, verdict: "shown", evidence: "" },
+        { requirement: 3, skill: null, language: null, verdict: "not_shown", evidence: "" },
+      ],
+    };
+    const requirement = (text: string) => ({ text, kind: "other" as const, skill: null, years: null, language: null });
+    const requirements = [requirement("A degree in design or a related field"), requirement("Artifacts for every phase of the design process"), requirement("Works across time zones"), requirement("Payments experience")];
+    const provider = model(answer);
+    const { data } = await matchRequirements(provider, { requirements, profile, today }, options);
+    expect(data.items.map((item) => [item.result, item.note])).toEqual([
+      ["covered", "B.A. in Interaction Design, Design Academy"],
+      ["partial", "Implied by design roles at Northwind Logistics and Fieldnote; worth naming outright"],
+      // Shown, but with nothing named to back it: not taken on trust.
+      ["gap", "Not shown in your profile"],
+      ["gap", "Not shown in your profile"],
+    ]);
+    // The model sees the whole profile: education and roles, not only the skill names.
+    const content = JSON.stringify(sent(provider).messages);
+    expect(content).toContain("education");
+    expect(content).toContain("Northwind Logistics");
   });
 
   it("calls a skill in the profile but in no role partial", async () => {
@@ -226,8 +252,11 @@ describe("tailorResume", () => {
   });
 
   it("returns units, keeping only real roles (APP-4)", async () => {
-    const { data, promptVersion } = await tailorResume(model(answer), { profile, extracted, match: null, facts: [], posting }, options);
-    expect(promptVersion).toBe("tailor-resume@26");
+    const provider = model(answer);
+    const { data, promptVersion } = await tailorResume(provider, { profile, extracted, match: null, facts: [], posting }, options);
+    expect(promptVersion).toBe("tailor-resume@32");
+    // Each role's bullets tell one story: the business description, then what the job wants most, then the flow of the work.
+    expect(sent(provider).system).toMatch(/First, the business description/);
     expect(data.map((unit) => unit.id)).toEqual([
       "summary",
       "experience:e1",
@@ -404,7 +433,7 @@ describe("writeCoverLetter", () => {
   it("returns the recipient, greeting, paragraphs and the tone's sign-off for an English letter (APP-10, E8-11)", async () => {
     const provider = model(answer);
     const { data, promptVersion } = await writeCoverLetter(provider, { profile, extracted, match, tone: "FORMAL", facts: [], posting }, options);
-    expect(promptVersion).toBe("write-cover-letter@7");
+    expect(promptVersion).toBe("write-cover-letter@9");
     expect(data).toEqual([
       { id: "recipient", label: "Recipient", text: "Ledgerly · Hiring team\nAmsterdam" },
       { id: "greeting", label: "Greeting", text: "Dear Ledgerly team," },
@@ -413,7 +442,8 @@ describe("writeCoverLetter", () => {
       { id: "sign-off", label: "Sign-off", text: "Kind regards," },
     ]);
     expect(sent(provider).system).toMatch(/Tone: Formal\. Traditional and polished\./);
-    expect(sent(provider).system).toMatch(/greeting: the salutation before the first paragraph, usual for a letter in its language/);
+    expect(sent(provider).system).toMatch(/greeting: the salutation before the first paragraph, to a particular person when the posting names one/);
+    expect(sent(provider).system).toMatch(/exactly 3 paragraphs, 130–170 words together/);
     // It says what the resume can't, rather than repeating it.
     expect(sent(provider).system).toContain(COVER_LETTER_APPROACH);
     // Gaps go along, so the letter can acknowledge them honestly.
@@ -507,7 +537,7 @@ describe("regenerateUnit", () => {
     const unit = resume.find((entry) => entry.id === "experience:e1")!;
     const provider = model({ text: "- Rebuilt the carrier portal\n• Grew the design system\n" });
     const { data, promptVersion } = await regenerateUnit(provider, { kind: "RESUME", unit, document: resume, profile, extracted, tone: "WARM", facts: [], posting }, options);
-    expect(promptVersion).toBe("regenerate-unit@7");
+    expect(promptVersion).toBe("regenerate-unit@10");
     expect(data).toMatchObject({ id: "experience:e1", text: "Rebuilt the carrier portal\nGrew the design system" });
     expect(prompt(provider)).toContain(`Write a new version of "${unit.label}" (experience:e1)`);
     expect(sent(provider).system).not.toContain(COVER_LETTER_APPROACH);
@@ -557,12 +587,16 @@ describe("refineChat", () => {
       tone: "FORMAL",
       declined: false,
     };
-    const { data, promptVersion } = await refineChat(model(answer), input, options);
-    expect(promptVersion).toBe("refine-chat@8");
+    const provider = model(answer);
+    const { data, promptVersion } = await refineChat(provider, input, options);
+    expect(promptVersion).toBe("refine-chat@13");
+    // Each role's bullets tell one story: the business description, then what the job wants most, then the flow of the work.
+    expect(sent(provider).system).toMatch(/First, the business description/);
     expect(data).toEqual({
       reply: "I made the letter more formal.",
       tone: "FORMAL",
       declined: false,
+      profileFacts: [],
       edits: [
         { document: "COVER_LETTER", unitId: "paragraph:1", text: "Please accept my application.", previousText: letter[0].text },
         // A new tone brings its sign-off along.

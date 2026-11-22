@@ -1,10 +1,10 @@
 import "server-only";
 
-import { AgentCandidateStatus } from "@/generated/prisma/enums";
+import { AgentCandidateStatus, JobStatus } from "@/generated/prisma/enums";
 import { runNightlyBackup } from "@/lib/backup-schedule";
-import { addDays, dayOf } from "@/lib/calendar-view";
+import { addDays, dayOf, weekday } from "@/lib/calendar-view";
 import { zonedTime } from "@/lib/google/slots";
-import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
+import { findUnfinishedJobs, JOB_MESSAGES, startJob } from "@/lib/jobs/runner";
 import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
 import type { AgentRun } from "@/lib/settings";
@@ -49,7 +49,15 @@ const slotsOn = (day: string, times: readonly string[], timeZone: string) => {
  * run, not one each. A time from before the agent was switched on (`onSince`)
  * isn't missed, so it's never caught up.
  */
-export function scheduledRunDue(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null): boolean {
+/** The days of the week the scheduled runs skip, 1 = Monday … 7 = Sunday: the weekend days switched off. */
+export const offDaysOf = (settings: { agentRunSaturday: boolean; agentRunSunday: boolean }): number[] => [
+  ...(settings.agentRunSaturday ? [] : [6]),
+  ...(settings.agentRunSunday ? [] : [7]),
+];
+
+export function scheduledRunDue(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null, offDays: readonly number[] = []): boolean {
+  // A day switched off has no scheduled runs, not even one missed earlier that day.
+  if (offDays.includes(weekday(dayOf(now, timeZone)))) return false;
   const latest = slotsOn(dayOf(now, timeZone), times, timeZone).findLast((slot) => slot <= now);
   if (latest === undefined) return false;
   if (onSince && latest.getTime() < Date.parse(onSince)) return false;
@@ -58,28 +66,47 @@ export function scheduledRunDue(now: Date, times: readonly string[], timeZone: s
 }
 
 /** When the next scheduled run starts: the time it was due when one is overdue (the next minute's check starts it), else the next time today, else tomorrow's first. */
-export function nextAgentRun(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null): Date {
-  if (scheduledRunDue(now, times, timeZone, runs, onSince)) return slotsOn(dayOf(now, timeZone), times, timeZone).findLast((slot) => slot <= now)!;
+export function nextAgentRun(now: Date, times: readonly string[], timeZone: string, runs: readonly AgentRun[], onSince: string | null = null, offDays: readonly number[] = []): Date {
+  if (scheduledRunDue(now, times, timeZone, runs, onSince, offDays)) return slotsOn(dayOf(now, timeZone), times, timeZone).findLast((slot) => slot <= now)!;
   const today = dayOf(now, timeZone);
-  return slotsOn(today, times, timeZone).find((slot) => slot > now) ?? slotsOn(addDays(today, 1), times, timeZone)[0];
+  const later = offDays.includes(weekday(today)) ? undefined : slotsOn(today, times, timeZone).find((slot) => slot > now);
+  if (later) return later;
+  // The first run of the next day that isn't switched off; with every day off, tomorrow's as before.
+  let day = addDays(today, 1);
+  for (let tries = 0; tries < 7 && offDays.includes(weekday(day)); tries++) day = addDays(day, 1);
+  return slotsOn(day, times, timeZone)[0];
 }
 
 /** Starts the day's run when it's due and none is queued or running. */
 export async function startDueRun(now = new Date()): Promise<string | null> {
   const settings = await loadSettings();
   if (!settings.agentEnabled) return null;
-  if (!scheduledRunDue(now, settings.agentTimes, await lastKnownTimeZone(), settings.agentRuns, settings.agentOnSince)) return null;
+  if (!scheduledRunDue(now, settings.agentTimes, await lastKnownTimeZone(), settings.agentRuns, settings.agentOnSince, offDaysOf(settings))) return null;
   if ((await findUnfinishedJobs(AGENT_JOB_KEY)).length > 0) return null;
   return startJob(agentScanJob, { manual: false }, { key: AGENT_JOB_KEY });
 }
 
-/** After a restart, a candidate left DRAFTING has no job to finish it. */
-export async function resetInterruptedDrafts(): Promise<number> {
+/**
+ * After a restart, a candidate left DRAFTING has no job to finish it, and
+ * one whose draft was still waiting its turn was never claimed: both are
+ * marked to be drafted again once Scout has settled (redoInterruptedDrafts).
+ */
+export async function resetInterruptedDrafts(now = new Date()): Promise<number> {
   const { count } = await prisma.agentCandidate.updateMany({
     where: { status: AgentCandidateStatus.DRAFTING },
     data: { status: AgentCandidateStatus.SCORED, error: INTERRUPTED_DRAFT },
   });
-  return count;
+  const waited = await prisma.job.findMany({
+    where: { type: agentDraftJob.type, status: JobStatus.FAILED, error: JOB_MESSAGES.interrupted, startedAt: null, finishedAt: { gte: new Date(now.getTime() - DAY_MS) } },
+    select: { key: true },
+  });
+  const prefix = draftJobKey("");
+  const ids = waited.flatMap((job) => (job.key?.startsWith(prefix) ? [job.key.slice(prefix.length)] : []));
+  const { count: queued } = await prisma.agentCandidate.updateMany({
+    where: { id: { in: ids }, status: AgentCandidateStatus.SCORED, applicationId: null, error: null },
+    data: { error: INTERRUPTED_DRAFT },
+  });
+  return count + queued;
 }
 
 /** Starts again the drafts a restart cut short in the past day; they were paid for from the budget when they started. */

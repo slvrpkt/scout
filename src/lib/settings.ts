@@ -72,15 +72,22 @@ export const KEEP_BACKUPS = [
   { days: 0, label: "Delete all backups" },
 ] as const;
 
-const clearedTallySchema = z.object({
+const clearedCountsSchema = z.object({
   setAside: z.number().int().min(0).catch(0),
   skipped: z.number().int().min(0).catch(0),
   archived: z.number().int().min(0).catch(0),
   drafted: z.number().int().min(0).catch(0),
+  /** Found, then deleted before it got a score: it waited too long, or its search was deleted. */
+  unscored: z.number().int().min(0).catch(0),
+});
+const clearedTallySchema = clearedCountsSchema.extend({
   since: z.string().nullable().catch(null),
+  /** The same counts by the day each job was found ("2026-11-10", your time zone), so Today, This week and This month keep them too. Clearings before it was kept aren't in it. */
+  byDay: z.record(z.string(), clearedCountsSchema).catch({}),
 });
 export type ClearedTally = z.infer<typeof clearedTallySchema>;
-export const EMPTY_CLEARED_TALLY: ClearedTally = { setAside: 0, skipped: 0, archived: 0, drafted: 0, since: null };
+export type ClearedCounts = z.infer<typeof clearedCountsSchema>;
+export const EMPTY_CLEARED_TALLY: ClearedTally = { setAside: 0, skipped: 0, archived: 0, drafted: 0, unscored: 0, since: null, byDay: {} };
 export const isArchiveClear = (days: number) => ARCHIVE_CLEAR_OPTIONS.some((option) => option.days === days);
 /** "48 hours", "90 days"; for the Archive's note. */
 export const archiveClearPeriod = (days: number) => (days === 2 ? "48 hours" : `${days} days`);
@@ -251,7 +258,7 @@ export const settingsSchema = z.object({
   jobRetentionHours: z.coerce.number().refine(isJobRetention).catch(DEFAULT_JOB_RETENTION_HOURS),
   /** Archived agent jobs are deleted this many days after they were archived (ARCHIVE_CLEAR_OPTIONS); 0 keeps them. Applications are never deleted. */
   archiveClearDays: z.coerce.number().refine(isArchiveClear).catch(DEFAULT_ARCHIVE_CLEAR_DAYS),
-  /** The archived agent jobs the clearing deleted, by kind, and the oldest one's date: the agent's all-time totals add them back. */
+  /** The agent jobs deleted after they were found (cleared from the Archive, or never scored), by kind, and the oldest one's date: the agent's counts add them back. */
   agentClearedTally: json(clearedTallySchema).catch(EMPTY_CLEARED_TALLY),
   /** A theme's id. loadSettings() reads a deleted one as Editorial. */
   baseThemeId: z.string().catch(DEFAULT_BASE_THEME),
@@ -303,12 +310,19 @@ export const settingsSchema = z.object({
   agentMaxDrafts: z.coerce.number().int().min(0).max(10).catch(3),
   /** Whether a run prepares drafts for its best postings, or only scores them (on by default here: the budgets keep it in check). */
   agentAutoDraft: flag(true),
+  /**
+   * Whether a draft's cover letter is written on its own the first time it's
+   * opened. Off by default, to save AI costs: the Cover letter tab then has
+   * Write cover letter, which writes it when you ask.
+   */
+  autoCoverLetter: flag(false),
+  /** Whether the scheduled runs happen on Saturdays and Sundays, in your time zone: off by default, so the day is skipped (Run now still works). */
+  agentRunSaturday: flag(false),
+  agentRunSunday: flag(false),
   /** The daily budgets, across all runs. */
   agentDailyScores: z.coerce.number().int().min(AGENT_DAILY_SCORES.min).max(AGENT_DAILY_SCORES.max).catch(AGENT_DAILY_SCORES.default),
   /** How many of the day's scores each run time gets, in time order; without a number per time, an even split. */
   agentShares: json(z.array(z.number().int().min(0))).catch([]),
-  /** A posting needs this score for a draft; from agentMinScore up it only shows its score. */
-  agentDraftScore: z.coerce.number().int().min(0).max(100).catch(80),
   /** How many of the day's drafts each run time gets, in time order; what's unused carries on. Without a number per time, an even split. */
   agentDraftShares: json(z.array(z.number().int().min(0))).catch([]),
   /** Stop for the day once this many postings reached agentMinScore. */
@@ -330,6 +344,42 @@ export const settingsSchema = z.object({
   agentUsage: json(agentUsageSchema).nullable().catch(null),
   /** The latest runs, newest first. They belong to the install: exports leave them out (INSTALL_SETTINGS). */
   agentRuns: json(z.array(agentRunSchema)).catch([]),
+  /**
+   * Questions that keep coming up across drafts (recurring-questions.ts): the
+   * topics two or more drafts' suggestions raise, grouped by the AI, and the
+   * suggestions they were grouped from (`stamp`), so they're grouped again
+   * only when those change.
+   */
+  recurringTopics: json(
+    z.object({
+      stamp: z.string(),
+      topics: z.array(
+        z.object({
+          topic: z.string(),
+          roleId: z.string().nullable(),
+          guess: z.string(),
+          items: z.array(z.object({ applicationId: z.string(), company: z.string(), text: z.string() })),
+        }),
+      ),
+    }),
+  ).catch({ stamp: "", topics: [] }),
+  /**
+   * What you chose for each recurring topic, by its name: answered, not true,
+   * dismissed, or later: until a time, or sooner once a draft other than
+   * `drafts` (those asking then) raises it.
+   */
+  topicDecisions: json(
+    z.record(
+      z.string(),
+      z.object({
+        state: z.enum(["answered", "not-true", "dismissed", "later"]),
+        until: z.string().nullish(),
+        drafts: z.array(z.string()).nullish(),
+        /** The suggestions it covered, by their text: handled on every draft, under whatever name the topic comes back. */
+        texts: z.array(z.string()).nullish(),
+      }),
+    ),
+  ).catch({}),
   // Startups (#222): when the screen was last opened, since the daily refresh
   // only runs while it's in use, and what the last refresh found. They belong
   // to the install, not its data, so exports leave them out (INSTALL_SETTINGS).

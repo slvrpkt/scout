@@ -136,8 +136,19 @@ export const refineJob = defineJob({
       return { messageId: reply.id, edited: applied.map(({ document, unitId }) => ({ document, unitId })) };
     }, { version: { cause: VersionCause.REFINED, detail: request } });
     if (done.edited.some((edit) => edit.document === "RESUME")) await queueSuggestions(applicationId);
+    // What they said is true for every job: kept in the Profile's facts, once each.
+    if (data.profileFacts.length > 0) await keepInProfile(data.profileFacts);
     return done;
   },
 });
+
+/** Adds facts to the Profile's own (Profile → Facts), leaving out ones it already has. */
+async function keepInProfile(texts: readonly string[]): Promise<void> {
+  const existing = new Set((await prisma.fact.findMany({ where: { applicationId: null }, select: { text: true } })).map((fact) => fact.text.trim().toLowerCase()));
+  const fresh = texts.filter((text) => !existing.has(text.trim().toLowerCase()));
+  if (fresh.length === 0) return;
+  const last = await prisma.fact.aggregate({ _max: { sort: true } });
+  await prisma.fact.createMany({ data: fresh.map((text, index) => ({ applicationId: null, text, sort: (last._max.sort ?? 0) + 1 + index })) });
+}
 
 export type RefineResult = z.infer<typeof refineJob.result>;

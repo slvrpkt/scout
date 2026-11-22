@@ -37,12 +37,12 @@ export const writtenResumeSchema = z.object({
 
 export const writtenLetterSchema = z.object({
   recipient: z.string().max(400).default("").describe("Address block, one line per line, e.g. 'Acme · Hiring team\\nBerlin'"),
-  greeting: z.string().max(200).default("").describe("e.g. 'Dear Acme team,'"),
+  greeting: z.string().max(200).default("").describe("e.g. 'Dear Hiring Manager:' or 'Dear Ms. Patel:'"),
   paragraphs: z
     .array(z.object({ label: z.string().max(60).default(""), text: z.string().min(1).max(3000) }))
     .min(1)
     .max(6)
-    .describe("3–4 paragraphs, about 200–300 words together, without greeting, sign-off or name"),
+    .describe("3 paragraphs (opening, why me with one or two examples, closing), 130–180 words together so the letter takes half a page, without greeting, sign-off or name"),
   sign_off: z.string().max(60).default("").describe("e.g. 'Warm regards,'; empty uses the tone's own"),
 });
 

@@ -31,6 +31,8 @@ const row = (id: string, extra: Partial<ApplicationRow> = {}): ApplicationRow =>
   created: "15 Sep",
   employer: { type: null, chosen: null, auto: true },
   latestEvent: null,
+  events: [],
+  expectedSalary: "",
   appliedVia: { value: null, auto: true },
   thingsToNote: "",
   salary: "",
@@ -78,6 +80,7 @@ describe("the table (E9-3)", () => {
       "Company",
       "Role",
       "Salary",
+      "Expected Salary",
       "Location",
       "Things To Note",
       "Applied Using",
@@ -100,11 +103,11 @@ describe("the table (E9-3)", () => {
     expect(within(kestrel).getByRole("combobox", { name: "Status of Product Designer, Mobile, Kestrel Maps" })).toHaveValue("SENT");
     expect(within(draft).getByRole("combobox", { name: /^Status of/ })).toHaveValue("DRAFT");
     const text = (row: HTMLElement) => within(row).getAllByRole("cell").map((cell) => cell.textContent);
-    const [company, role, salary, location, notes, , , match, applied, resume, posting, activity, updated] = text(kestrel);
-    expect([company, role, salary, location, notes]).toEqual(["Kestrel Maps", "Product Designer, MobileCreated 15 Sep", "Not listed", "Amsterdam", "Add a note about Product Designer, Mobile at Kestrel Maps"]);
+    const [company, role, salary, expected, location, notes, , , match, applied, resume, posting, activity, updated] = text(kestrel);
+    expect([company, role, salary, expected, location, notes]).toEqual(["Kestrel Maps", "Product Designer, MobileCreated 15 Sep", "Not listed", "—", "Amsterdam", "Add a note about Product Designer, Mobile at Kestrel Maps"]);
     expect([match, applied, resume, posting, activity, updated]).toEqual(["Not matched", "20 Sep", "–", "–", "Add event for Product Designer, Mobile at Kestrel Maps", "2 days ago"]);
     const cells = text(draft);
-    expect([cells[3], cells[7], cells[8]]).toEqual(["Not given", "5/7", "Not applied"]);
+    expect([cells[4], cells[8], cells[9]]).toEqual(["Not given", "5/7", "Not applied"]);
   });
 
   it("sorts by a column, and reverses on a second click", async () => {

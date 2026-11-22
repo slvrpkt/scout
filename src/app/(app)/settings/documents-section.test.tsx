@@ -17,6 +17,7 @@ const initial: DocumentSettings = {
   paper: "A4",
   dateFormat: "MONTH_DAY_YEAR",
   defaultTone: "WARM",
+  autoCoverLetter: false,
   docLanguage: null,
   resumeLanguage: null,
   customLanguages: ["Farsi"],
@@ -64,6 +65,11 @@ describe("Documents settings (E10-3)", () => {
     expect(updateSettings).toHaveBeenLastCalledWith({ docLanguage: null });
     await user.click(screen.getByRole("switch", { name: "Include references" }));
     expect(updateSettings).toHaveBeenLastCalledWith({ includeRefs: true });
+    // Off by default, to save AI costs.
+    const letters = screen.getByRole("switch", { name: /Write cover letters automatically/ });
+    expect(letters).not.toBeChecked();
+    await user.click(letters);
+    expect(updateSettings).toHaveBeenLastCalledWith({ autoCoverLetter: true });
   });
 
   it("limits resumes to one, two or three pages, or no limit (SET-9)", async () => {

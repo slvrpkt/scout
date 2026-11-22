@@ -319,7 +319,7 @@ export async function runAgentScan({ manual, only }: { manual: boolean; only?: R
   const rulesFor = (posting: FoundPosting) => [...new Set([...(inRun.get(jobKey(posting)) ?? [])].flatMap((id) => skipRules.get(id) ?? []))];
 
   // Everything new waits in the queue, whoever scores it, so it's never paid for twice.
-  await enqueue(fresh.flatMap(({ searchId, postings }) => postings.map((posting) => ({ posting, searchId, rules: rulesFor(posting) }))), now);
+  await enqueue(fresh.flatMap(({ searchId, postings }) => postings.map((posting) => ({ posting, searchId, rules: rulesFor(posting) }))), now, timeZone);
   const waitingNow = await countWaiting();
   const room = await roomNow();
   // By batch, scoring starts about 5 minutes on, once the search is done. Otherwise, now.

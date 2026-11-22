@@ -13,22 +13,22 @@ describe("the letter's frame (E8-11)", () => {
     expect(defaultFrame(context)).toEqual({
       sender: expect.stringMatching(/^Jane Doe\n.*jane\.doe@example\.com.* · /),
       date: "3 October 2026",
-      recipient: "Ledgerly · Hiring team\nAmsterdam",
-      greeting: "Dear Ledgerly team,",
+      recipient: "Hiring Manager\nLedgerly\nAmsterdam",
+      greeting: "Dear Hiring Manager:",
       signature: "Jane Doe",
     });
     expect(defaultFrame({ ...context, basics: { ...basics, name: " ", email: "", phone: "", website: "", linkedin: "", city: "", country: "", address: "" }, company: "", location: "" })).toEqual({
       sender: "Your name",
       date: "3 October 2026",
-      recipient: "Hiring team",
-      greeting: "Dear hiring team,",
+      recipient: "Hiring Manager",
+      greeting: "Dear Hiring Manager:",
       signature: "Your name",
     });
   });
 
   it("draws the parts the AI didn't write in the letter's language", () => {
     const frame = defaultFrame({ ...context, basics: { ...basics, showAge: true }, labels: documentLabels("German") });
-    expect(frame).toMatchObject({ recipient: "Ledgerly · Personalabteilung\nAmsterdam", greeting: "Sehr geehrte Damen und Herren," });
+    expect(frame).toMatchObject({ recipient: "Personalabteilung\nLedgerly\nAmsterdam", greeting: "Sehr geehrte Damen und Herren," });
     expect(frame.sender).toMatch(/ · 34 Jahre$/);
     expect(defaultFrame({ ...context, company: "", labels: documentLabels("Spanish") })).toMatchObject({
       recipient: "Equipo de selección\nAmsterdam",
@@ -46,7 +46,7 @@ describe("the letter's frame (E8-11)", () => {
   });
 
   it("frames a new letter with the profile's sender and the date in its language", () => {
-    expect(newFrame({ ...context, lang: "nl" })).toMatchObject({ date: "3 oktober 2026", signature: "Jane Doe", greeting: "Dear Ledgerly team," });
+    expect(newFrame({ ...context, lang: "nl" })).toMatchObject({ date: "3 oktober 2026", signature: "Jane Doe", greeting: "Dear Hiring Manager:" });
   });
 
   it("puts every part in reading order, keeping the ones a letter has", () => {

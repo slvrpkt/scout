@@ -76,10 +76,10 @@ export function ProfileEditor({ initial, section, order }: { initial: ProfileDat
           <>
             <Proofread profile={profile} savedAt={saves.savedAt} />
             <SavedIndicator status={saves.status} savedAt={saves.savedAt} />
-            <Link href="/profile/import" className={buttonClassName("secondary")}>
+            <Link title="Fill in your profile from your existing resume (PDF or Word)" href="/profile/import" className={buttonClassName("secondary")}>
               Import from a resume
             </Link>
-            <Link href="/resume" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+            <Link title="See the base resume made from your profile" href="/resume" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
               See base resume →
             </Link>
           </>
@@ -91,7 +91,7 @@ export function ProfileEditor({ initial, section, order }: { initial: ProfileDat
           <StrengthMeter profile={profile} />
           <nav aria-label="Profile sections" className="flex flex-col gap-0.5">
             {SECTIONS.map((entry) => (
-              <Link
+              <Link title="Go to this part of your profile"
                 key={entry.id}
                 href={sectionHref(entry.id)}
                 aria-current={entry.id === section ? "page" : undefined}
@@ -123,18 +123,18 @@ export function ProfileEditor({ initial, section, order }: { initial: ProfileDat
 
           <div className="flex items-center justify-between gap-3 pt-2">
             {previous ? (
-              <Link href={sectionHref(previous.id)} className={buttonClassName("text")}>
+              <Link title="Go to the previous part of your profile" href={sectionHref(previous.id)} className={buttonClassName("text")}>
                 ← {previous.label}
               </Link>
             ) : (
               <span />
             )}
             {next ? (
-              <Link href={sectionHref(next.id)} className={buttonClassName("secondary", "md", "bg-card")}>
+              <Link title="Go to the next part of your profile" href={sectionHref(next.id)} className={buttonClassName("secondary", "md", "bg-card")}>
                 Next: {next.label} →
               </Link>
             ) : (
-              <Link href="/resume" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+              <Link title="See the base resume made from your profile" href="/resume" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
                 Looks good. See my resume →
               </Link>
             )}

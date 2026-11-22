@@ -9,7 +9,7 @@ export default function ApplicationNotFound() {
     <ScreenMessage
       title="We couldn't find that application"
       actions={
-        <Link href="/applications" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+        <Link title="Back to your job application log" href="/applications" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
           Back to Applications
         </Link>
       }

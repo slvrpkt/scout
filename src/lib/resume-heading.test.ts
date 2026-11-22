@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { demoProfile, demoResumeUnits } from "@/lib/demo-profile";
+import { formatDateRange } from "@/lib/profile";
 import { resumeContent } from "@/lib/resume-content";
 
 import { addHeadingUnit, carryHeadings, LOCATION_UNIT, profileLocation, ROLE_HEAD, withHeadingUnits } from "./resume-heading";
@@ -15,7 +16,7 @@ describe("a resume's own headings", () => {
     const shown = withHeadingUnits(units, profile);
     const index = shown.findIndex((unit) => unit.id === head);
     expect(shown[index + 1].id).toBe(`experience:${job.id}`);
-    expect(shown[index].text).toBe([job.role, job.company, job.location].map((part) => part.trim()).join("\n"));
+    expect(shown[index].text).toBe([job.role, job.company, job.location, formatDateRange(job)].map((part) => part.trim()).join("\n"));
     // Drawn as the profile has them, the resume reads the same.
     expect(resumeContent(profile, { units: shown })).toEqual(resumeContent(profile, { units }));
   });
@@ -33,6 +34,13 @@ describe("a resume's own headings", () => {
     expect(content.contacts).toContain("Leiden");
     expect(content.contacts).not.toContain(profileLocation(profile.basics));
     expect(demoProfile().experience.find((entry) => entry.id === job.id)!.role).toBe(job.role);
+  });
+
+  it("show this resume's own dates for a job, and the profile's when the line is left empty or never had them", () => {
+    const dated = (text: string) => resumeContent(profile, { units: addHeadingUnit(units, { id: head, label: "heading", text }) }).experience.find((entry) => entry.id === job.id)!.dates;
+    expect(dated(`${job.role}\n${job.company}\n${job.location}\nJun 2010 – Jul 2017`)).toBe("Jun 2010 – Jul 2017");
+    expect(dated(`${job.role}\n${job.company}\n${job.location}\n`)).toBe(formatDateRange(job));
+    expect(dated(`${job.role}\n${job.company}\n${job.location}`)).toBe(formatDateRange(job));
   });
 
   it("stay through a rewrite, for the jobs still on it", () => {

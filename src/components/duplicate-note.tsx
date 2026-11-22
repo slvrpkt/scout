@@ -33,7 +33,7 @@ export function DuplicateNote({ match, className }: { match: DuplicateMatch; cla
       )}
     >
       <strong className="font-semibold">{WORDS[match.kind]}</strong> of{" "}
-      <Link href={`/applications/${match.applicationId}`} className="underline underline-offset-2">
+      <Link title="Open the application this job may duplicate" href={`/applications/${match.applicationId}`} className="underline underline-offset-2">
         {match.label}
       </Link>{" "}
       in your Job application log. {match.why}.

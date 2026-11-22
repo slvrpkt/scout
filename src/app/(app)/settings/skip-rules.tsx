@@ -78,7 +78,7 @@ function TagBox({
           </RemovableChip>
         ))}
         {!full && (
-          <button ref={addButton} type="button" onClick={() => setOpen(true)} aria-label={addLabel} className="px-1 py-[7px] text-control text-muted hover:text-ink">
+          <button title="Add words to the list" ref={addButton} type="button" onClick={() => setOpen(true)} aria-label={addLabel} className="px-1 py-[7px] text-control text-muted hover:text-ink">
             {tags.length === 0 ? emptyPrompt : morePrompt}
           </button>
         )}
@@ -101,11 +101,11 @@ function TagBox({
               <Input label={inputLabel} value={text} placeholder={placeholder} maxLength={maxLength} onChange={(event) => setText(event.target.value)} autoFocus />
               <div className="flex justify-end gap-2">
                 <Dialog.Close asChild>
-                  <Button variant="secondary" type="button">
+                  <Button title="Close without adding" variant="secondary" type="button">
                     Cancel
                   </Button>
                 </Dialog.Close>
-                <Button type="submit">Add</Button>
+                <Button title="Add these to the list" type="submit">Add</Button>
               </div>
             </form>
           </Dialog.Content>
@@ -165,7 +165,7 @@ export function AltTitles({ titles, onChange }: { titles: string[]; onChange: (t
   if (!shown) {
     return (
       <div className="flex justify-end">
-        <button type="button" onClick={() => setShown(true)} className="text-meta font-medium text-ink underline underline-offset-2">
+        <button title="Add other titles the same job goes by" type="button" onClick={() => setShown(true)} className="text-meta font-medium text-ink underline underline-offset-2">
           + Add alternative titles
         </button>
       </div>
@@ -195,7 +195,7 @@ export function SearchCompanies({ companies, onChange, country }: { companies: s
   if (!shown) {
     return (
       <div className="flex justify-end">
-        <button type="button" onClick={() => setShown(true)} className="text-meta font-medium text-ink underline underline-offset-2">
+        <button title="Add companies to follow" type="button" onClick={() => setShown(true)} className="text-meta font-medium text-ink underline underline-offset-2">
           + Add companies
         </button>
       </div>
@@ -231,7 +231,7 @@ export function SearchPlaces({ places, onChange }: { places: string[]; onChange:
       emptyPrompt="Click to add a city, state or metro area"
       morePrompt="Click to add a location"
       fullNote={`You've reached the maximum of ${MAX_SEARCH_PLACES} locations.`}
-      description="Type a city, state or metro area, like “Gaithersburg, Maryland”, “California” or “Washington DC-Baltimore Area”."
+      description="Type a city, state or metro area, like “Reston, Virginia”, “California” or “Washington DC-Baltimore Area”."
       inputLabel="Location"
       note="Leave it empty, or add “Anywhere”, to search the whole country. Each location is searched on its own, so each one uses its own requests."
     />

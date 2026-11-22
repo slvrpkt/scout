@@ -35,7 +35,16 @@ export async function saveSentCopies(
   eventId: string | null = null,
   format?: FileFormat,
 ): Promise<number> {
-  const application = await tx.application.findUnique({ where: { id: applicationId }, select: { lastDownloadFormat: true, noCoverLetter: true } });
+  const application = await tx.application.findUnique({
+    where: { id: applicationId },
+    select: { lastDownloadFormat: true, noCoverLetter: true, letterUsedAt: true, thingsToNote: true, documents: { where: { kind: DocumentKind.COVER_LETTER }, select: { id: true } } },
+  });
+  // A cover letter never downloaded, copied or emailed didn't go: it's marked "No cover letter", and the sheet says so.
+  if (application && !application.noCoverLetter && !application.letterUsedAt && application.documents.length > 0) {
+    await tx.application.update({ where: { id: applicationId }, data: { noCoverLetter: true, thingsToNote: withNote(application.thingsToNote, NO_LETTER_USED) } });
+    if (eventId) await tx.statusEvent.update({ where: { id: eventId }, data: { droppedLetter: true } });
+    application.noCoverLetter = true;
+  }
   // Marked "No cover letter": only the resume went, so only the resume is kept (and saved to Google Drive).
   const kinds = application?.noCoverLetter ? SENT_KINDS.filter((kind) => kind !== DocumentKind.COVER_LETTER) : SENT_KINDS;
   const documents = await tx.document.findMany({
@@ -70,6 +79,25 @@ export async function saveSentCopies(
     })),
   });
   return documents.length;
+}
+
+/** What Things To Note says when an application was marked applied without its cover letter ever being used. */
+export const NO_LETTER_USED = "No cover letter used.";
+/** What Things To Note says when you chose No cover letter yourself. */
+export const NO_LETTER_SENT = "No cover letter sent.";
+
+/** Things To Note with a note added on its own line, or taken out again. */
+export const withNote = (text: string, note: string) => (text.includes(note) ? text : [text.trim(), note].filter(Boolean).join("\n"));
+export const withoutNote = (text: string, note: string) =>
+  text
+    .split("\n")
+    .filter((line) => line.trim() !== note)
+    .join("\n")
+    .trim();
+
+/** Notes that an application's cover letter was used (downloaded, copied or emailed): marking it applied keeps the letter as sent. */
+export async function rememberLetterUsed(applicationId: string, now = new Date()): Promise<void> {
+  await prisma.application.updateMany({ where: { id: applicationId }, data: { letterUsedAt: now } });
 }
 
 /** Notes the format an application's resume or cover letter was downloaded in: a send on an employer's site most likely used it. */

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { AiError } from "@/lib/ai/errors";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { cancelApplicationJobs, cancelJob, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob } from "./runner";
+import { cancelApplicationJobs, cancelJob, defineJob, getJob, recoverInterruptedJobs, retryJob, startJob, subscribeJob, waitOutsideLimit } from "./runner";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
 vi.mock("@/lib/prisma", async () => {
@@ -168,15 +168,54 @@ describe("the job runner", () => {
     });
   });
 
-  it("marks jobs a previous process left unfinished as failed, so they can be retried", async () => {
+  it("lets another job run while one waits on something slow, such as a batch", async () => {
+    // One job at a time with a local model.
+    let letGo = () => {};
+    const waiter = defineJob({
+      type: "test-waiter",
+      input: z.object({}),
+      result: z.object({}),
+      run: async () => {
+        await waitOutsideLimit(new Promise<void>((resolve) => (letGo = resolve)));
+        return {};
+      },
+    });
+    const quick = defineJob({ type: "test-quick", input: z.object({}), result: z.object({}), run: async () => ({}) });
+    const waiting = await startJob(waiter, {});
+    await eventually(async () => (await status(waiting)).toBe("RUNNING"));
+    const other = await startJob(quick, {});
+    await eventually(async () => (await status(other)).toBe("DONE"));
+    letGo();
+    await eventually(async () => (await status(waiting)).toBe("DONE"));
+  });
+
+  it("starts jobs a previous process left unfinished again on their own, and gives up on one cut off three times in a row", async () => {
+    defineJob({ type: "test-own-recovery", input: z.object({}), result: z.object({}), run: async () => ({}), resumable: false });
     await prisma().job.createMany({
       data: [
-        { type: "test-gated", status: "RUNNING", input: {} },
-        { type: "test-gated", status: "QUEUED", input: {} },
-        { type: "test-gated", status: "DONE", input: {} },
+        { id: "own", type: "test-own-recovery", status: "RUNNING", input: {} },
+        { id: "running", type: "test-gated", status: "RUNNING", step: "Greeting", input: { name: "a" }, createdAt: new Date(1000) },
+        { id: "queued", type: "test-gated", status: "QUEUED", input: { name: "b" }, createdAt: new Date(2000) },
+        { id: "again", type: "test-gated", status: "RUNNING", input: { name: "c" }, resumes: 2 },
+        { id: "done", type: "test-gated", status: "DONE", input: { name: "d" } },
       ],
     });
-    expect(await recoverInterruptedJobs()).toBe(2);
-    expect(await prisma().job.count({ where: { status: "FAILED", error: "Scout restarted before this finished. Try again." } })).toBe(2);
+    expect(await recoverInterruptedJobs()).toEqual({ resumed: 2, failed: 2 });
+    // Its module picks up the pieces.
+    expect(await getJob("own")).toMatchObject({ status: "FAILED", error: "Scout restarted before this finished. Try again." });
+    // Oldest first, from the beginning.
+    await release("a");
+    await release("b");
+    await eventually(async () => {
+      expect(await getJob("running")).toMatchObject({ status: "DONE", result: { greeting: "Hello, a" } });
+      expect(await getJob("queued")).toMatchObject({ status: "DONE", result: { greeting: "Hello, b" } });
+    });
+    expect(await prisma().job.findUnique({ where: { id: "running" } })).toMatchObject({ resumes: 1 });
+    expect(await getJob("again")).toMatchObject({ status: "FAILED", error: "Scout restarted before this could finish, three times in a row. Try again." });
+    // Retry by hand starts the count over.
+    await retryJob("again");
+    expect(await prisma().job.findUnique({ where: { id: "again" } })).toMatchObject({ resumes: 0 });
+    await release("c");
+    await eventually(async () => (await status("again")).toBe("DONE"));
   });
 });

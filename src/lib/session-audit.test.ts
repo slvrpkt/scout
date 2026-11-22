@@ -33,7 +33,9 @@ const OPEN_ROUTES = new Set([
   "src/app/api/oauth/token/route.ts",
 ]);
 
-const sources = globSync("src/**/*.{ts,tsx}").filter((file) => !/\.test\.tsx?$/.test(file) && !file.startsWith("src/generated/"));
+/** Files matching a pattern, with forward slashes on every system, as the lists above spell them. */
+const files = (pattern: string) => globSync(pattern).map((file) => file.replace(/\\/g, "/"));
+const sources = files("src/**/*.{ts,tsx}").filter((file) => !/\.test\.tsx?$/.test(file) && !file.startsWith("src/generated/"));
 const read = (file: string) => readFileSync(file, "utf8");
 const isActionFile = (source: string) => /^\s*["']use server["'];?/.test(source);
 const exportsOf = (source: string) => [...source.matchAll(/^export\s+(?:async\s+)?(?:const|function|let|var|default)\s*(\w*)\s*(?:=\s*(\w+))?/gm)];
@@ -43,7 +45,7 @@ describe("session checks (E11-5)", () => {
 
   it("finds the Server Action files and route handlers", () => {
     expect(actionFiles.length).toBeGreaterThan(10);
-    expect(globSync("src/app/**/route.ts").length).toBeGreaterThan(5);
+    expect(files("src/app/**/route.ts").length).toBeGreaterThan(5);
   });
 
   it("defines every Server Action with action()", () => {
@@ -66,7 +68,7 @@ describe("session checks (E11-5)", () => {
   it("checks the session on every page but the sign-in page", () => {
     // The (app) layout checks for everything inside it; print pages take the renderer's token too.
     expect(read("src/app/(app)/layout.tsx")).toContain("await verifySession()");
-    const unchecked = globSync("src/app/**/page.tsx").filter(
+    const unchecked = files("src/app/**/page.tsx").filter(
       (file) =>
         !file.startsWith("src/app/(app)/") &&
         !file.startsWith("src/app/login/") &&
@@ -90,7 +92,7 @@ describe("session checks (E11-5)", () => {
   });
 
   it("defines every route handler with route()", () => {
-    const unchecked = globSync("src/app/**/route.ts")
+    const unchecked = files("src/app/**/route.ts")
       .filter((file) => !OPEN_ROUTES.has(file))
       .flatMap((file) =>
         exportsOf(read(file))

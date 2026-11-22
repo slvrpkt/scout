@@ -38,10 +38,10 @@ export function GoogleExpiredDialog({ email }: { email: string }) {
             Google has stopped accepting Scout&apos;s access to {email}. Until you renew it, Scout can&apos;t send email, check your inbox, read your calendar or save to Drive. It takes one click and a Google sign-in.
           </Dialog.Description>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={close} className={buttonClassName("secondary", "md")}>
+            <button title="Remind me later" type="button" onClick={close} className={buttonClassName("secondary", "md")}>
               Later
             </button>
-            <a href="/api/google/connect" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+            <a title="Sign in to Google again, so Gmail and Calendar keep working" href="/api/google/connect" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
               Renew Google access
             </a>
           </div>

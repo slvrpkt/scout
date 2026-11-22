@@ -17,7 +17,7 @@ export function DismissDraft({ candidateId }: { candidateId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   return (
-    <Button
+    <Button title="Archive this draft; it's kept, nothing is deleted"
       variant="danger-outline"
       aria-disabled={pending || undefined}
       onClick={() =>

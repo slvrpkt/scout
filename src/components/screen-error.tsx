@@ -38,8 +38,8 @@ export function ScreenError({
       standalone={standalone}
       actions={
         <>
-          <Button onClick={() => retry()}>Try again</Button>
-          <Link href={elsewhere.href} className={buttonClassName("secondary")}>
+          <Button title="Try loading this again" onClick={() => retry()}>Try again</Button>
+          <Link title="Go somewhere else in Scout" href={elsewhere.href} className={buttonClassName("secondary")}>
             {elsewhere.label}
           </Link>
         </>

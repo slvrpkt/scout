@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { dayOf } from "@/lib/calendar-view";
 import { createTestClient, resetDatabase } from "@/test/db";
 
 import { candidateData } from "./candidates";
@@ -62,7 +63,7 @@ describe("clearing the Archive", () => {
     // An archived application that's still recent stays too.
     await db().application.create({ data: { company: "Kestrel", archivedAt: ago(5) } });
 
-    expect(await clearArchive(now, 90)).toBe(2);
+    expect(await clearArchive(now, 90, "America/New_York")).toBe(2);
     const left = await db().agentCandidate.findMany({ select: { externalId: true } });
     expect(left.map((row) => row.externalId).sort()).toEqual(["applied", "listed", "recent"]);
     expect((await db().application.findMany({ select: { company: true } })).map((row) => row.company).sort()).toEqual(["Kestrel", "Northwind"]);
@@ -71,6 +72,9 @@ describe("clearing the Archive", () => {
     // The tally of what went, for the agent's all-time totals.
     const tally = await db().setting.findUnique({ where: { key: "agentClearedTally" } });
     expect(JSON.parse(tally?.value ?? "{}")).toMatchObject({ setAside: 0, skipped: 0, archived: 1, drafted: 1 });
+    // And by the day each was found, for Today, This week and This month.
+    const found = dayOf(new Date(), "America/New_York"); // made just now, in this test
+    expect(JSON.parse(tally?.value ?? "{}").byDay).toEqual({ [found]: { setAside: 0, skipped: 0, archived: 1, drafted: 1, unscored: 0 } });
   });
 
   it("deletes nothing when it's set to Never, and forgets old keys", async () => {
@@ -78,7 +82,7 @@ describe("clearing the Archive", () => {
     await db().clearedJob.create({
       data: { key: "JSEARCH:ancient", createdAt: ago(CLEARED_KEEP_DAYS + 1) },
     });
-    expect(await clearArchive(now, 0)).toBe(0);
+    expect(await clearArchive(now, 0, "America/New_York")).toBe(0);
     expect(await db().agentCandidate.count()).toBe(1);
     expect(await db().clearedJob.count()).toBe(0);
   });

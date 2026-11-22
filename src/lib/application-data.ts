@@ -67,6 +67,8 @@ export const extractedSchema = z.object({
   asksForReferences: z.boolean(),
   /** The posting's language, e.g. "English", for "Write documents in: the posting's language". */
   language: z.string().nullable(),
+  /** Requirements that aren't real technologies or certifications: likely resume screening traps, never written into documents. */
+  traps: z.array(z.object({ term: z.string().trim().min(1).max(100), why: z.string().max(300) })).max(10).optional(),
 });
 export type Extracted = z.infer<typeof extractedSchema>;
 
@@ -116,7 +118,7 @@ export const matchItemSchema = z.object({
   skill: z.string().nullable(),
   /** The roles where that skill was used. */
   experienceIds: z.array(z.string()),
-  /** A short explanation, e.g. "Nothing in your profile, so I'll address it honestly in the letter". */
+  /** A short explanation, e.g. "Not shown in your profile". */
   note: z.string().nullable(),
 });
 

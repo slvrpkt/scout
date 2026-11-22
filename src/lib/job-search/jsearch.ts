@@ -44,6 +44,7 @@ const jobSchema = z.object({
   job_id: z.string().min(1),
   job_title: maybeText,
   employer_name: maybeText,
+  employer_website: maybeText,
   job_publisher: maybeText,
   job_apply_link: maybeText,
   apply_options: z
@@ -156,6 +157,7 @@ export function postingFromJob(job: Job): FoundPosting {
     complete: description.length > 0,
     employmentType: job.job_employment_type?.trim().slice(0, 100) || null,
     applyLinks: applyLinksOf(job),
+    ...(safeLink(job.employer_website) ? { employerSite: safeLink(job.employer_website).slice(0, 500) } : {}),
     ...(job.job_latitude != null && job.job_longitude != null && Math.abs(job.job_latitude) <= 90 && Math.abs(job.job_longitude) <= 180 ? { lat: job.job_latitude, lng: job.job_longitude } : {}),
   };
 }

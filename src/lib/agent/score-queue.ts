@@ -15,6 +15,7 @@ import { startJob } from "@/lib/jobs/runner";
 import { logServerError } from "@/lib/log";
 import { saveScore } from "@/lib/posting-scores";
 import { prisma } from "@/lib/prisma";
+import { lastKnownTimeZone } from "@/lib/time-zone";
 import { loadProfile } from "@/lib/profile-data";
 import { loadPostingScorer } from "@/lib/scoring";
 import { loadScoringConfig } from "@/lib/scoring/config";
@@ -24,6 +25,7 @@ import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { loadUsage, spend, startOfDay } from "./budget";
 import { candidateData, jobKey } from "./candidates";
 import { agentDraftJob, draftJobKey, HELD_SHORT } from "./draft";
+import { addToClearedTally } from "./cleared-tally";
 import { scoreRoom } from "./runs";
 
 // New postings wait here to be scored, so a job found once is never searched
@@ -37,9 +39,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Queued = { posting: FoundPosting; searchId: string; rules: string[] };
 
-/** Adds new postings; one already waiting stays as it is. */
-export async function enqueue(postings: readonly Queued[], now: Date): Promise<void> {
-  await prisma.queuedPosting.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - KEEP_DAYS * DAY_MS) }, batchId: null } });
+/** Adds new postings; one already waiting stays as it is, and one out of date goes, still counted as found. */
+export async function enqueue(postings: readonly Queued[], now: Date, timeZone?: string): Promise<void> {
+  const cutoff = new Date(now.getTime() - KEEP_DAYS * DAY_MS);
+  const zone = timeZone ?? (await lastKnownTimeZone());
+  await prisma.$transaction(async (tx) => {
+    // Exactly the ones deleted: one sent for a score meanwhile isn't.
+    const gone = await tx.$queryRaw<{ createdAt: Date }[]>`DELETE FROM "QueuedPosting" WHERE "createdAt" < ${cutoff} AND "batchId" IS NULL RETURNING "createdAt"`;
+    await addToClearedTally(tx, gone.map((row) => ({ createdAt: row.createdAt, kind: "unscored" })), zone);
+  });
   await prisma.queuedPosting.createMany({
     data: postings.map(({ posting, searchId, rules }) => ({ jobKey: jobKey(posting), searchId, rules, posting: posting as unknown as Prisma.InputJsonValue })),
     skipDuplicates: true,
@@ -217,7 +225,8 @@ export async function draftBest(now: Date, timeZone: string, settings: SettingsD
     await prisma.agentCandidate.findMany({
       where: {
         status: AgentCandidateStatus.SCORED,
-        score: { gte: Math.max(settings.agentDraftScore, settings.agentMinScore) },
+        // The minimum score is the draft score too (Settings → Scoring).
+        score: { gte: settings.agentMinScore },
         createdAt: { gte: startOfDay(now, timeZone) },
         // Not one held back for being cut short: it waits for you.
         OR: [{ error: null }, { NOT: { error: { startsWith: HELD_SHORT } } }],

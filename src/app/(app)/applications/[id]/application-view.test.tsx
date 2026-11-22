@@ -42,6 +42,9 @@ import { withHeadingUnits } from "@/lib/resume-heading";
 
 vi.mock("./actions", () => ({
   setApplicationTheme: vi.fn(async () => ({ ok: true, data: null })),
+  markSuggestionNotTrue: vi.fn(async () => ({ ok: true, data: { topic: "Kanban" } })),
+  dismissSuggestion: vi.fn(async () => ({ ok: true, data: null })),
+  applicationStampOf: vi.fn(async () => ({ ok: true, data: null })),
   setFollowThemeLayout: vi.fn(async () => ({ ok: true, data: null })),
   setNoCoverLetter: vi.fn(async () => ({ ok: true, data: null })),
   saveApplicationForLater: vi.fn(async () => ({ ok: true, data: null })),
@@ -255,8 +258,8 @@ describe("the document tabs (E8-2)", () => {
     await user.click(screen.getByRole("tab", { name: "Custom tailored cover letter" }));
     const letter = screen.getByRole("article", { name: "Cover letter" });
     expect(within(letter).getByText("28 September 2026")).toBeInTheDocument();
-    expect(within(letter).getByText("Ledgerly · Hiring team")).toBeInTheDocument();
-    expect(within(letter).getByText("Dear Ledgerly team,")).toBeInTheDocument();
+    expect(within(letter).getByText("Hiring Manager")).toBeInTheDocument();
+    expect(within(letter).getByText("Dear Hiring Manager:")).toBeInTheDocument();
     expect(screen.getByText(/^Custom tailored cover letter · about \d+0 words$/)).toBeInTheDocument();
   });
 
@@ -270,7 +273,6 @@ describe("the document tabs (E8-2)", () => {
 describe("editing a unit (E8-3)", () => {
   it("gives every unit a focusable frame with its toolbar", () => {
     render(<ApplicationView {...props} />);
-    expect(screen.getByText("Hover a section to edit or regenerate it")).toBeInTheDocument();
     const frame = screen.getByRole("group", { name: "Summary" });
     expect(frame).toHaveAttribute("tabindex", "0");
     expect(frame).toHaveAttribute("data-unit", "summary");
@@ -339,7 +341,20 @@ describe("editing a unit (E8-3)", () => {
     // The role's own Edit, after its heading's.
     await user.click(within(role).getAllByRole("button", { name: "Edit" }).at(-1)!);
     expect(role).toHaveTextContent(/^UX Designer, Studio Brik/);
-    expect(within(role).getByRole("textbox")).toHaveAccessibleDescription("One bullet per line");
+    expect(within(role).getByRole("textbox", { name: "Edit Studio Brik role" })).toHaveAccessibleDescription("One bullet per line");
+  });
+
+  it("edits the skills under a job with its bullets, and saves only what changed", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} />);
+    const role = screen.getByRole("group", { name: "Studio Brik role" });
+    await user.click(within(role).getAllByRole("button", { name: "Edit" }).at(-1)!);
+    const skills = within(role).getByRole("textbox", { name: "Skills under this job" });
+    await user.clear(skills);
+    await user.type(skills, "Figma, Design systems{Enter}");
+    expect(saveUnit).toHaveBeenCalledWith(expect.objectContaining({ document: "RESUME", unitId: "role-skills:e3", text: "Figma, Design systems" }));
+    // The bullets didn't change: only the skills are saved.
+    expect(saveUnit).not.toHaveBeenCalledWith(expect.objectContaining({ unitId: "experience:e3" }));
   });
 
   it("cancels with Escape and keeps the text", async () => {
@@ -490,8 +505,22 @@ describe("the Refine with AI panel (E8-5)", () => {
   };
   const panel = () => screen.getByRole("complementary", { name: "Refine with AI" });
   const input = () => screen.getByRole("textbox", { name: "Ask for a change" });
-  /** Apply: sends the changes on the list. */
-  const apply = (user: ReturnType<typeof userEvent.setup>) => user.click(within(panel()).getByRole("button", { name: /^Apply/ }));
+  /** Send all: sends the changes on the list. */
+  const apply = (user: ReturnType<typeof userEvent.setup>) => user.click(within(panel()).getByRole("button", { name: /^Send all/ }));
+
+  it("puts a suggestion in the chat box on Yes, add it, and won't add it until the blank is filled in", async () => {
+    const user = userEvent.setup();
+    const suggestion = "The posting asks for Kanban. If you used it, add it to your Fieldnote role.";
+    render(<ApplicationView {...props} application={{ ...props.application, resumeSuggestions: [suggestion] }} />);
+    await user.click(screen.getByRole("button", { name: "Yes, add it" }));
+    expect(input()).toHaveValue(`${suggestion}
+What's true for me: [fill in: what you did, in which role, and its result]`);
+    await user.type(input(), "{Enter}");
+    expect(within(panel()).getByRole("alert")).toHaveTextContent("Fill in the part in brackets first");
+    await user.clear(input());
+    await user.type(input(), "Used Kanban for the support team at Fieldnote{Enter}");
+    expect(within(panel()).queryByRole("alert")).not.toBeInTheDocument();
+  });
 
   it("shows the conversation, with the opening list and its footnote", () => {
     render(
@@ -545,6 +574,24 @@ describe("the Refine with AI panel (E8-5)", () => {
     expect(within(panel()).getByText("Thinking…")).toBeInTheDocument();
   });
 
+  it("never sends what's only typed in the box, and holds up to five changes", async () => {
+    const user = userEvent.setup();
+    render(<ApplicationView {...props} />);
+    await user.type(input(), "Sound more confident");
+    // Typed but not added: Send all has nothing to send.
+    expect(within(panel()).getByRole("button", { name: "Send all" })).toHaveAttribute("aria-disabled", "true");
+    await user.click(within(panel()).getByRole("button", { name: "Add" }));
+    for (const change of ["Two", "Three", "Four", "Five"]) await user.type(input(), `${change}{Enter}`);
+    expect(within(panel()).getByText("Changes to make (5 of 5)")).toBeInTheDocument();
+    await user.type(input(), "Six{Enter}");
+    // A sixth waits in the box until one is sent or removed.
+    expect(input()).toHaveValue("Six");
+    expect(within(panel()).getByText(/That's 5: send these/)).toBeInTheDocument();
+    await user.click(within(panel()).getByRole("button", { name: "Send all (5)" }));
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ text: expect.stringContaining("5. Five") }));
+    expect(input()).toHaveValue("Six");
+  });
+
   it("gathers changes with Enter, keeps new lines with Shift+Enter, and sends them all as one with Apply", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
@@ -556,7 +603,7 @@ describe("the Refine with AI panel (E8-5)", () => {
     await user.type(input(), "Mention Linear{Enter}");
     await user.click(within(panel()).getByRole("button", { name: "Remove “Mention Linear”" }));
     await user.type(input(), "Shorter summary{Enter}");
-    await user.click(within(panel()).getByRole("button", { name: "Apply 2 changes" }));
+    await user.click(within(panel()).getByRole("button", { name: "Send all (2)" }));
     expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ text: "Please make all of these changes:\n1. Sound more\nconfident\n2. Shorter summary" }));
     expect(within(panel()).queryByRole("region", { name: "Changes to make" })).not.toBeInTheDocument();
   });
@@ -757,17 +804,17 @@ describe("downloading (E8-8)", () => {
 });
 
 describe("a job's heading and your location, for this resume alone", () => {
-  it("edits a job's title, company and place by clicking it, and says the Profile stays", async () => {
+  it("edits a job's title, company, place and dates by clicking it, and says the Profile stays", async () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} />);
     const heading = screen.getByRole("group", { name: "Studio Brik role heading" });
     await user.click(within(heading).getByRole("button", { name: "Edit" }));
     const box = within(heading).getByRole("textbox");
-    expect(box).toHaveAccessibleDescription("Job title, company and place, one per line. For this resume only: your Profile stays as it is.");
+    expect(box).toHaveAccessibleDescription("Job title, company, place and dates, one per line. For this resume only: your Profile stays as it is.");
     await user.clear(box);
-    await user.type(box, "Senior UX Designer{Enter}Brik Studio{Enter}Haarlem");
+    await user.type(box, "Senior UX Designer{Enter}Brik Studio{Enter}Haarlem{Enter}Jun 2010 – Jul 2017");
     await user.click(within(heading).getByRole("button", { name: "Save" }));
-    expect(saveUnit).toHaveBeenCalledWith(expect.objectContaining({ document: "RESUME", unitId: expect.stringMatching(/^role-head:/), text: "Senior UX Designer\nBrik Studio\nHaarlem" }));
+    expect(saveUnit).toHaveBeenCalledWith(expect.objectContaining({ document: "RESUME", unitId: expect.stringMatching(/^role-head:/), text: "Senior UX Designer\nBrik Studio\nHaarlem\nJun 2010 – Jul 2017" }));
     // No Regenerate or Leave out: it's yours to say.
     expect(within(heading).queryByRole("button", { name: "Regenerate" })).not.toBeInTheDocument();
   });
@@ -1168,7 +1215,7 @@ describe("the Email tab", () => {
     render(<ApplicationView {...props} initialTab="email" email={email} />);
     expect(within(panel()).getByText(/^Ask for changes to your email/)).toBeInTheDocument();
     await user.click(within(panel()).getByRole("button", { name: "Shorter, under 100 words" }));
-    await user.click(within(panel()).getByRole("button", { name: /^Apply/ }));
+    await user.click(within(panel()).getByRole("button", { name: /^Send all/ }));
     expect(sendMessage).toHaveBeenCalledWith({ id: "app-1", text: "Shorter, under 100 words", viewing: "EMAIL", target: null });
   });
 
@@ -1176,7 +1223,7 @@ describe("the Email tab", () => {
     const user = userEvent.setup();
     render(<ApplicationView {...props} email={email} />);
     await user.type(screen.getByRole("textbox", { name: "Ask for a change" }), "Make the email shorter{Enter}");
-    await user.click(within(panel()).getByRole("button", { name: /^Apply/ }));
+    await user.click(within(panel()).getByRole("button", { name: /^Send all/ }));
     report({ id: "reply-1", type: "refine", status: "DONE", result: { messageId: "m9", edited: [{ document: "EMAIL", unitId: "body" }] } });
     expect(screen.getByRole("tab", { name: "Email" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("group", { name: "Message" }).className).toMatch(/flash/);

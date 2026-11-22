@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BadgeDollarSign,
   Ban,
   CalendarDays,
   CircleCheck,
@@ -46,6 +47,7 @@ const NOTE_ICONS: Record<NoteKind, LucideIcon> = {
   INTERVIEW: Users,
   MEETING: CalendarDays,
   UPDATE: RefreshCw,
+  SALARY: BadgeDollarSign,
 };
 
 const DAY_MS = 86_400_000;
@@ -83,7 +85,7 @@ export function ActivityTimeline({ activity, drive = null, now: nowAt }: { activ
           <h2 className="font-serif text-section">The whole story, start to now</h2>
           <span className="text-meta text-muted">
             Add calls, interviews and notes on{" "}
-            <Link href="?tab=notes" className="text-muted underline underline-offset-2 hover:text-ink">
+            <Link title="Open the events and notes you logged" href="?tab=notes" className="text-muted underline underline-offset-2 hover:text-ink">
               Events / Notes
             </Link>
           </span>
@@ -91,7 +93,7 @@ export function ActivityTimeline({ activity, drive = null, now: nowAt }: { activ
         {drive?.folderUrl && (
           <p className="text-meta text-muted">
             What you applied with is saved in{" "}
-            <a href={drive.folderUrl} target="_blank" rel="noreferrer" className="text-muted underline underline-offset-2 hover:text-ink">
+            <a title="Open this application's folder in Google Drive" href={drive.folderUrl} target="_blank" rel="noreferrer" className="text-muted underline underline-offset-2 hover:text-ink">
               Google Drive
             </a>
             .

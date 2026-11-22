@@ -55,13 +55,13 @@ export function PastSearches({ days, countries }: { days: PastSearchDay[]; count
               const what = describeSearch(search.query, countryName(search.query.country), search.source);
               return (
                 <li key={search.id} className="flex items-center justify-between gap-4 rounded-card border border-line-card bg-card px-4 py-3 hover:border-line-strong">
-                  <Link href={searchRunHref(search.id)} className="flex min-w-0 flex-col gap-0.5 text-ink hover:text-ink">
+                  <Link title="Open this search with what it found, without spending another search" href={searchRunHref(search.id)} className="flex min-w-0 flex-col gap-0.5 text-ink hover:text-ink">
                     <span className="truncate text-field font-medium">{what}</span>
                     <span className="text-meta text-muted">
                       {search.time} · {search.found === 1 ? "1 posting" : `${search.found} postings`} · {SOURCE_INFO[search.source].name}
                     </span>
                   </Link>
-                  <Button variant="text" size="sm" aria-label={`Remove the search “${what}” from ${search.time}`} onClick={() => void remove(search.id)}>
+                  <Button title="Remove this search from the list" variant="text" size="sm" aria-label={`Remove the search “${what}” from ${search.time}`} onClick={() => void remove(search.id)}>
                     Remove
                   </Button>
                 </li>

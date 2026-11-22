@@ -120,7 +120,7 @@ export function ProfileImport({
         title="Import from a resume"
         description="Start your profile from a resume you already have. Scout reads the file, pulls out what it says and shows it to you. The file itself isn't saved, and nothing goes into your profile until you choose Replace My Profile or Merge Into My Profile."
         actions={
-          <Link href="/profile" className={buttonClassName("secondary")}>
+          <Link title="Back to your profile" href="/profile" className={buttonClassName("secondary")}>
             Back to your profile
           </Link>
         }
@@ -131,7 +131,7 @@ export function ProfileImport({
             {!aiReady && (
               <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
                 No AI provider is set up yet, so nothing can read the resume.{" "}
-                <Link href="/settings?section=ai" className="font-medium text-warning underline underline-offset-2">
+                <Link title="Choose an AI model in Settings" href="/settings?section=ai" className="font-medium text-warning underline underline-offset-2">
                   Choose one in Settings → AI provider
                 </Link>
               </p>
@@ -154,7 +154,7 @@ export function ProfileImport({
                 className="text-sm file:mr-3 file:rounded-control file:border file:border-line-control file:bg-input file:px-3 file:py-2 file:text-sm file:text-ink hover:file:border-line-strong"
               />
             </div>
-            <Button aria-disabled={!aiReady || !file || uploading || undefined} onClick={() => void (aiReady && !uploading ? read() : undefined)}>
+            <Button title="Read your resume and fill in your profile from it" aria-disabled={!aiReady || !file || uploading || undefined} onClick={() => void (aiReady && !uploading ? read() : undefined)}>
               {uploading ? "Sending…" : "Read my resume →"}
             </Button>
           </Card>
@@ -183,13 +183,13 @@ export function ProfileImport({
                 detail, role, degree or reference, what the resume says wins.
               </p>
               <div className="flex flex-wrap items-center gap-3">
-                <Button variant="secondary" aria-disabled={applying || undefined} onClick={() => setConfirmReplace(true)}>
+                <Button title="Replace everything in your profile with what was read" variant="secondary" aria-disabled={applying || undefined} onClick={() => setConfirmReplace(true)}>
                   Replace My Profile…
                 </Button>
-                <Button aria-disabled={applying || undefined} onClick={() => void (applying ? undefined : apply("merge"))}>
+                <Button title="Add what was read to your profile, keeping what's there" aria-disabled={applying || undefined} onClick={() => void (applying ? undefined : apply("merge"))}>
                   Merge Into My Profile
                 </Button>
-                <Button variant="text" onClick={startOver}>
+                <Button title="Pick a different resume file" variant="text" onClick={startOver}>
                   Choose another file
                 </Button>
               </div>

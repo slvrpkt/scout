@@ -189,7 +189,7 @@ export function CalendarCard({
             const stage = onDay.find((item) => item.job)?.job?.stage;
             const isPicked = day === picked;
             return (
-              <button
+              <button title="Show this day's interviews and events"
                 key={day}
                 type="button"
                 data-day={day}
@@ -304,7 +304,7 @@ function SourceNotice({ source }: { source: CalendarSource }) {
       {source.status !== "failed" && (
         <>
           {" "}
-          <Link href="/settings?section=google" className="inline-flex min-h-6 items-center font-medium text-ink underline underline-offset-2">
+          <Link title="Connect your Google Calendar in Settings" href="/settings?section=google" className="inline-flex min-h-6 items-center font-medium text-ink underline underline-offset-2">
             Settings → Google
           </Link>
         </>

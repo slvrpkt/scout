@@ -38,4 +38,6 @@ export const agentScanJob = defineJob({
   }),
   result: agentScanResultSchema,
   run: (input, context) => runAgentScan(input, context),
+  // After a restart the schedule runs it again (markInterruptedRuns, startDueRun).
+  resumable: false,
 });

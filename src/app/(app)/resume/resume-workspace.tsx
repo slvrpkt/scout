@@ -268,6 +268,7 @@ export function ResumeWorkspace({
     <>
       <PageHeader
         title="Base resume"
+        wide
         description={
           <>
             Built straight from your profile. Every new application starts from
@@ -286,7 +287,7 @@ export function ResumeWorkspace({
         }
         actions={
           <>
-            <Link href="/profile" className={buttonClassName("secondary")}>
+            <Link title="Change your profile, which every resume is made from" href="/profile" className={buttonClassName("secondary")}>
               Edit profile
             </Link>
             <SegmentedControl<BaseLength>
@@ -334,7 +335,7 @@ export function ResumeWorkspace({
               >
                 Your resume fills in from your profile. Add your name and a role
                 or two, and it takes shape here.{" "}
-                <Link
+                <Link title="Open your profile"
                   href="/profile"
                   className="text-ink underline underline-offset-2"
                 >
@@ -402,8 +403,8 @@ export function ResumeWorkspace({
             className="flex flex-col gap-6"
           >
             <TabsList variant="segmented">
-              <TabsTrigger value="themes">Themes</TabsTrigger>
-              <TabsTrigger value="customize">Customize</TabsTrigger>
+              <TabsTrigger title="Pick a ready-made look for your resume" value="themes">Themes</TabsTrigger>
+              <TabsTrigger title="Change fonts, colors and spacing" value="customize">Customize</TabsTrigger>
             </TabsList>
             <TabsContent value="themes">
               <ThemePicker

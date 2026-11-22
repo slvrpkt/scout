@@ -2,7 +2,9 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { lastRunResults, loadUsage, scoredToday, spend } from "./budget";
+import { EMPTY_CLEARED_TALLY } from "@/lib/settings";
+
+import { lastRunResults, loadUsage, periodResults, scoredToday, spend } from "./budget";
 import { candidateData } from "./candidates";
 
 const client = vi.hoisted(() => ({ db: undefined as ReturnType<typeof createTestClient> | undefined }));
@@ -57,5 +59,25 @@ describe("today's counts (the Today tile)", () => {
     await db.agentCandidate.create({ data: { ...candidateData(posting("drafted"), { score: 88, reasons: [], redFlags: [] }), status: "DRAFTED", application: { connect: { id: app.id } }, createdAt: now } });
     await db.queuedPosting.create({ data: { jobKey: "q", searchId: "s", rules: [], posting: posting("q"), createdAt: now } });
     expect(await lastRunResults(new Date(now.getTime() - 60_000), 60)).toEqual({ found: 7, waiting: 1, scored: 5, setAside: 1, atMin: 1, below: 1, drafted: 1, skipped: 1, archived: 1 });
+  });
+
+  it("counts today from midnight, the week from Monday and the month from the 1st, in your time zone, with cleared jobs added back by the day they were found", async () => {
+    const posting = (id: string) => ({
+      source: "JSEARCH" as const, externalId: id, title: `Job ${id}`, company: "Ledgerly", place: "Arlington, VA", remote: false,
+      salary: "", postedAt: null, url: `https://example.com/${id}`, via: "", description: "", complete: true,
+    });
+    const make = (id: string, createdAt: string) =>
+      db.agentCandidate.create({ data: { ...candidateData(posting(id), { score: 80, reasons: [], redFlags: [] }), status: "SCORED", createdAt: new Date(createdAt) } });
+    // Wednesday 11 November, 10 AM in New York.
+    await make("today", "2026-11-11T05:30:00.000Z"); // 00:30 today
+    await make("late-yesterday", "2026-11-11T04:30:00.000Z"); // 23:30 Tuesday: this week, not today
+    await make("monday", "2026-11-09T05:30:00.000Z");
+    await make("last-sunday", "2026-11-09T04:30:00.000Z"); // 23:30 Sunday 8th: last week, this month
+    await make("october", "2026-10-31T12:00:00.000Z");
+    const cleared = { ...EMPTY_CLEARED_TALLY, archived: 3, unscored: 1, byDay: { "2026-11-02": { setAside: 0, skipped: 0, archived: 2, drafted: 0, unscored: 1 }, "2026-10-30": { setAside: 0, skipped: 0, archived: 1, drafted: 0, unscored: 0 } } };
+    const periods = await periodResults(now, zone, 60, cleared);
+    expect(periods.today).toMatchObject({ found: 1, from: "2026-11-11" });
+    expect(periods.week).toMatchObject({ found: 3, from: "2026-11-09" });
+    expect(periods.month).toMatchObject({ found: 7, archived: 2, from: "2026-11-01" });
   });
 });

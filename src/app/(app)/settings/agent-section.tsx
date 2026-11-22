@@ -32,11 +32,13 @@ export type AgentSettings = {
   dailyScores: number;
   dailyDrafts: number;
   autoDraft: boolean;
+  /** Whether the runs happen on Saturdays and Sundays. */
+  runSaturday: boolean;
+  runSunday: boolean;
   /** How many of the day's scores, and drafts, each run time gets, in time order. */
   scoreShares: number[];
   draftShares: number[];
   /** A posting needs this score for a draft. */
-  draftScore: number;
   /** Stop for the day once this many reached the minimum score. */
   dailyGoal: number;
   /** Words that rule a job out by its title. */
@@ -117,7 +119,7 @@ export function AgentSection({
         // It searches on its own, which the BA's terms forbid most clearly (#223).
         <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
           The agent doesn&apos;t search the Bundesagentur für Arbeit. Choose JSearch, Adzuna or FreeHire in{" "}
-          <Link href="/settings?section=jobs" className="font-medium text-warning underline underline-offset-2">
+          <Link title="Choose where to search for jobs" href="/settings?section=jobs" className="font-medium text-warning underline underline-offset-2">
             Settings → Job search
           </Link>{" "}
           for it.
@@ -173,7 +175,7 @@ export function AgentSection({
         <Card padding="none" className="grid gap-x-[18px] gap-y-5 px-7 py-[26px] sm:grid-cols-2">
         <Select
           label="Minimum score"
-          hint="Postings scored lower stay out of the queue."
+          hint={settings.autoDraft ? "Postings scored lower stay out of the queue; the ones at or above it get drafts. Also in Settings → Scoring." : "Postings scored lower stay out of the queue. Also in Settings → Scoring."}
           value={String(settings.minScore)}
           onChange={(event) => change({ minScore: Number(event.target.value) })}
         >
@@ -204,19 +206,6 @@ export function AgentSection({
           {withValue(DAILY_GOALS, settings.dailyGoal).map((count) => (
             <option key={count} value={count}>
               {count} qualifying jobs
-            </option>
-          ))}
-        </Select>
-        <Select
-          label="Draft from a score of"
-          hint={settings.autoDraft ? "Lower scores only show their score. Scores can differ by a few points from one try to the next." : "Turn on Prepare drafts on its own first"}
-          value={String(settings.draftScore)}
-          disabled={!settings.autoDraft}
-          onChange={(event) => change({ draftScore: Number(event.target.value) })}
-        >
-          {[...new Set([...MIN_SCORES, settings.draftScore])].sort((a, b) => a - b).map((score) => (
-            <option key={score} value={score}>
-              {score} of 100
             </option>
           ))}
         </Select>
@@ -262,7 +251,7 @@ function SetupNote({ before, section, after }: { before: string; section: Settin
   return (
     <p role="note" className="rounded-card bg-warning-surface px-4 py-3 text-meta text-warning">
       {before}
-      <Link href={settingsSectionHref(section)} className="font-medium text-warning underline underline-offset-2">
+      <Link title="Open the setting this needs" href={settingsSectionHref(section)} className="font-medium text-warning underline underline-offset-2">
         Settings → {SETTINGS_SECTIONS.find((entry) => entry.id === section)?.label}
       </Link>
       {after}
@@ -333,18 +322,32 @@ function RunTimes({ settings, timeZone, onChange }: { settings: AgentSettings; t
               </Select>
             )}
             {times.length > 1 && (
-              <Button variant="danger-text" size="sm" aria-label={`Remove run ${index + 1} (${twelveHour(row.time)})`} onClick={() => save(rows.filter((_, at) => at !== index))}>
+              <Button title="Remove this run time" variant="danger-text" size="sm" aria-label={`Remove run ${index + 1} (${twelveHour(row.time)})`} onClick={() => save(rows.filter((_, at) => at !== index))}>
                 Remove
               </Button>
             )}
           </li>
         ))}
       </ul>
+      <div className="flex flex-wrap gap-x-8 gap-y-3 border-t border-line pt-4">
+        <Toggle
+          label="Run on Saturdays"
+          description={settings.runSaturday ? "On." : "Off: no job search on Saturdays. Run now still works."}
+          checked={settings.runSaturday}
+          onCheckedChange={(runSaturday) => onChange({ runSaturday })}
+        />
+        <Toggle
+          label="Run on Sundays"
+          description={settings.runSunday ? "On." : "Off: no job search on Sundays. Run now still works."}
+          checked={settings.runSunday}
+          onCheckedChange={(runSunday) => onChange({ runSunday })}
+        />
+      </div>
       <p className="text-meta text-muted">
         {scoreTotal} jobs to score in all, of {dailyScores} a day{scoreTotal > dailyScores ? ": the daily limit stops it first" : ""}.
         {autoDraft && ` ${draftTotal} drafts in all, of ${dailyDrafts} a day${draftTotal > dailyDrafts ? ": the daily limit stops it first" : ""}.`}
       </p>
-      <Button variant="secondary" size="sm" className="self-start" aria-disabled={times.length >= MAX_AGENT_TIMES || undefined} onClick={() => times.length < MAX_AGENT_TIMES && add()}>
+      <Button title="Run the agent at one more time of day" variant="secondary" size="sm" className="self-start" aria-disabled={times.length >= MAX_AGENT_TIMES || undefined} onClick={() => times.length < MAX_AGENT_TIMES && add()}>
         Add a run time
       </Button>
       <ConfirmDialog

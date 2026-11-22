@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import { ApplicationStatus, DocumentKind, EmailDirection, FileFormat } from "@/generated/prisma/enums";
 import { unitsSchema } from "@/lib/application-data";
 import { loadDocuments } from "@/lib/application-documents";
@@ -115,7 +116,8 @@ export async function sendApplicationEmail(applicationId: string, { checked = fa
   });
   // It's gone out. If saving that fails, sendingAt stays, and the next try says to check Gmail first.
   await prisma.$transaction([
-    prisma.application.update({ where: { id: applicationId }, data: { emailThreadId: sent.threadId } }),
+    // Attached, the cover letter went out with it.
+    prisma.application.update({ where: { id: applicationId }, data: { emailThreadId: sent.threadId, ...(attachments.length > 1 ? { letterUsedAt: new Date() } : {}) } }),
     prisma.emailMessage.upsert({
       where: { gmailId: sent.id },
       create: {
@@ -155,7 +157,7 @@ export async function sendApplicationEmail(applicationId: string, { checked = fa
 export const replySubject = (subject: string) => (/^\s*(re|aw|sv|antw)\s*:/i.test(subject) ? subject.trim() : `Re: ${subject.trim()}`);
 
 /** Sends the answer to an employer's mail in its thread, and marks the mail as answered. */
-export async function sendReply(emailId: string, body: string): Promise<{ applicationId: string | null }> {
+export async function sendReply(emailId: string, body: string, html?: string): Promise<{ applicationId: string | null }> {
   const account = await loadGoogleAccount();
   if (!account) throw new GoogleError("not-connected", "Connect your Google account in Settings → Google first.");
   const email = await prisma.emailMessage.findUnique({ where: { id: emailId } });
@@ -166,11 +168,11 @@ export async function sendReply(emailId: string, body: string): Promise<{ applic
   const to = email.replyTo || (email.fromName ? `${email.fromName.replace(/[<>"]/g, "")} <${email.fromAddress}>` : email.fromAddress);
   const subject = replySubject(email.subject);
   const sent = await sendMail(
-    { from: await sender(account.email), to, subject, body, inReplyTo: email.messageId || undefined },
+    { from: await sender(account.email), to, subject, body, html, inReplyTo: email.messageId || undefined },
     { threadId: email.threadId },
   );
   await prisma.$transaction([
-    prisma.emailMessage.update({ where: { id: emailId }, data: { handledAt: new Date(), replyDraft: "", replyGaps: [] } }),
+    prisma.emailMessage.update({ where: { id: emailId }, data: { handledAt: new Date(), replyDraft: "", replyDraftDoc: Prisma.DbNull, replyGaps: [] } }),
     prisma.emailMessage.upsert({
       where: { gmailId: sent.id },
       create: {

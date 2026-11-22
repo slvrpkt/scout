@@ -23,6 +23,7 @@ const COLUMNS: { id: string; label: string; sort?: SortKey; className: string }[
   { id: "company", label: "Company", sort: "company", className: "w-[11%]" },
   { id: "role", label: "Role", sort: "role", className: "w-[13%]" },
   { id: "salary", label: "Salary", className: "w-[104px]" },
+  { id: "expected", label: "Expected Salary", className: "w-[96px]" },
   { id: "location", label: "Location", sort: "location", className: "w-[8%]" },
   { id: "notes", label: "Things To Note", className: "w-[14%]" },
   { id: "via", label: "Applied Using", className: "w-[120px]" },
@@ -78,7 +79,7 @@ export function Table({
                   className={cn("py-3.5 pr-4 align-bottom text-[15px] leading-tight font-semibold first:pl-5", column.className)}
                 >
                   {column.sort ? (
-                    <button
+                    <button title="Sort by this column; click again to reverse"
                       type="button"
                       onClick={() => onSort({ key: column.sort!, reversed: active ? !sort.reversed : false })}
                       className={cn("text-left text-white hover:underline", active && "underline underline-offset-4")}
@@ -131,6 +132,7 @@ export function Table({
                 <td className={cn(cell, "text-sm")}>
                   {row.salary ? <span className="line-clamp-3 text-ink">{row.salary}</span> : <span className="text-muted">Not listed</span>}
                 </td>
+                <td className={cn(cell, "text-sm")}>{row.expectedSalary ? <span className="line-clamp-2 text-ink">{row.expectedSalary}</span> : <span className="text-muted">—</span>}</td>
                 <td className={cn(cell, "text-sm text-muted")}>
                   <span title={row.location} className="line-clamp-2">
                     {row.location || "Not given"}

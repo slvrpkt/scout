@@ -269,7 +269,7 @@ export function AiProviderSection({ initial }: { initial: AiSettingsView }) {
               }}
             />
             {(keyState === "set" || keyState === "unreadable") && (
-              <Button variant="text" size="sm" className="self-start" onClick={() => void saveKey({ action: "clear" })}>
+              <Button title="Delete the saved key" variant="text" size="sm" className="self-start" onClick={() => void saveKey({ action: "clear" })}>
                 Remove saved key
               </Button>
             )}
@@ -282,7 +282,7 @@ export function AiProviderSection({ initial }: { initial: AiSettingsView }) {
         )}
 
         <div className="flex flex-wrap items-center gap-3.5 pt-1 sm:col-span-2">
-          <Button variant="secondary" onClick={() => void test()} disabled={connection.status === "testing"}>
+          <Button title="Check that Scout can reach the AI provider with this key" variant="secondary" onClick={() => void test()} disabled={connection.status === "testing"}>
             {connection.status === "testing" ? "Testing…" : "Test connection"}
           </Button>
           <ConnectionStatus connection={connection} />

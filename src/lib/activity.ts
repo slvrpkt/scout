@@ -26,6 +26,7 @@ export const NOTE_KINDS: Record<NoteKind, string> = {
   INTERVIEW: "Interview",
   MEETING: "Meeting",
   UPDATE: "Update",
+  SALARY: "Expected salary",
 };
 
 /** Saving a new note sets both times a moment apart; only a later save counts as an edit. */

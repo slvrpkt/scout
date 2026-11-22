@@ -40,10 +40,10 @@ export function PagesQuestion({ id, reason = null }: { id: string; reason?: stri
         )}
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" aria-disabled={pending || undefined} onClick={() => answer(true)}>
+        <Button title="Allow a third page for this resume" size="sm" aria-disabled={pending || undefined} onClick={() => answer(true)}>
           {pending ? "Working…" : "Yes, up to three pages"}
         </Button>
-        <Button variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={() => answer(false)}>
+        <Button title="Keep this resume to two pages" variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={() => answer(false)}>
           Keep it to two pages
         </Button>
         <span className="text-muted">Either way, what&apos;s shortened is rewritten in fewer words, keeping the facts.</span>

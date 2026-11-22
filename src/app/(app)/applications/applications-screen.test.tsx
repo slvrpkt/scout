@@ -30,6 +30,8 @@ export const row = (id: string, extra: Partial<ApplicationRow> = {}): Applicatio
   created: "15 Sep",
   employer: { type: null, chosen: null, auto: true },
   latestEvent: null,
+  events: [],
+  expectedSalary: "",
   appliedVia: { value: null, auto: true },
   thingsToNote: "",
   salary: "",

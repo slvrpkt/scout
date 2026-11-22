@@ -128,7 +128,7 @@ export function GoogleSection({
                 <span aria-hidden className="size-2 flex-none rounded-full bg-success" />
                 Connected as <span className="font-medium">{connection.email}</span>
               </p>
-              <Button variant="danger-outline" size="sm" onClick={() => setConfirming(true)}>
+              <Button title="Disconnect your Google account from Scout" variant="danger-outline" size="sm" onClick={() => setConfirming(true)}>
                 Disconnect
               </Button>
             </div>
@@ -145,7 +145,7 @@ export function GoogleSection({
               You&apos;ll sign in on Google&apos;s own page and choose what Scout may do. Tokens are stored encrypted on your server and
               never leave it, except to talk to Google.
             </p>
-            <a href="/api/google/connect" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+            <a title="Sign in to Google to connect Gmail, Calendar and Drive" href="/api/google/connect" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
               Connect Google account
             </a>
           </div>
@@ -198,7 +198,7 @@ export function GoogleSection({
                       </option>
                     ))}
                   </Select>
-                  <Button variant="secondary" onClick={checkNow} disabled={checking}>
+                  <Button title="Check Gmail for new messages now" variant="secondary" onClick={checkNow} disabled={checking}>
                     {checking ? "Checking…" : "Check now"}
                   </Button>
                   <p role="status" className={cn("flex items-center gap-2 pb-2 text-control", connection.syncProblem ? "text-error" : "text-muted")}>
@@ -235,7 +235,7 @@ export function GoogleSection({
                   {DAYS.map((label, index) => {
                     const on = settings.workDays.includes(index + 1);
                     return (
-                      <button
+                      <button title="Turn this day on or off"
                         key={label}
                         type="button"
                         aria-pressed={on}
@@ -269,7 +269,7 @@ export function GoogleSection({
               </Select>
               <p className="self-end pb-2 text-meta text-muted">
                 Times are in your time zone:{" "}
-                <a href="/settings?section=timezone" className="text-muted underline underline-offset-2 hover:text-ink">
+                <a title="Open the time zone setting" href="/settings?section=timezone" className="text-muted underline underline-offset-2 hover:text-ink">
                   Settings → Time zone
                 </a>
               </p>
@@ -344,7 +344,7 @@ function Permission({ granted, group, label }: { granted: boolean; group: string
       <span aria-hidden className={cn("size-1.5 flex-none rounded-full", granted ? "bg-success" : "bg-faint")} />
       <span className={cn(granted && "text-ink")}>{label}</span>
       {!granted && (
-        <a href={`/api/google/connect?scopes=${group}`} className="underline underline-offset-3">
+        <a title="Let Scout use this part of your Google account" href={`/api/google/connect?scopes=${group}`} className="underline underline-offset-3">
           Allow
         </a>
       )}
@@ -385,7 +385,7 @@ function SetupSteps({ redirectUri, client }: { redirectUri: string; client: Goog
               <code className="rounded-control border border-line-field bg-input px-2 py-1 font-mono text-label [overflow-wrap:anywhere]">
                 {redirectUri}
               </code>
-              <Button variant="text" size="sm" onClick={() => void copy()}>
+              <Button title="Copy this address" variant="text" size="sm" onClick={() => void copy()}>
                 Copy
               </Button>
             </span>
@@ -480,7 +480,7 @@ function ClientCard({ initial, connected }: { initial: GoogleClientView; connect
             }}
           />
           {(view.secretState === "set" || view.secretState === "unreadable") && (
-            <Button variant="text" size="sm" className="self-start" onClick={() => void save({ secret: { action: "clear" } })}>
+            <Button title="Delete the saved secret" variant="text" size="sm" className="self-start" onClick={() => void save({ secret: { action: "clear" } })}>
               Remove saved secret
             </Button>
           )}

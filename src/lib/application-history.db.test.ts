@@ -26,6 +26,8 @@ async function application(company = "Ledgerly") {
       company,
       role: "Product Designer",
       postingUrl: "https://example.com/jobs/1",
+      // Its cover letter was downloaded before it was marked applied.
+      letterUsedAt: t(1, 8),
       createdAt: t(1, 8),
       documents: {
         create: [

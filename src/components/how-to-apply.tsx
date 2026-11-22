@@ -26,7 +26,7 @@ export function HowToApply({ url, links = [] }: { url: string; links?: readonly 
     return (
       <p className="text-meta text-muted">
         How to apply:{" "}
-        <a href={apply.url} target="_blank" rel="noreferrer" className="font-medium text-ink underline underline-offset-2">
+        <a title="Open the page to apply on, in a new tab" href={apply.url} target="_blank" rel="noreferrer" className="font-medium text-ink underline underline-offset-2">
           {apply.label}
           <span aria-hidden="true"> ↗</span>
         </a>
@@ -39,7 +39,7 @@ export function HowToApply({ url, links = [] }: { url: string; links?: readonly 
       {links.map((link, index) => (
         <span key={link.url} className="inline-flex items-baseline gap-2">
           {index > 0 && <span aria-hidden="true">·</span>}
-          <a href={link.url} target="_blank" rel="noreferrer" className="font-medium text-ink underline underline-offset-2">
+          <a title="Open this place to apply, in a new tab" href={link.url} target="_blank" rel="noreferrer" className="font-medium text-ink underline underline-offset-2">
             {index + 1}. {labelOf(link)}
             <span aria-hidden="true"> ↗</span>
           </a>

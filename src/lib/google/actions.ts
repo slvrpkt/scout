@@ -10,6 +10,7 @@ import { isAiConfigured } from "@/lib/ai/config";
 import { draftReplyJob, replyJobKey } from "@/lib/jobs/draft-reply";
 import { findUnfinishedJobs, startJob } from "@/lib/jobs/runner";
 import { prisma } from "@/lib/prisma";
+import { answerDocSchema, renderAnswer } from "@/lib/rich-answer";
 import { applySecretChange, GOOGLE_CLIENT_SECRET } from "@/lib/secrets";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 import { statusInfo } from "@/lib/status";
@@ -163,17 +164,34 @@ export const startDraftingReply = action(
 );
 
 /** Saves the answer as edited by hand. */
-export const saveReplyDraft = action(z.object({ emailId: z.string().min(1), body: z.string().max(20_000) }), async ({ emailId, body }) => {
-  const { count } = await prisma.emailMessage.updateMany({ where: { id: emailId }, data: { replyDraft: body } });
+export const saveReplyDraft = action(z.object({ emailId: z.string().min(1), body: z.string().max(20_000), doc: answerDocSchema.nullish() }), async ({ emailId, body, doc }) => {
+  // The plain text for the AI and the […] check; the editor's document keeps the formatting.
+  const { count } = await prisma.emailMessage.updateMany({ where: { id: emailId }, data: { replyDraft: body, replyDraftDoc: doc ? (doc as Prisma.InputJsonValue) : Prisma.DbNull } });
   if (count === 0) throw new ActionError("That email is no longer in Scout.");
   return null;
 });
 
 /** "Send" on a drafted answer, after the confirmation. */
-export const sendReplyEmail = action(z.object({ emailId: z.string().min(1), body: z.string().min(1).max(20_000) }), async ({ emailId, body }, { toast }) => {
-  await google(() => sendReply(emailId, body));
+export const sendReplyEmail = action(z.object({ emailId: z.string().min(1), body: z.string().min(1).max(20_000), doc: answerDocSchema.nullish() }), async ({ emailId, body, doc }, { toast }) => {
+  // Formatted in the editor: the HTML and its plain text both come from the document, made here.
+  const rendered = doc ? renderAnswer(doc) : null;
+  await google(() => sendReply(emailId, rendered?.text || body, rendered?.html));
   refreshEverything();
   toast("Answer sent.");
+  return null;
+});
+
+/** Mark as read or unread, in the inbox; opening a message marks it read. */
+export const markEmailRead = action(z.object({ emailId: z.string().min(1), read: z.boolean() }), async ({ emailId, read }) => {
+  await prisma.emailMessage.updateMany({ where: { id: emailId }, data: { readAt: read ? new Date() : null } });
+  revalidatePath("/", "layout");
+  return null;
+});
+
+/** Mark as important (★), or not, in the inbox. */
+export const markEmailImportant = action(z.object({ emailId: z.string().min(1), important: z.boolean() }), async ({ emailId, important }) => {
+  await prisma.emailMessage.updateMany({ where: { id: emailId }, data: { important } });
+  revalidatePath("/inbox");
   return null;
 });
 

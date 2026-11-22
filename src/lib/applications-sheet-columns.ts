@@ -29,13 +29,14 @@ const linkTo = (url: string | null, missing: string): SheetCell => (url && /^htt
  * Company, Role with its link and labels (manual, employer, posted, apply by),
  * Salary, Location, Things To Note, Applied Using, Status, Applied, Resume &
  * Cover Letter and Job Description (links to the files in Google Drive),
- * Activity (the latest event) and Updated. A column added to the table is
+ * Activity (every event, newest first) and Updated. A column added to the table is
  * added here too; a test keeps the two in step. `width` is in characters.
  */
 export const SHEET_COLUMNS: { label: string; width: number; value: (row: ApplicationRow) => SheetCell }[] = [
   { label: "Company", width: 22, value: (row) => ({ text: row.company }) },
   { label: "Role", width: 30, value: (row) => ({ text: row.role }) },
   { label: "Salary", width: 18, value: (row) => ({ text: row.salary || "Not listed" }) },
+  { label: "Expected Salary", width: 14, value: (row) => ({ text: row.expectedSalary }) },
   { label: "Posting Link", width: 12, value: (row) => linkTo(row.postingUrl, "") },
   { label: "Source", width: 10, value: (row) => ({ text: row.manual ? "Manual" : "Agentic" }) },
   { label: "Employer", width: 12, value: (row) => ({ text: row.employer.type ? EMPLOYER_LABELS[row.employer.type] : "" }) },
@@ -48,7 +49,7 @@ export const SHEET_COLUMNS: { label: string; width: number; value: (row: Applica
   { label: "Applied", width: 14, value: (row) => ({ text: row.sent ?? "Not applied" }) },
   { label: "Resume & Cover Letter", width: 14, value: (row) => linkTo(row.driveLinks.documents, "Not in Drive yet") },
   { label: "Job Description", width: 14, value: (row) => linkTo(row.driveLinks.posting, "Not in Drive yet") },
-  { label: "Activity", width: 40, value: (row) => ({ text: row.latestEvent ? `${NOTE_KINDS[row.latestEvent.kind]}: ${row.latestEvent.body}` : "" }) },
+  { label: "Activity", width: 48, value: (row) => ({ text: row.events.map((event) => `${event.on} · ${NOTE_KINDS[event.kind]}: ${event.body.trim()}`).join("\n") }) },
   { label: "Updated", width: 14, value: (row) => ({ text: row.updated }) },
 ];
 

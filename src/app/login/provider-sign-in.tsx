@@ -25,7 +25,7 @@ export function ProviderSignIn({ next, simulated, error }: { next?: string; simu
         </p>
       )}
       <Checkbox label="Keep me signed in for 30 days" name="remember" />
-      <button type="submit" className={buttonClassName("primary", "lg")}>
+      <button title="Sign in with your Cognito account" type="submit" className={buttonClassName("primary", "lg")}>
         Sign in with Cognito
       </button>
     </form>

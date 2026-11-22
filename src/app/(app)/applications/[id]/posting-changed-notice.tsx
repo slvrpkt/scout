@@ -22,7 +22,7 @@ export function PostingChangedNotice({ id }: { id: string }) {
   return (
     <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-warning-surface px-4 py-2.5 text-meta text-warning">
       <span>The job description was replaced after this resume was written.</span>
-      <Button size="sm" aria-disabled={pending || undefined} onClick={rewrite}>
+      <Button title="Write the resume and cover letter again for the updated job description" size="sm" aria-disabled={pending || undefined} onClick={rewrite}>
         {pending ? "Regenerating, about a minute…" : "Regenerate resume and cover letter for the full posting"}
       </Button>
     </div>

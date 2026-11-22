@@ -34,7 +34,7 @@ export default async function ApplicationHistoryPage({ searchParams }: PageProps
         title="Activity log"
         description={`Where you applied, what you sent and what happened since, day by day. ${applied} applied, ${responses} status ${responses === 1 ? "change" : "changes"} and ${entries} ${entries === 1 ? "entry" : "entries"} in these ${HISTORY_DAYS} days.`}
         actions={
-          <Link href="/applications" className={buttonClassName("secondary")}>
+          <Link title="Back to your job application log" href="/applications" className={buttonClassName("secondary")}>
             All applications
           </Link>
         }
@@ -63,11 +63,11 @@ export default async function ApplicationHistoryPage({ searchParams }: PageProps
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
                       <span className="font-medium">{entry.title}</span>
-                      <Link href={`/applications/${entry.application.id}?tab=notes`} className="text-ink underline-offset-2 hover:underline">
+                      <Link title="Open this application's events and notes" href={`/applications/${entry.application.id}?tab=notes`} className="text-ink underline-offset-2 hover:underline">
                         {[entry.application.role, entry.application.company].filter(Boolean).join(" at ") || "Untitled application"}
                       </Link>
                       {entry.application.postingUrl && entry.type === "applied" && (
-                        <a href={entry.application.postingUrl} target="_blank" rel="noreferrer" className="text-label text-muted underline underline-offset-2">
+                        <a title="Open the original job posting in a new tab" href={entry.application.postingUrl} target="_blank" rel="noreferrer" className="text-label text-muted underline underline-offset-2">
                           posting
                         </a>
                       )}
@@ -82,14 +82,14 @@ export default async function ApplicationHistoryPage({ searchParams }: PageProps
         ))}
         <nav aria-label="More days" className="flex max-w-[860px] justify-between">
           {log.newer ? (
-            <Link href={`/applications/history?until=${log.newer}`} className={buttonClassName("secondary", "sm")}>
+            <Link title="Show more recent activity" href={`/applications/history?until=${log.newer}`} className={buttonClassName("secondary", "sm")}>
               Newer
             </Link>
           ) : (
             <span />
           )}
           {log.older && (
-            <Link href={`/applications/history?until=${log.older}`} className={buttonClassName("secondary", "sm")}>
+            <Link title="Show earlier activity" href={`/applications/history?until=${log.older}`} className={buttonClassName("secondary", "sm")}>
               Older
             </Link>
           )}

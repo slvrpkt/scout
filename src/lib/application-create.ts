@@ -33,6 +33,19 @@ export type ApplicationDetails = {
   deadline: string;
 };
 
+/** The application's details from what was read: for a draft the job agent or Prepare draft makes. */
+export function detailsFrom(extracted: Extracted): ApplicationDetails {
+  return {
+    title: extracted.title ?? [extracted.role, extracted.company].filter(Boolean).join(" · "),
+    company: extracted.company ?? "",
+    role: extracted.role ?? "",
+    location: extracted.location ?? "",
+    mode: extracted.mode ?? "",
+    salary: extracted.salary ?? "",
+    deadline: extracted.deadline ?? "",
+  };
+}
+
 /** What was read from the posting, as the read-posting job left it. */
 export type ApplicationReading = {
   posting: string;

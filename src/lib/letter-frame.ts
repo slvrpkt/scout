@@ -49,7 +49,8 @@ export function defaultFrame({ basics, company, location, date, dateFormat, labe
   return {
     sender: [name, contactItems(basics, date, labels).join(SENDER_SEPARATOR)].filter(Boolean).join("\n"),
     date: letterDate(date, dateFormat, labels.locale),
-    recipient: [to ? `${to} · ${labels.hiringTeam}` : labels.hiringTeam, location.trim()].filter(Boolean).join("\n"),
+    // As a business letter's address block: who it's for, the company, then where.
+    recipient: [labels.hiringTeam, to, location.trim()].filter(Boolean).join("\n"),
     greeting: labels.greeting(to),
     signature: name,
   };

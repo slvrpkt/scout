@@ -56,7 +56,7 @@ export function Proofread({ profile, savedAt }: { profile: ProfileData; savedAt:
   if (open_.length === 0) return null;
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger className="rounded-control px-2 py-1 text-meta font-medium text-warning underline-offset-2 hover:underline">
+      <Dialog.Trigger title="See the typos Scout found in your profile" className="rounded-control px-2 py-1 text-meta font-medium text-warning underline-offset-2 hover:underline">
         {open_.length === 1 ? "1 typo to fix" : `${open_.length} typos to fix`}
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -75,14 +75,14 @@ export function Proofread({ profile, savedAt }: { profile: ProfileData; savedAt:
                     <s className="text-muted">{issue.wrong}</s> → <span className="font-medium">{issue.right}</span>
                   </span>
                 </span>
-                <button type="button" onClick={() => dismiss(issue)} className="shrink-0 rounded-control px-2 py-1 text-meta text-muted hover:bg-hover hover:text-ink">
+                <button title="It's spelled right: stop flagging it" type="button" onClick={() => dismiss(issue)} className="shrink-0 rounded-control px-2 py-1 text-meta text-muted hover:bg-hover hover:text-ink">
                   It&apos;s right
                 </button>
               </li>
             ))}
           </ul>
           <div className="flex justify-end">
-            <Dialog.Close className="rounded-control px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover">Close</Dialog.Close>
+            <Dialog.Close title="Close this window" className="rounded-control px-3 py-1.5 text-sm font-medium text-ink hover:bg-hover">Close</Dialog.Close>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

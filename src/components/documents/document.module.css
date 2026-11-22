@@ -599,14 +599,16 @@
 }
 
 /* The page's scale in the preview: it fills the column, up to its real size; with something beside it, the column less that. */
+/* Up to a third bigger than the paper's own size where the column has room, so it reads without zooming in. */
 .pageScale,
 .besideSide {
-  --u: min(1px, calc(100cqw / 640));
+  --u: min(1.35px, calc(100cqw / 640));
 }
 
 @container (min-width: 900px) {
+  /* The side (264px) and the space around it (40px) come off the room. */
   .besideSide {
-    --u: min(1px, calc((100cqw - 288px) / 640));
+    --u: min(1.35px, calc((100cqw - 304px) / 640));
   }
 }
 

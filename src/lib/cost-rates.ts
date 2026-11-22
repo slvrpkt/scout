@@ -61,6 +61,9 @@ const UNKNOWN_MODEL: Rates = { input: 1, output: 5 };
 /** The batch price is half the normal one. */
 const BATCH_SHARE = 0.5;
 
+/** Anthropic's web search tool: $10 per 1,000 searches, on top of the tokens. */
+export const WEB_SEARCH_COST = 0.01;
+
 export type TokenUse = { input_tokens: number; output_tokens: number; cache_creation_input_tokens?: number | null; cache_read_input_tokens?: number | null };
 
 /** What a request cost, in dollars. */

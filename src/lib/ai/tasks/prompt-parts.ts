@@ -230,3 +230,29 @@ export function outcomeWriting(kind: "base" | "tailored" | "shorter"): string {
 }
 
 export const CANDIDATE_VOICE = `Write in the candidate's own style, as far as you can. Their own words are in what they wrote about themselves and their roles: match their word choices, sentence length, level of formality and way of describing results, and keep their phrases where they already work. Change the wording only as much as the job or the length needs.`;
+
+/**
+ * How each job's bullets are ordered, everywhere they're written or
+ * shortened: one story of what the candidate did there, whatever the number
+ * of bullets. `wanted` says what the second to fourth bullets answer to: the
+ * posting's top requirements, or, without a job, what this kind of role is
+ * hired for.
+ */
+export const bulletStory = (wanted: string) => `Each role's bullets tell one story of what the candidate did there, in this order, whatever their number:
+1. First, the business description, when the profile states it or the role's own points clearly imply it: what the program or project was, its scope (teams, people, duration, budget), its outcome and who uses it, e.g. "Directed a multi-year IT modernization of seven teams and about 60 people, delivered on time; the system now serves 2 million residents across the state." Only facts the profile gives: never an invented number, team size or user count. With nothing to describe, start with the next part.
+2. Then, as the next bullets (the second to the fourth), what this job wants most from the candidate's work in this role. Weigh three things together: the kind of job, from its title (a QA analyst leads with testing, a project manager with owning delivery, a business analyst with requirements); ${wanted}; and what the candidate actually did in this role. Most important first.
+3. Then the rest, in the order the work flows, so each bullet leads into the next and related work stays together: for a project manager, say, owning projects from inception to completion, then working with solution engineers and the teams to deliver on time, then reporting, risks and process improvements. Never jump to another topic and back.
+With fewer bullets it's the same story, shorter: the business description and the top points stay, and the later ones go. When the resume runs long, bullets come off the end, so this order is also what survives.`;
+
+/**
+ * How a tailored resume's summary is written, in a full rewrite and when it's
+ * regenerated: one overarching story of who the candidate is for this job,
+ * after the rest of the resume, in the shape of the example below.
+ */
+export const SUMMARY_STORY = `The summary is one overarching story, written last, from the resume as it stands: what this job is looking for most, what the candidate can do, and what they've done over their career. In this order, a sentence or so each:
+1. Who they are for this job: their title, years of experience, the kind of teams they lead, and the way of working and scope this job asks for (e.g. "leading cross-functional software teams through Agile, Scrum and SAFe delivery, from requirements through release").
+2. The capabilities this job wants most that they have, named (a language, a method, every phase of a life cycle the posting names).
+3. The career story in brief: their biggest program, with its scale and what it covered, then what they've done most recently.
+4. Last, only when this job asks for them and the profile shows them: the certifications, citizenship or clearance it needs.
+Start from the candidate's profile summary and keep its voice and wording where it fits; first person without "I" at the start of every sentence. Never claim what the resume and profile don't show.
+The shape, from an example summary (for a systems engineering project manager posting; the shape to follow, not words to copy): "Technical IT project manager with 12 years of experience leading cross-functional software teams through Agile and Scrum delivery, from requirements through release. I am proficient in Python and have worked through every phase of the software development life cycle (SDLC). My past experience includes directing a 40-person team to modernize a state agency's benefits system, covering legacy replacement, data migration and launch readiness, and most recently I have led AI-assisted development teams. I hold a PMP certification and am eligible for a Public Trust clearance when a job requires one."`;

@@ -61,6 +61,24 @@ export function EventComposer({ applicationId, onAdded, autoFocus = false }: { a
         <Select label="Reason" className="sm:w-1/2" value={draft.kind} onChange={(event) => setDraft({ ...draft, kind: event.target.value as NoteKind })}>
           <KindOptions />
         </Select>
+        {draft.kind === NoteKind.SALARY ? (
+          <input
+            id={draftId}
+            type="text"
+            inputMode="decimal"
+            autoFocus={autoFocus}
+            value={draft.body}
+            placeholder="What you asked for, e.g. $120,000 or $55/hour"
+            onChange={(event) => setDraft({ ...draft, body: event.target.value })}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                add();
+              }
+            }}
+            className={textAreaClass}
+          />
+        ) : (
         <textarea
           id={draftId}
           rows={4}
@@ -77,8 +95,9 @@ export function EventComposer({ applicationId, onAdded, autoFocus = false }: { a
           }}
           className={textAreaClass}
         />
+        )}
         <div className="flex justify-end">
-          <Button size="sm" aria-disabled={!draft.body.trim() || pending || undefined} onClick={add}>
+          <Button title="Save this event to the application" size="sm" aria-disabled={!draft.body.trim() || pending || undefined} onClick={add}>
             Add event
           </Button>
         </div>

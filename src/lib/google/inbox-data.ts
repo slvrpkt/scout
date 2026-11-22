@@ -1,5 +1,6 @@
 import "server-only";
 
+import { answerDocSchema, type AnswerNode } from "@/lib/rich-answer";
 import type { ApplicationStatus, EmailDirection, ReplyKind } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
 
@@ -24,9 +25,16 @@ export type EmailView = {
   suggestedStatus: ApplicationStatus | null;
   confirmedAt: Date | null;
   replyDraft: string;
+  /** The drafted answer with its formatting, as the editor keeps it; null for plain text. */
+  replyDraftDoc: AnswerNode | null;
   replyGaps: string[];
   handled: boolean;
+  /** Read by the AI (classified), not by you: see `unread`. */
   read: boolean;
+  /** Incoming mail you haven't opened, or marked unread. */
+  unread: boolean;
+  /** Marked important (★). */
+  important: boolean;
   application: { id: string; company: string; role: string; status: ApplicationStatus } | null;
 };
 
@@ -46,9 +54,12 @@ const SELECT = {
   suggestedStatus: true,
   confirmedAt: true,
   replyDraft: true,
+  replyDraftDoc: true,
   replyGaps: true,
   handledAt: true,
   classifiedWith: true,
+  readAt: true,
+  important: true,
   application: { select: { id: true, company: true, role: true, title: true, status: true } },
 } as const;
 
@@ -59,13 +70,16 @@ const list = (value: unknown) => {
   return parsed.success ? parsed.data : [];
 };
 
-function view({ handledAt, classifiedWith, application, questions, replyGaps, ...row }: Row): EmailView {
+function view({ handledAt, classifiedWith, readAt, application, questions, replyGaps, replyDraftDoc, ...row }: Row): EmailView {
+  const doc = answerDocSchema.safeParse(replyDraftDoc);
   return {
     ...row,
+    replyDraftDoc: doc.success ? doc.data : null,
     questions: list(questions),
     replyGaps: list(replyGaps),
     handled: handledAt !== null,
     read: classifiedWith !== null,
+    unread: row.direction === "INCOMING" && readAt === null,
     application: application
       ? { id: application.id, company: application.company, role: application.role || application.title, status: application.status }
       : null,
@@ -78,41 +92,31 @@ export async function loadConversation(applicationId: string): Promise<EmailView
   return rows.map(view);
 }
 
+/** How many messages the inbox lists, newest first. */
+const INBOX_LIMIT = 500;
+
 export type Inbox = {
-  /** Linked replies still waiting for an answer, newest first. */
-  waiting: EmailView[];
-  /** Mail not linked to an application yet. */
-  unmatched: EmailView[];
-  /** The latest replies that need nothing, for the record. */
-  updates: EmailView[];
+  /** Every incoming message, newest first: the inbox's list. */
+  messages: EmailView[];
+  /** Every message in and out, oldest first, for the conversation beside the one picked. */
+  conversations: EmailView[];
 };
 
 export async function loadInbox(): Promise<Inbox> {
-  const [waiting, unmatched, updates] = await Promise.all([
-    prisma.emailMessage.findMany({
-      where: { direction: "INCOMING", applicationId: { not: null }, handledAt: null, dismissedAt: null },
-      orderBy: { sentAt: "desc" },
-      select: SELECT,
-    }),
-    prisma.emailMessage.findMany({
-      where: { direction: "INCOMING", applicationId: null, dismissedAt: null },
-      orderBy: { sentAt: "desc" },
-      take: 50,
-      select: SELECT,
-    }),
-    prisma.emailMessage.findMany({
-      where: { direction: "INCOMING", applicationId: { not: null }, handledAt: { not: null }, dismissedAt: null },
-      orderBy: { sentAt: "desc" },
-      take: 20,
-      select: SELECT,
-    }),
-  ]);
-  return { waiting: waiting.map(view), unmatched: unmatched.map(view), updates: updates.map(view) };
+  const messages = await prisma.emailMessage.findMany({ where: { direction: "INCOMING", dismissedAt: null }, orderBy: { sentAt: "desc" }, take: INBOX_LIMIT, select: SELECT });
+  const applicationIds = [...new Set(messages.flatMap((message) => (message.application ? [message.application.id] : [])))];
+  const threadIds = [...new Set(messages.map((message) => message.threadId))];
+  const conversations = await prisma.emailMessage.findMany({
+    where: { dismissedAt: null, OR: [{ applicationId: { in: applicationIds } }, { threadId: { in: threadIds } }] },
+    orderBy: { sentAt: "asc" },
+    select: SELECT,
+  });
+  return { messages: messages.map(view), conversations: conversations.map(view) };
 }
 
-/** How many replies wait for an answer or a link: the sidebar's count. */
+/** How many messages you haven't opened: the sidebar's count. */
 export async function inboxCount(): Promise<number> {
-  return prisma.emailMessage.count({ where: { direction: "INCOMING", handledAt: null, dismissedAt: null } });
+  return prisma.emailMessage.count({ where: { direction: "INCOMING", dismissedAt: null, readAt: null } });
 }
 
 /** Per application: replies waiting for an answer, for the dashboard. */

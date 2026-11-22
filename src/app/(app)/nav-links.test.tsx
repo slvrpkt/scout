@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { useBelongsTo } from "@/lib/section-override";
+
 import { NavLinks } from "./nav-links";
 
 let pathname = "/";
@@ -53,7 +55,23 @@ describe("NavLinks", () => {
   it("keeps Applications current on an application and in the new application flow", () => {
     expect(currentItem("/applications")).toEqual(["Job application log"]);
     expect(currentItem("/applications/abc123")).toEqual(["Job application log"]);
-    expect(currentItem("/new")).toEqual(["Job application log"]);
+    // A new manual application, a job found on your own, is part of Manual job search.
+    expect(currentItem("/new")).toEqual(["Manual job search"]);
+  });
+
+  it("marks the search a draft came from, not the log, while the draft's page says so", () => {
+    function Draft() {
+      useBelongsTo("/agent");
+      return null;
+    }
+    pathname = "/applications/abc123";
+    render(
+      <>
+        <Draft />
+        <NavLinks />
+      </>,
+    );
+    expect(screen.getAllByRole("link").filter((link) => link.getAttribute("aria-current") === "page").map((link) => link.textContent)).toEqual(["Agentic job search"]);
   });
 
   it("doesn't treat a path that only starts with the same letters as a match", () => {

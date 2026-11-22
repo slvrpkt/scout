@@ -104,6 +104,8 @@ beforeEach(async () => {
       company: "Northwind",
       role: "Product Designer",
       postingUrl: "https://jobs.example.com/1",
+      // Its cover letter was downloaded before it was marked applied.
+      letterUsedAt: new Date(),
       postingText: "We're hiring a product designer.\nYou'll own our design system.",
       documents: { create: [{ kind: DocumentKind.RESUME, units: [] }, { kind: DocumentKind.COVER_LETTER, units: [] }] },
     },

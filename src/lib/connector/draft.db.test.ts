@@ -31,7 +31,7 @@ const extracted = {
   language: "English",
 };
 vi.mock("@/lib/jobs/read-posting", () => ({
-  readPostingJob: { run: vi.fn(async () => ({ extracted, extractedWith: "extract-posting@1", match: { items: [] }, matchedWith: "match-requirements@1" })) },
+  readPostingJob: { run: vi.fn(async () => ({ extracted, extractedWith: "extract-posting@1", match: { items: [] }, matchedWith: "match-requirements@3" })) },
 }));
 vi.mock("@/lib/jobs/write-documents", async () => {
   const { demoLetterUnits, demoResumeUnits } = await import("@/lib/demo-profile");

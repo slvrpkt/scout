@@ -74,7 +74,7 @@ export function ScoringRubric({ initial }: { initial: RubricItem[] }) {
                   </option>
                 ))}
               </Select>
-              <Button variant="text" size="sm" onClick={() => remove(item.id)} aria-label={`Remove ${item.id === RUBRIC_FIT_ID ? RUBRIC_FIT_LABEL : item.label || `criterion ${index + 1}`}`}>
+              <Button title="Remove this criterion" variant="text" size="sm" onClick={() => remove(item.id)} aria-label={`Remove ${item.id === RUBRIC_FIT_ID ? RUBRIC_FIT_LABEL : item.label || `criterion ${index + 1}`}`}>
                 Remove
               </Button>
             </li>
@@ -83,7 +83,7 @@ export function ScoringRubric({ initial }: { initial: RubricItem[] }) {
       )}
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button variant="secondary" size="sm" aria-disabled={full || undefined} onClick={() => !full && add({ id: newId(), label: "", points: 25 })}>
+        <Button title="Add a criterion to score jobs by" variant="secondary" size="sm" aria-disabled={full || undefined} onClick={() => !full && add({ id: newId(), label: "", points: 25 })}>
           Add a criterion
         </Button>
         {items.length > 0 && <span className="text-meta text-muted">{total} points in all</span>}

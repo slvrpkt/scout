@@ -2,22 +2,47 @@
 
 import { z } from "zod";
 
-import { JobStatus, Tone } from "@/generated/prisma/enums";
+import { randomUUID } from "node:crypto";
+
+import { PostingSource } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
-import { createApplicationFromDocuments } from "@/lib/application-create";
-import { matchSchema } from "@/lib/application-data";
 import { handOffPastedPosting } from "@/lib/connector/handoff";
-import { findDuplicate, loadDuplicateLog } from "@/lib/duplicates";
-import { readPostingJob } from "@/lib/jobs/read-posting";
+import { prepareDraftJob } from "@/lib/jobs/prepare-draft";
 import { startJob } from "@/lib/jobs/runner";
-import { writeDocumentsJob } from "@/lib/jobs/write-documents";
 import { fetchPosting } from "@/lib/posting-fetch";
 import { prisma } from "@/lib/prisma";
 
-/** "Read the posting →": starts reading it in the background and returns the job's id (E7-2). */
-export const startReadingPosting = action(
-  z.object({ posting: z.string().trim().min(1, "Paste a job posting first.").max(100_000) }),
-  ({ posting }) => startJob(readPostingJob, { posting }),
+/**
+ * "Prepare draft →": keeps the posting, then prepares the Draft application
+ * from it in the background, as the job agent does (prepare-draft.ts). A
+ * pasted or fetched posting goes in Manual job search's Saved for later at
+ * once, so it's there to pick up later whatever happens next; preparing it
+ * again updates the same one.
+ */
+export const startPreparingDraft = action(
+  z.object({
+    posting: z.string().trim().min(1, "Paste a job posting first.").max(100_000),
+    postingUrl: z.string().trim().max(2000).optional(),
+    /** The posting it's kept as, from Manual job search or an earlier try. */
+    postingId: z.string().min(1).max(100).nullish(),
+    /** Started from a startup ("Write to them"): no posting is kept for it. */
+    startupId: z.string().min(1).max(100).nullish(),
+  }),
+  async ({ posting, postingUrl = "", postingId, startupId }) => {
+    const url = postingLink(postingUrl);
+    let kept: string | null = postingId ?? null;
+    if (kept) {
+      // A pasted one keeps the text and link as they are now.
+      await prisma.posting.updateMany({ where: { id: kept, pasted: true, applicationId: null }, data: { description: posting, url, complete: true } });
+    } else if (!startupId) {
+      const created = await prisma.posting.create({
+        data: { source: PostingSource.JSEARCH, externalId: `pasted:${randomUUID()}`, pasted: true, title: "Pasted posting", url, description: posting, complete: true, savedAt: new Date() },
+        select: { id: true },
+      });
+      kept = created.id;
+    }
+    return { jobId: await startJob(prepareDraftJob, { posting, postingUrl: url, postingId: kept, startupId: startupId ?? null }), postingId: kept };
+  },
 );
 
 /**
@@ -34,57 +59,9 @@ export const handOffToClaude = action(
   async ({ posting, postingUrl }) => ({ url: await handOffPastedPosting({ text: posting, url: /^https?:\/\//i.test(postingUrl) ? postingUrl : "" }) }),
 );
 
-const detailsSchema = z.object({
-  title: z.string().trim().max(300),
-  company: z.string().trim().max(200),
-  role: z.string().trim().max(200),
-  location: z.string().trim().max(200),
-  mode: z.string().trim().max(200),
-  salary: z.string().trim().max(200),
-  deadline: z.union([z.literal(""), z.iso.date()]),
-});
-
-const STALE = "That reading of the posting is no longer available. Read the posting again.";
-
-/** The finished job that read the posting, with its input and result. */
-async function finishedReading(id: string) {
-  const job = await prisma.job.findUnique({ where: { id } });
-  if (!job || job.type !== readPostingJob.type || job.status !== JobStatus.DONE) throw new ActionError(STALE);
-  return { input: readPostingJob.input.parse(job.input), result: readPostingJob.result.parse(job.result) };
-}
-
-/**
- * "Create application →": writes the tailored documents in the background
- * (E7-6). The details as edited go into the prompts; nothing is saved yet.
- */
-export const startWritingDocuments = action(
-  z.object({
-    readJobId: z.string().min(1),
-    details: detailsSchema,
-    match: matchSchema,
-    tone: z.enum(Tone),
-    note: z.string().trim().max(2000),
-  }),
-  async ({ readJobId, details, match, tone, note }) => {
-    const reading = await finishedReading(readJobId);
-    const orNull = (value: string) => value || null;
-    const extracted = {
-      ...reading.result.extracted,
-      title: orNull(details.title),
-      company: orNull(details.company),
-      role: orNull(details.role),
-      location: orNull(details.location),
-      mode: orNull(details.mode),
-      salary: orNull(details.salary),
-      deadline: orNull(details.deadline),
-    };
-    return startJob(writeDocumentsJob, { readJobId, posting: reading.input.posting, extracted, match, tone, note });
-  },
-);
-
 /**
  * "Fetch" (E7-8, NEW-9): the posting's text from its link, for the user to
- * check before it's read. The request goes to the job site from the server.
+ * check before the draft is prepared. The request goes to the job site from the server.
  */
 export const fetchPostingText = action(z.object({ link: z.string().max(2000) }), async ({ link }) => {
   const url = postingLink(link);
@@ -107,57 +84,3 @@ function postingLink(value: string): string {
   }
   throw new ActionError("The link to the posting doesn't look like a web address. Fix it or leave it empty.");
 }
-
-/** A write-documents job's key once an application was made from it: "application:<id>". */
-const CLAIMED = "application:";
-
-/**
- * Creates the application from the finished documents job (E7-6): the Draft
- * application, its resume and cover letter in the base theme, and the first
- * chat message, in one transaction. Creating twice from the same job returns
- * the application that already exists.
- */
-export const createApplication = action(
-  z.object({
-    writeJobId: z.string().min(1),
-    details: detailsSchema,
-    postingUrl: z.string().max(2000),
-    /** The Find jobs posting it was started from (E14-8). */
-    postingId: z.string().min(1).max(100).nullish(),
-    /** The startup it was started from on Startups (#222). */
-    startupId: z.string().min(1).max(100).nullish(),
-  }),
-  async ({ writeJobId, details, postingUrl, postingId, startupId }) => {
-    const job = await prisma.job.findUnique({ where: { id: writeJobId } });
-    if (!job || job.type !== writeDocumentsJob.type || job.status !== JobStatus.DONE) {
-      throw new ActionError("Those documents aren't ready. Try creating the application again.");
-    }
-    if (job.key?.startsWith(CLAIMED)) return job.key.slice(CLAIMED.length);
-
-    const input = writeDocumentsJob.input.parse(job.input);
-    const documents = writeDocumentsJob.result.parse(job.result);
-    const reading = await finishedReading(input.readJobId);
-    return createApplicationFromDocuments({
-      reading: { posting: reading.input.posting, ...reading.result },
-      documents,
-      match: input.match,
-      details,
-      postingUrl: postingLink(postingUrl),
-      tone: input.tone,
-      note: input.note,
-      claim: { kind: "manual", writeJobId, readJobId: input.readJobId, postingId: postingId ?? null, startupId: startupId ?? null },
-    });
-  },
-);
-
-/** Whether the posting being reviewed is already in the Job application log (#43). */
-export const checkDuplicate = action(
-  z.object({
-    url: z.string().max(2000),
-    company: z.string().max(500),
-    role: z.string().max(500),
-    location: z.string().max(500),
-    deadline: z.string().max(40),
-  }),
-  async ({ url, company, role, location, deadline }) => findDuplicate({ url, company, role, place: location, deadline: deadline || null }, await loadDuplicateLog()),
-);

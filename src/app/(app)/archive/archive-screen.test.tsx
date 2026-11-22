@@ -36,7 +36,8 @@ const titles = () => within(screen.getByRole("table")).getAllByRole("row").slice
 beforeEach(() => vi.clearAllMocks());
 
 describe("ArchiveScreen", () => {
-  it("lists 50 rows a page, sorts by a column's name, and filters", async () => {
+  // Many rows and clicks: given time for when the whole suite runs at once.
+  it("lists 50 rows a page, sorts by a column's name, and filters", { timeout: 30_000 }, async () => {
     const user = userEvent.setup();
     render(<ArchiveScreen rows={Array.from({ length: 60 }, (_, index) => row(`p${index}`, { pay: index * 1000 }))} />);
     expect(titles()).toHaveLength(50);

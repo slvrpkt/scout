@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { RecurringQuestion } from "@/lib/recurring-questions";
+import type { SettingsData } from "@/lib/settings";
 import { employerMatches } from "@/lib/job-search/company";
 
 import type { AgentCandidate, Prisma } from "@/generated/prisma/client";
@@ -15,13 +17,15 @@ import { SOURCE_INFO } from "@/lib/job-search/sources";
 import { prisma } from "@/lib/prisma";
 import { breakdownOf, type RubricLine } from "@/lib/scoring/rubric";
 import { loadSettings } from "@/lib/settings-data";
+import { extractedSchema } from "@/lib/application-data";
+import type { ScreeningTrap } from "@/lib/screening-traps";
 import { lastKnownTimeZone } from "@/lib/time-zone";
 
 import { dayOf } from "@/lib/calendar-view";
 
 import type { SearchQuery } from "@/lib/job-search/search";
 import { skipRuleList } from "@/lib/scoring/rubric";
-import { allTimeResults, lastRunResults, scoredToday, usageOn, type RunResults } from "./budget";
+import { allTimeResults, lastRunResults, periodResults, scoredToday, usageOn, type PeriodResults, type RunResults } from "./budget";
 import { freshFirst, freshLabel, withoutStaleBonus } from "@/lib/freshness";
 
 import { applyLinksOf, stringsOf } from "./candidates";
@@ -30,7 +34,7 @@ import { AGENT_JOB_KEY } from "./jobs";
 import { agentSetupProblem } from "./run";
 import { loadAgentSearches } from "./searches";
 import { agentRunsPerDay, runsInPastDay } from "./runs";
-import { nextAgentRun, scheduledRunDue } from "./schedule";
+import { nextAgentRun, offDaysOf, scheduledRunDue } from "./schedule";
 
 // What the Agent screen shows (E16-6).
 
@@ -44,6 +48,49 @@ const placed = ({ query, places }: { query: SearchQuery; places: string }) => {
 const highestFirst = <T extends { fresh?: string | null; score: number }>(items: readonly T[]): T[] =>
   freshFirst(items).sort((a, b) => b.score - a.score);
 
+/**
+ * Drafts to review, the most worth your time first: by fit score until the
+ * resume has an ATS grade, then by the two together (their average), so a
+ * strong match with a strong resume leads. The grade is worked out as the
+ * list loads, from the resume as it is, so the order follows your edits.
+ * `grades` holds each draft's ATS score by application id.
+ */
+export function draftsInOrder<T extends { fresh?: string | null; score: number; applicationId: string | null }>(drafts: readonly T[], grades: ReadonlyMap<string, number>): T[] {
+  const rank = (draft: T) => {
+    const grade = draft.applicationId ? grades.get(draft.applicationId) : undefined;
+    return grade === undefined ? draft.score : (draft.score + grade) / 2;
+  };
+  return freshFirst(drafts).sort((a, b) => rank(b) - rank(a) || b.score - a.score);
+}
+
+/** The questions to answer once, and the roles an answer can go to; grouping again in the background when the drafts' suggestions changed. */
+async function recurringView(settings: Pick<SettingsData, "recurringTopics">): Promise<AgentView["recurring"]> {
+  const { queueGrouping, recurringQuestions } = await import("@/lib/recurring-questions");
+  const { loadProfile } = await import("@/lib/profile-data");
+  void queueGrouping(settings);
+  const [questions, profile] = await Promise.all([recurringQuestions(), loadProfile()]);
+  return { questions, roles: profile.experience.map((entry) => ({ id: entry.id, label: [entry.role, entry.company].filter((part) => part.trim()).join(" at ") })) };
+}
+
+/** Each draft's ATS score now, by application id; none while ATS grading is off in Settings. */
+async function draftGrades(applicationIds: readonly string[], atsOptimize: boolean): Promise<Map<string, number>> {
+  if (!atsOptimize || applicationIds.length === 0) return new Map();
+  const { loadDocuments } = await import("@/lib/application-documents");
+  const { gradeOf } = await import("@/lib/ats-rewrite");
+  const graded = await Promise.all(
+    applicationIds.map(async (id) => {
+      try {
+        const grade = gradeOf(await loadDocuments(id));
+        return grade ? ([id, grade.score] as const) : null;
+      } catch {
+        // A draft that can't be graded just keeps its place by fit score.
+        return null;
+      }
+    }),
+  );
+  return new Map(graded.filter((entry) => entry !== null));
+}
+
 export type AgentCandidateView = {
   id: string;
   title: string;
@@ -56,6 +103,10 @@ export type AgentCandidateView = {
   url: string;
   /** Where it can be applied to, in order; empty when only `url` is known. */
   applyLinks?: NonNullable<FoundPosting["applyLinks"]>;
+  /** Looked for on the company's own site: "found" or "not found"; null before. */
+  sourceCheck?: string | null;
+  /** Its page on the company's site, once found. */
+  sourceUrl?: string | null;
   score: number;
   reasons: string[];
   redFlags: string[];
@@ -87,11 +138,15 @@ export type AgentCandidateView = {
   place: string;
   remote: boolean | null;
   postedAt: string | null;
+  /** Words its posting seems to plant as resume screening traps (kept out of its draft). */
+  traps?: ScreeningTrap[];
   /** The application in the Job application log it looks like, other than its own draft (#43). */
   duplicate: DuplicateMatch | null;
 };
 
 export type AgentView = {
+  /** Questions that keep coming up across the drafts, to answer once; and the roles an answer can go to. */
+  recurring: { questions: RecurringQuestion[]; roles: { id: string; label: string }[] };
   enabled: boolean;
   autoDraft: boolean;
   minScore: number;
@@ -114,6 +169,8 @@ export type AgentView = {
   lastResults: RunResults | null;
   /** Every run's, since the first; deleted Archive records still count. */
   allResults: RunResults & { since: string | null };
+  /** Today, this week and this month so far, in your time zone. */
+  periodResults: PeriodResults;
   /** How many runs it may make in any 24 hours. */
   runsPerDay: number;
   /** When it runs, "04:00", in the user's zone. */
@@ -132,9 +189,15 @@ export type AgentView = {
   belowMinimum: AgentCandidateView[];
 };
 
-/** The Agentic job search item's badge (E16-6): the drafts waiting for your review, whenever they were found, as its Drafts to review tab counts them. */
+/** The Agentic job search item's badge (E16-6): what its Drafts to review tab lists, the drafts reaching your draft score and those at it still waiting for theirs. */
 export async function countAgentQueue(): Promise<number> {
-  return prisma.agentCandidate.count({ where: { status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } } });
+  const { agentMinScore } = await loadSettings();
+  return prisma.agentCandidate.count({
+    where: {
+      score: { gte: agentMinScore },
+      OR: [{ status: AgentCandidateStatus.DRAFTED, applicationId: { not: null } }, { status: { in: [AgentCandidateStatus.SCORED, AgentCandidateStatus.DRAFTING] } }],
+    },
+  });
 }
 
 const sectionOf = (problem: string): AgentView["setupSection"] =>
@@ -202,13 +265,15 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
     waiting: await prisma.queuedPosting.count(),
     lastResults: last ? await lastRunResults(new Date(last.at), settings.agentMinScore) : null,
     allResults: await allTimeResults(settings.agentMinScore, settings.agentClearedTally),
+    periodResults: await periodResults(now, timeZone, settings.agentMinScore, settings.agentClearedTally),
     runsPerDay: agentRunsPerDay(settings.agentTimes),
     times: settings.agentTimes,
     lastRun: last ? { at: formatDateTime12(new Date(last.at), timeZone, now), message: last.message } : null,
-    nextRunDue: settings.agentEnabled && scheduledRunDue(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince),
-    nextRun: settings.agentEnabled ? formatDateTime12(nextAgentRun(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince), timeZone, now) : null,
+    nextRunDue: settings.agentEnabled && scheduledRunDue(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince, offDaysOf(settings)),
+    nextRun: settings.agentEnabled ? formatDateTime12(nextAgentRun(now, settings.agentTimes, timeZone, settings.agentRuns, settings.agentOnSince, offDaysOf(settings)), timeZone, now) : null,
     runJobId: runJobs[0]?.id ?? null,
-    drafts: highestFirst(drafts),
+    drafts: draftsInOrder(drafts, await draftGrades(drafts.flatMap((draft) => draft.applicationId ?? []), settings.atsOptimize)),
+    recurring: await recurringView(settings),
     // Highest score first; between equal scores, the freshly posted one.
     scored: highestFirst(waiting.filter((candidate) => candidate.score >= settings.agentMinScore).map(view)),
     belowMinimum: highestFirst(waiting.filter((candidate) => candidate.score < settings.agentMinScore).map(view)),
@@ -216,9 +281,9 @@ export async function loadAgentView(now = new Date()): Promise<AgentView> {
 }
 
 /** A candidate as loaded for the Agent screen: with its search's name and its draft's deadline. */
-type ShownCandidate = AgentCandidate & { search: { name: string; companies: string } | null; application: { deadline: Date | null } | null };
+type ShownCandidate = AgentCandidate & { search: { name: string; companies: string } | null; application: { deadline: Date | null; extracted: Prisma.JsonValue } | null };
 
-const SHOWN_INCLUDE = { search: { select: { name: true, companies: true } }, application: { select: { deadline: true } } } as const;
+const SHOWN_INCLUDE = { search: { select: { name: true, companies: true } }, application: { select: { deadline: true, extracted: true } } } as const;
 
 /** A candidate with its score as it stands now: without the fresh bonus once it's past the window. */
 function asNow<T extends { score: number; reasons: Prisma.JsonValue; postedAt: Date | null }>(candidate: T, now: Date, hours: number): T {
@@ -249,6 +314,8 @@ function candidateView(candidate: ShownCandidate, draftJobId: string | null, log
     source: candidate.source,
     url: candidate.url,
     applyLinks: applyLinksOf(candidate.applyLinks),
+    sourceCheck: candidate.sourceCheck,
+    sourceUrl: candidate.sourceUrl,
     score: candidate.score,
     reasons: stringsOf(candidate.reasons),
     redFlags: stringsOf(candidate.redFlags),
@@ -263,6 +330,8 @@ function candidateView(candidate: ShownCandidate, draftJobId: string | null, log
     postedOn: candidate.postedAt ? formatDate(candidate.postedAt) : null,
     foundOn: formatDateTime(candidate.createdAt, timeZone, new Date()),
     deadline: candidate.application?.deadline ? formatCalendarDate(candidate.application.deadline) : null,
+    // Words its posting seems to plant as resume screening traps, once its draft read them.
+    traps: extractedSchema.safeParse(candidate.application?.extracted).data?.traps ?? [],
     place: candidate.place,
     remote: candidate.remote,
     postedAt: candidate.postedAt?.toISOString() ?? null,

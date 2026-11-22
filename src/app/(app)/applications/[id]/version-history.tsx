@@ -97,7 +97,7 @@ export function VersionHistory({
                 A version is saved with each AI change and before each restore. Your own edits are in the current version.
               </Dialog.Description>
             </div>
-            <Dialog.Close className="rounded-control px-2 py-1 text-sm text-muted hover:bg-hover hover:text-ink">Close</Dialog.Close>
+            <Dialog.Close title="Close this window" className="rounded-control px-2 py-1 text-sm text-muted hover:bg-hover hover:text-ink">Close</Dialog.Close>
           </div>
           {versions === null ? (
             <p role="status" className="text-sm text-muted">
@@ -116,7 +116,7 @@ export function VersionHistory({
                       {index === 0 && " · the newest"}
                     </span>
                   </span>
-                  <Button
+                  <Button title="Look at this version; you can restore it from there"
                     variant="secondary"
                     size="sm"
                     aria-label={`Look at the version from ${versionTime(version.createdAt)}`}

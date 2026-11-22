@@ -80,15 +80,15 @@ export function UpdateNotice({ release, currentVersion }: { release: Release; cu
       </h2>
       <p className="text-xs text-muted">You have {currentVersion}. Update to get its fixes and features.</p>
       <div className="flex flex-wrap gap-x-3 text-xs">
-        <a href={release.url} target="_blank" rel="noopener noreferrer" className={LINK}>
+        <a title="Read what's new in this version" href={release.url} target="_blank" rel="noopener noreferrer" className={LINK}>
           What&apos;s new{" "}
           <span className="sr-only">(opens in a new tab)</span>
         </a>
-        <a href={UPGRADE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
+        <a title="How to update Scout" href={UPGRADE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
           How to update{" "}
           <span className="sr-only">(opens in a new tab)</span>
         </a>
-        <button type="button" onClick={() => void notNow()} className={`${TARGET} text-muted hover:text-ink`}>
+        <button title="Hide this notice for now" type="button" onClick={() => void notNow()} className={`${TARGET} text-muted hover:text-ink`}>
           Not now
         </button>
       </div>

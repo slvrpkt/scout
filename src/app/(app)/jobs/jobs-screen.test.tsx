@@ -104,7 +104,7 @@ describe("the search form", () => {
 
   it("starts from the search it's given, and says which source it searches", () => {
     renderScreen();
-    expect(screen.getByText("Search JSearch for postings near you, then start an application from the one you like.")).toBeInTheDocument();
+    expect(screen.getByText(/^Search JSearch for postings near you, then start an application from the one you like. Found a job on your own/)).toBeInTheDocument();
     const form = screen.getByRole("search", { name: "Search postings" });
     expect(within(form).getByLabelText("What")).toHaveValue("product designer");
     expect(within(form).getByLabelText("Where")).toHaveValue("Hamburg");

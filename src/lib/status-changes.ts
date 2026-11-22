@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma, PrismaClient, StatusEvent } from "@/generated/prisma/client";
 import type { ApplicationStatus, FileFormat } from "@/generated/prisma/enums";
 
-import { saveSentCopies } from "./sent-documents";
+import { saveSentCopies, NO_LETTER_USED, withoutNote } from "./sent-documents";
 import { advance, undoChange } from "./status";
 
 // Database side of the status model: every status change is written here, in
@@ -79,6 +79,11 @@ export async function undoStatusChange(db: PrismaClient, eventId: string): Promi
 
     const restored = undoChange(event);
     await tx.application.update({ where: { id: event.applicationId }, data: restored });
+    // It marked the letter unused when it was sent: the letter is back, and so is Things To Note.
+    if (event.droppedLetter) {
+      const { thingsToNote } = await tx.application.findUniqueOrThrow({ where: { id: event.applicationId }, select: { thingsToNote: true } });
+      await tx.application.update({ where: { id: event.applicationId }, data: { noCoverLetter: false, thingsToNote: withoutNote(thingsToNote, NO_LETTER_USED) } });
+    }
     await tx.statusEvent.delete({ where: { id: event.id } });
     return { outcome: "undone", status: restored.status };
   });

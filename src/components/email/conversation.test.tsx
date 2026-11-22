@@ -53,9 +53,12 @@ const email = (extra: Partial<EmailView> = {}): EmailView => ({
   suggestedStatus: "INTERVIEW",
   confirmedAt: null,
   replyDraft: "",
+  replyDraftDoc: null,
   replyGaps: [],
   handled: false,
   read: true,
+  unread: false,
+  important: false,
   application: { id: "nw", company: "Northwind", role: "Designer", status: "SENT" },
   ...extra,
 });
@@ -87,17 +90,22 @@ describe("Conversation (E15-3, E15-4)", () => {
     expect(startDraftingReply).toHaveBeenCalledWith({ emailId: "e1", note: "Notice is 3 months", slots: ["2026-10-20T08:00:00.000Z"] });
 
     act(() => jobs.listener?.({ id: "job-1", status: "DONE", result: { body: "Hi Anna,\n\nTuesday works. My notice is […].", gaps: ["Start date?"], unverified: [], slots: [] } }));
-    expect(screen.getByRole("textbox", { name: "Your answer" })).toHaveValue("Hi Anna,\n\nTuesday works. My notice is […].");
+    // The draft loads into the formatting editor, a paragraph per block.
+    expect(await screen.findByRole("textbox", { name: "Your answer" })).toHaveTextContent("Hi Anna,Tuesday works. My notice is […].");
+    expect(screen.getByRole("toolbar", { name: "Formatting" })).toBeInTheDocument();
     expect(screen.getByText("Start date?")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Review and send" }));
     expect(toast).toHaveBeenCalledWith("Fill in the parts marked […] first.");
-    const answer = screen.getByRole("textbox", { name: "Your answer" });
-    await user.clear(answer);
-    await user.type(answer, "Hi Anna, Tuesday works.");
+  });
+
+  it("sends a finished answer, with its formatting, after review", async () => {
+    const user = userEvent.setup();
+    render(<Conversation emails={[email({ replyDraft: "Hi Anna, Tuesday works." })]} aiReady timeZone="Europe/Berlin" />);
+    expect(await screen.findByRole("textbox", { name: "Your answer" })).toHaveTextContent("Hi Anna, Tuesday works.");
     await user.click(screen.getByRole("button", { name: "Review and send" }));
     await user.click(screen.getByRole("button", { name: "Send now" }));
-    expect(sendReplyEmail).toHaveBeenCalledWith({ emailId: "e1", body: "Hi Anna, Tuesday works." });
+    expect(sendReplyEmail).toHaveBeenCalledWith(expect.objectContaining({ emailId: "e1", body: "Hi Anna, Tuesday works." }));
   });
 
   it("offers to add an agreed interview", async () => {

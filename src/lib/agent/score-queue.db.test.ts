@@ -28,6 +28,7 @@ vi.mock("@/lib/ai/config", async (importOriginal) => ({ ...(await importOriginal
 
 const { enqueue, SCORE_WAIT_MS, startDueScoring } = await import("./score-queue");
 const { loadSettings, saveSettings } = await import("@/lib/settings-data");
+const { deleteAgentSearch } = await import("./searches");
 
 const prisma = () => db.client!;
 const now = new Date("2026-11-07T04:30:00Z");
@@ -58,5 +59,22 @@ describe("waiting for the search before scoring", () => {
     expect(await startDueScoring(now, "UTC", false)).toBe(1);
     expect(fake.sent).toHaveLength(1);
     expect(await loadSettings()).toMatchObject({ agentBatchId: "batch-1", agentScoreAt: null });
+  });
+});
+
+describe("postings deleted before a score still count as found", () => {
+  it("counts one that waited too long, on the day it was found", async () => {
+    await prisma().queuedPosting.updateMany({ data: { createdAt: new Date("2026-11-02T15:00:00Z") } });
+    await enqueue([{ posting: posting("2"), searchId: "s1", rules: [] }], now, "America/New_York");
+    expect((await prisma().queuedPosting.findMany()).map((row) => row.jobKey)).toHaveLength(1);
+    expect((await loadSettings()).agentClearedTally).toMatchObject({ unscored: 1, byDay: { "2026-11-02": { unscored: 1 } } });
+  });
+
+  it("counts the ones waiting when their search is deleted", async () => {
+    await enqueue([{ posting: posting("2"), searchId: "s1", rules: [] }], now, "America/New_York");
+    await prisma().queuedPosting.updateMany({ data: { createdAt: now } }); // 11:30 PM on the 6th in New York
+    await deleteAgentSearch("s1", "America/New_York");
+    expect(await prisma().queuedPosting.count()).toBe(0);
+    expect((await loadSettings()).agentClearedTally).toMatchObject({ unscored: 2, byDay: { "2026-11-06": { unscored: 2 } } });
   });
 });

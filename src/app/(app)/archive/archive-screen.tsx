@@ -98,7 +98,7 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
             ? `Jobs the agentic job search set aside, jobs you archived, and archived applications you never applied to are deleted automatically ${archiveClearPeriod(clearDays)} after they were archived. Anything you applied to is never deleted. `
             : "Nothing here is deleted automatically. "}
           To {clearDays > 0 ? "keep them longer, or never delete them" : "clear old jobs automatically"}, change it in{" "}
-          <Link href="/settings?section=data" className="underline underline-offset-2 hover:text-ink">
+          <Link title="Open the setting that clears the Archive" href="/settings?section=data" className="underline underline-offset-2 hover:text-ink">
             Settings → Your data → Clear the Archive
           </Link>
           .
@@ -174,7 +174,7 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
           <p className="col-span-full flex flex-wrap items-center gap-x-3 text-meta text-muted">
             {shown.length === rows.length ? `${rows.length} archived.` : `${shown.length} of ${rows.length} match.`} Click a column&apos;s name to sort by it; click again to reverse.
             {filtered && (
-              <Button variant="text" size="sm" onClick={() => set(NO_ARCHIVE_FILTERS)}>
+              <Button title="Show everything again" variant="text" size="sm" onClick={() => set(NO_ARCHIVE_FILTERS)}>
                 Clear filters
               </Button>
             )}
@@ -195,7 +195,7 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
                       aria-sort={sort.key === column.key ? ((column.key === "archivedAt" || column.numeric) !== sort.reversed ? "descending" : "ascending") : undefined}
                       className={cn("px-3 py-2.5 font-medium", column.numeric && "text-right")}
                     >
-                      <button type="button" onClick={() => sortBy(column.key)} className="inline-flex items-center gap-1 hover:text-ink">
+                      <button title="Sort by this column; click again to reverse" type="button" onClick={() => sortBy(column.key)} className="inline-flex items-center gap-1 hover:text-ink">
                         {column.label}
                         {sort.key === column.key && <span aria-hidden="true">{(column.key === "archivedAt" || column.numeric) !== sort.reversed ? "↓" : "↑"}</span>}
                       </button>
@@ -212,7 +212,7 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
                     <td className="px-3 py-2.5 whitespace-nowrap text-muted">{day(row.archivedAt)}</td>
                     <td className="px-3 py-2.5">
                       {row.href ? (
-                        <a href={row.href} {...(row.kind === "posting" ? { target: "_blank", rel: "noreferrer" } : {})} className="font-medium text-ink hover:underline">
+                        <a title="Open it" href={row.href} {...(row.kind === "posting" ? { target: "_blank", rel: "noreferrer" } : {})} className="font-medium text-ink hover:underline">
                           {row.title}
                         </a>
                       ) : (
@@ -230,7 +230,7 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
                     <td className="px-3 py-2.5">{row.kind === "posting" ? "Posting" : "Application"}</td>
                     <td className="px-3 py-2.5">{row.foundBy ?? "—"}</td>
                     <td className="px-3 py-2.5 text-right">
-                      <button type="button" aria-disabled={busy !== null || undefined} onClick={() => putBack(row)} className={buttonClassName("secondary", "sm")} aria-label={`Put back ${row.title}`}>
+                      <button title="Bring it back from the Archive" type="button" aria-disabled={busy !== null || undefined} onClick={() => putBack(row)} className={buttonClassName("secondary", "sm")} aria-label={`Put back ${row.title}`}>
                         {busy === row.id ? "Putting back…" : "Put back"}
                       </button>
                     </td>
@@ -246,13 +246,13 @@ export function ArchiveScreen({ rows: initial, clearDays = 90 }: { rows: Archive
             <span>
               {page * ARCHIVE_PAGE + 1}–{Math.min(shown.length, (page + 1) * ARCHIVE_PAGE)} of {shown.length}
             </span>
-            <button type="button" disabled={page === 0} onClick={() => setPage(page - 1)} className={buttonClassName("secondary", "sm")}>
+            <button title="Show the previous page" type="button" disabled={page === 0} onClick={() => setPage(page - 1)} className={buttonClassName("secondary", "sm")}>
               Previous
             </button>
             <span>
               Page {page + 1} of {pages}
             </span>
-            <button type="button" disabled={page >= pages - 1} onClick={() => setPage(page + 1)} className={buttonClassName("secondary", "sm")}>
+            <button title="Show the next page" type="button" disabled={page >= pages - 1} onClick={() => setPage(page + 1)} className={buttonClassName("secondary", "sm")}>
               Next
             </button>
           </nav>

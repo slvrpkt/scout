@@ -1,10 +1,10 @@
 import "server-only";
 
-import { dayOf } from "@/lib/calendar-view";
+import { dayOf, startOfMonth, startOfWeek, startOfDay as dayStart, type Day } from "@/lib/calendar-view";
 import { zonedTime } from "@/lib/google/slots";
 import { AgentCandidateStatus } from "@/generated/prisma/enums";
 import { prisma } from "@/lib/prisma";
-import { settingsFromRows, type AgentUsage, type ClearedTally } from "@/lib/settings";
+import { settingsFromRows, type AgentUsage, type ClearedCounts, type ClearedTally } from "@/lib/settings";
 import { loadSettings, saveSettings } from "@/lib/settings-data";
 
 import { archiveReasonOf } from "./archive-reasons";
@@ -80,6 +80,21 @@ export async function lastRunResults(since: Date, minScore: number): Promise<Run
   return results;
 }
 
+/** A run's results with what clearing the Archive deleted added back, so the totals never go down. */
+function withCleared(here: RunResults, cleared: ClearedCounts): RunResults {
+  return {
+    found: here.found + cleared.setAside + cleared.skipped + cleared.archived + cleared.drafted + cleared.unscored,
+    waiting: here.waiting,
+    scored: here.scored + cleared.skipped + cleared.archived + cleared.drafted,
+    setAside: here.setAside + cleared.setAside,
+    atMin: here.atMin,
+    below: here.below,
+    drafted: here.drafted + cleared.drafted,
+    skipped: here.skipped + cleared.skipped,
+    archived: here.archived + cleared.archived,
+  };
+}
+
 /**
  * Every run's new postings since the first, the way the tiles count a run's:
  * what's here now, plus what clearing the Archive deleted (its tally), so the
@@ -90,20 +105,31 @@ export async function allTimeResults(minScore: number, cleared: ClearedTally): P
     lastRunResults(new Date(0), minScore),
     prisma.agentCandidate.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
   ]);
-  const deleted = cleared.setAside + cleared.skipped + cleared.archived + cleared.drafted;
   const found = first?.createdAt.toISOString() ?? null;
   return {
-    found: here.found + deleted,
-    waiting: here.waiting,
-    scored: here.scored + cleared.skipped + cleared.archived + cleared.drafted,
-    setAside: here.setAside + cleared.setAside,
-    atMin: here.atMin,
-    below: here.below,
-    drafted: here.drafted + cleared.drafted,
-    skipped: here.skipped + cleared.skipped,
-    archived: here.archived + cleared.archived,
+    ...withCleared(here, cleared),
     since: [found, cleared.since].filter((date): date is string => Boolean(date)).sort()[0] ?? null,
   };
+}
+
+/** The calendar periods the tiles can show, in your time zone: today from midnight, this week from Monday, this month from the 1st. */
+export type Period = "today" | "week" | "month";
+export type PeriodResults = Record<Period, RunResults & { from: Day }>;
+
+/** The new postings found in each period so far, counted as a run's are, with cleared ones added back by the day they were found. */
+export async function periodResults(now: Date, timeZone: string, minScore: number, cleared: ClearedTally): Promise<PeriodResults> {
+  const today = dayOf(now, timeZone);
+  const starts: Record<Period, Day> = { today, week: startOfWeek(today), month: startOfMonth(today) };
+  const zero: ClearedCounts = { setAside: 0, skipped: 0, archived: 0, drafted: 0, unscored: 0 };
+  const entries = await Promise.all(
+    (Object.entries(starts) as [Period, Day][]).map(async ([period, from]) => {
+      const gone = Object.entries(cleared.byDay)
+        .filter(([day]) => day >= from)
+        .reduce((sum, [, counts]) => ({ setAside: sum.setAside + counts.setAside, skipped: sum.skipped + counts.skipped, archived: sum.archived + counts.archived, drafted: sum.drafted + counts.drafted, unscored: sum.unscored + counts.unscored }), zero);
+      return [period, { ...withCleared(await lastRunResults(dayStart(from, timeZone), minScore), gone), from }] as const;
+    }),
+  );
+  return Object.fromEntries(entries) as PeriodResults;
 }
 
 /** What today's scores became: still in the list, or archived by a rule that needed the AI to read the posting. */

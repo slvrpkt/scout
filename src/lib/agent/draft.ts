@@ -1,15 +1,16 @@
 import "server-only";
 
 import { applyLinksOf } from "./candidates";
+import { checkSource } from "./source-check";
 
 import { z } from "zod";
 
 import type { AgentCandidate } from "@/generated/prisma/client";
 import { AgentCandidateStatus } from "@/generated/prisma/enums";
 import { ActionError } from "@/lib/action";
+import { inBatchWindow } from "@/lib/ai/batch-window";
 import { AiError } from "@/lib/ai/errors";
-import { createApplicationFromDocuments, type ApplicationDetails } from "@/lib/application-create";
-import type { Extracted } from "@/lib/application-data";
+import { createApplicationFromDocuments, detailsFrom } from "@/lib/application-create";
 import { fullText } from "@/lib/job-search/find";
 import { postingText, type FoundPosting } from "@/lib/job-search/search";
 import { readPostingJob } from "@/lib/jobs/read-posting";
@@ -48,18 +49,6 @@ export function foundFromCandidate(candidate: AgentCandidate): FoundPosting {
   };
 }
 
-/** The application's details from what was read, as New application fills them in. */
-function detailsFrom(extracted: Extracted): ApplicationDetails {
-  return {
-    title: extracted.title ?? [extracted.role, extracted.company].filter(Boolean).join(" · "),
-    company: extracted.company ?? "",
-    role: extracted.role ?? "",
-    location: extracted.location ?? "",
-    mode: extracted.mode ?? "",
-    salary: extracted.salary ?? "",
-    deadline: extracted.deadline ?? "",
-  };
-}
 
 /**
  * Prepares a candidate's draft. It's claimed first (SCORED → DRAFTING), so a
@@ -70,7 +59,7 @@ function detailsFrom(extracted: Extracted): ApplicationDetails {
 export const HELD_SHORT = "Not drafted:";
 
 export async function draftCandidate(candidateId: string, context: JobContext, { auto = false }: { auto?: boolean } = {}): Promise<string> {
-  const candidate = await prisma.agentCandidate.findUnique({ where: { id: candidateId } });
+  let candidate = await prisma.agentCandidate.findUnique({ where: { id: candidateId } });
   if (!candidate) throw new ActionError("That posting is no longer in the agent's queue.");
   if (candidate.status === AgentCandidateStatus.DRAFTED && candidate.applicationId) return candidate.applicationId;
   const { count } = await prisma.agentCandidate.updateMany({
@@ -81,6 +70,21 @@ export async function draftCandidate(candidateId: string, context: JobContext, {
 
   const name = candidate.company || candidate.title || "the posting";
   try {
+    // First, the posting on the company's own site: its text to write from, and its page to apply on.
+    if (!candidate.sourceCheck) {
+      await context.step(`Looking for the posting on ${name}'s website`);
+      const look = await checkSource(candidateId, context.signal);
+      candidate = (await prisma.agentCandidate.findUnique({ where: { id: candidateId } })) ?? candidate;
+      // An automatic draft waits when the company's text rules it out; Prepare draft writes one anyway.
+      if (auto && look.skipped) {
+        await prisma.agentCandidate.updateMany({ where: { id: candidateId, status: AgentCandidateStatus.DRAFTING }, data: { status: AgentCandidateStatus.DISMISSED } });
+        throw new ActionError(`${HELD_SHORT} ${name}'s own posting matches one of your "What to skip" rules.`);
+      }
+      const minScore = (await loadSettings()).agentMinScore;
+      if (auto && look.score !== null && look.score < minScore) {
+        throw new ActionError(`${HELD_SHORT} scored ${look.score} from ${name}'s own posting, below your minimum of ${minScore}.`);
+      }
+    }
     const found = foundFromCandidate(candidate);
     // The source may have given only a snippet; the whole text writes a better draft.
     const description = (await fullText(found)) ?? candidate.description;
@@ -110,7 +114,7 @@ export async function draftCandidate(candidateId: string, context: JobContext, {
       documents,
       match: reading.match,
       details: detailsFrom(reading.extracted),
-      postingUrl: candidate.url,
+      postingUrl: candidate.sourceUrl ?? candidate.url,
       tone: settings.defaultTone,
       note: "",
       claim: { kind: "agent", candidateId, score: candidate.score },
@@ -132,7 +136,12 @@ export const agentDraftJob = defineJob({
   type: "agent-draft",
   input: z.object({ candidateId: z.string().min(1), auto: z.boolean().optional() }),
   result: z.object({ applicationId: z.string().min(1) }),
-  run: async ({ candidateId, auto }, context) => ({ applicationId: await draftCandidate(candidateId, context, { auto }) }),
+  // An automatic draft's AI calls go as batches, at half price, each waiting up to 20 minutes before going at the normal price.
+  run: async ({ candidateId, auto }, context) => ({
+    applicationId: await (auto ? inBatchWindow(() => draftCandidate(candidateId, context, { auto })) : draftCandidate(candidateId, context, { auto })),
+  }),
+  // After a restart the agent starts it again itself (resetInterruptedDrafts, redoInterruptedDrafts).
+  resumable: false,
 });
 
 /**

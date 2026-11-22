@@ -32,7 +32,7 @@ export function DragHandle({ ref, ...props }: ComponentProps<"span">) {
 /** ↑ or ↓: stays focusable at the ends (aria-disabled), so focus isn't lost after the last move. */
 function MoveButton({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <button
+    <button title="Move this entry"
       type="button"
       aria-label={label}
       aria-disabled={disabled || undefined}
@@ -82,7 +82,7 @@ export function EntryCard({
     >
       <div className="flex">
         {reorder?.handle}
-        <button
+        <button title="Open or close this entry"
           type="button"
           aria-expanded={open}
           aria-controls={bodyId}
@@ -115,10 +115,10 @@ export function EntryCard({
         <div id={bodyId} className="flex flex-col gap-5 border-t border-line px-6 pt-[22px] pb-6">
           {children}
           <div className="flex items-center justify-between">
-            <Button variant="danger-text" size="sm" onClick={onRemove}>
+            <Button title="Remove this entry from your profile" variant="danger-text" size="sm" onClick={onRemove}>
               Remove
             </Button>
-            <Button variant="secondary" size="sm" className="bg-input" onClick={onToggle}>
+            <Button title="Close this entry" variant="secondary" size="sm" className="bg-input" onClick={onToggle}>
               Done
             </Button>
           </div>
@@ -131,7 +131,7 @@ export function EntryCard({
 /** "+ Add a role": the dashed button under a list of entries. */
 export function AddEntryButton({ children, onClick, disabled }: { children: ReactNode; onClick: () => void; disabled?: boolean }) {
   return (
-    <button
+    <button title="Add a new entry"
       type="button"
       onClick={onClick}
       disabled={disabled}

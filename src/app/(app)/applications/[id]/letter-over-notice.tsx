@@ -22,7 +22,7 @@ export function LetterOverNotice({ id }: { id: string }) {
   return (
     <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-warning-surface px-4 py-2.5 text-meta text-warning">
       <span>This custom tailored cover letter runs past one page.</span>
-      <Button size="sm" variant="secondary" aria-disabled={pending || undefined} onClick={fit}>
+      <Button title="Shorten the letter so it fits on one page" size="sm" variant="secondary" aria-disabled={pending || undefined} onClick={fit}>
         {pending ? "Shortening…" : "Fit to one page"}
       </Button>
     </div>

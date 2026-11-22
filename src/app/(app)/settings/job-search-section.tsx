@@ -185,7 +185,7 @@ export function JobSearchSection({ initial }: { initial: JobSearchSettingsView }
 
             {testable && (
               <div className="flex flex-wrap items-center gap-3.5 pt-1">
-                <Button variant="secondary" onClick={() => void test()} disabled={connection.status === "testing"}>
+                <Button title="Check that Scout can reach the job search service with this key" variant="secondary" onClick={() => void test()} disabled={connection.status === "testing"}>
                   {connection.status === "testing" ? "Testing…" : "Test connection"}
                 </Button>
                 <ConnectionStatus connection={connection} source={source} />

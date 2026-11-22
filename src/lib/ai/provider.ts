@@ -5,6 +5,7 @@ import type { AiProvider as AiProviderKind, Creativity } from "@/generated/prism
 import { overLimitText, type CostCenter } from "@/lib/cost-rates";
 import { logServerWarning } from "@/lib/log";
 
+import { openBatchWindow } from "./batch-window";
 import { AiError, toAiError } from "./errors";
 
 // One interface for every AI provider (E6-1): a local model through Ollama or
@@ -42,6 +43,19 @@ export type JsonCompletionRequest<T> = CompletionRequest & {
   schemaName?: string;
 };
 
+/** A question answered with web searches (Anthropic's server tool): the final answer as text. */
+export type WebSearchRequest = {
+  system: string;
+  prompt: string;
+  /** At most this many searches. */
+  maxSearches: number;
+  /** Sites never searched, e.g. job boards that only relay postings. */
+  blockedDomains?: readonly string[];
+  /** Names it in the cost list, e.g. "source_search". */
+  kind: string;
+  signal?: AbortSignal;
+};
+
 export interface AIProvider {
   readonly kind: AiProviderKind | "MOCK";
   /** The configured model, if any. */
@@ -59,6 +73,8 @@ export interface AIProvider {
   /** A batch's answers by id, or null while it's still working. */
   batchResults?(id: string): Promise<Map<string, string> | null>;
   cancelBatch?(id: string): Promise<void>;
+  /** Where the provider can search the web: the answer to a question that needs it. */
+  searchWeb?(request: WebSearchRequest): Promise<string>;
 }
 
 /** What a provider implementation gets for one call. */
@@ -116,13 +132,18 @@ export abstract class BaseProvider implements AIProvider {
   }
 
   /** Past this service's cost limit, nothing goes out until it's raised or the period ends. */
-  private async withinCostLimit(): Promise<void> {
+  protected async withinCostLimit(): Promise<void> {
     const center = this.costCenter();
     if (!center) return;
     // A limit that can't be checked stops the request, rather than letting it through unchecked.
     const over = await import("@/lib/costs").then(({ limitReached }) => limitReached(center)).catch(() => "unchecked" as const);
     if (over === "unchecked") throw new AiError("provider", "Couldn't check your cost limit just now, so nothing was sent. Try again in a moment.", "cost limit");
     if (over) throw new AiError("provider", `${overLimitText(over)} Raise the limit in Settings → Estimated cost to carry on.`, "cost limit");
+  }
+
+  /** Whether calls in a batch window go out as batches, and so may wait that long for their answer. */
+  protected batchesInWindow(): boolean {
+    return false;
   }
 
   /** Whether `cached` text goes to the provider on its own; otherwise it joins the message. */
@@ -201,7 +222,9 @@ export abstract class BaseProvider implements AIProvider {
 
   /** Runs `call` with the timeout and the caller's signal, mapping whatever it throws. */
   private async guard<R>(model: string, signal: AbortSignal | undefined, call: (signal: AbortSignal) => Promise<R>): Promise<R> {
-    const timeout = AbortSignal.timeout(this.timeoutMs);
+    // A batched call may wait for its batch, then be sent again at the normal price.
+    const window = this.batchesInWindow() ? openBatchWindow() : null;
+    const timeout = AbortSignal.timeout(this.timeoutMs + (window?.stepMs ?? 0));
     const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     try {
       return await call(combined);

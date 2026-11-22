@@ -47,8 +47,8 @@ export function JobProgress({
         <div role="alert" className="flex flex-col gap-3.5">
           <p className="text-control text-error">{error}</p>
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={onRetry}>Retry</Button>
-            <Button variant="text" onClick={onBack}>
+            <Button title="Try again" onClick={onRetry}>Retry</Button>
+            <Button title="Go back" variant="text" onClick={onBack}>
               {backLabel}
             </Button>
           </div>

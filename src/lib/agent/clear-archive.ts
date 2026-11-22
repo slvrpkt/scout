@@ -4,10 +4,11 @@ import type { PostingSource } from "@/generated/prisma/enums";
 import { AgentCandidateStatus } from "@/generated/prisma/enums";
 import { postingKey } from "@/lib/job-search/search";
 import { prisma } from "@/lib/prisma";
-import { settingsFromRows, type ClearedTally } from "@/lib/settings";
-import { loadSettings, saveSettings } from "@/lib/settings-data";
+import { loadSettings } from "@/lib/settings-data";
+import { lastKnownTimeZone } from "@/lib/time-zone";
 
 import { archiveReasonOf } from "./archive-reasons";
+import { addToClearedTally, type Gone } from "./cleared-tally";
 
 // Clear the Archive (Settings → Your data): archived agent jobs are deleted a
 // while after they were archived, so the Archive doesn't grow for ever. Only
@@ -35,7 +36,7 @@ const flagsOf = (value: unknown) => (Array.isArray(value) ? value.filter((flag):
  * applied to (an agent draft you archived, say), with their documents.
  * Anything you applied to stays. Returns how many went.
  */
-export async function clearArchive(now = new Date(), days?: number): Promise<number> {
+export async function clearArchive(now = new Date(), days?: number, timeZone?: string): Promise<number> {
   const keep = days ?? (await loadSettings()).archiveClearDays;
   await prisma.clearedJob.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - CLEARED_KEEP_DAYS * DAY_MS) } } });
   if (keep <= 0) return 0;
@@ -49,29 +50,15 @@ export async function clearArchive(now = new Date(), days?: number): Promise<num
   ]);
   if (old.length === 0 && unapplied.length === 0) return 0;
   const drafts = unapplied.flatMap((application) => (application.agentCandidate ? [application.agentCandidate] : []));
+  const zone = timeZone ?? (await lastKnownTimeZone());
   return prisma.$transaction(async (tx) => {
     await tx.clearedJob.createMany({ data: [...old, ...drafts].flatMap(clearedKeys).map((key) => ({ key })), skipDuplicates: true });
     const { count: jobs } = await tx.agentCandidate.deleteMany({ where: { id: { in: [...old, ...drafts].map((job) => job.id) } } });
     // An application's documents, history and the rest go with it.
     const { count: applications } = await tx.application.deleteMany({ where: { id: { in: unapplied.map((application) => application.id) } } });
-    // What went, by kind, so the agent's all-time totals stay the same.
-    const row = await tx.setting.findUnique({ where: { key: "agentClearedTally" } });
-    const tally: ClearedTally = { ...settingsFromRows(row ? [row] : []).agentClearedTally };
-    const since = (job: { createdAt: Date }) => {
-      const found = job.createdAt.toISOString();
-      if (!tally.since || found < tally.since) tally.since = found;
-    };
-    for (const job of old) {
-      if (job.score === 0) tally.setAside += 1;
-      else if (archiveReasonOf(flagsOf(job.redFlags)) === "you") tally.archived += 1;
-      else tally.skipped += 1;
-      since(job);
-    }
-    for (const job of drafts) {
-      tally.drafted += 1;
-      since(job);
-    }
-    await saveSettings({ agentClearedTally: tally }, tx);
+    // What went, by kind and by the day it was found, so the agent's counts stay the same.
+    const kindOf = (job: (typeof old)[number]): Gone["kind"] => (job.score === 0 ? "setAside" : archiveReasonOf(flagsOf(job.redFlags)) === "you" ? "archived" : "skipped");
+    await addToClearedTally(tx, [...old.map((job) => ({ createdAt: job.createdAt, kind: kindOf(job) })), ...drafts.map((job) => ({ createdAt: job.createdAt, kind: "drafted" as const }))], zone);
     return jobs - drafts.length + applications;
   });
 }

@@ -29,7 +29,7 @@ export function SourceAttribution({ source, url, placeholder, className }: { sou
     );
   }
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={cn(badge, "text-muted hover:border-muted hover:text-ink", className)}>
+    <a title="Open the job source's page, in a new tab" href={href} target="_blank" rel="noopener noreferrer" className={cn(badge, "text-muted hover:border-muted hover:text-ink", className)}>
       {text}{" "}
       <span className="sr-only">(opens in a new tab)</span>
     </a>

@@ -15,6 +15,11 @@ vi.mock("@/lib/prisma", async () => {
 vi.mock("@/lib/pdf/render", () => ({ renderPdf: vi.fn(async () => new TextEncoder().encode("<< /Type /Page >> << /Type /Page >> << /Type /Page >>")) }));
 const tailor = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/ai", () => ({ getAiProvider: vi.fn(async () => ({})) }));
+vi.mock("@/lib/ai/config", async (original) => ({
+  ...(await original<typeof import("@/lib/ai/config")>()),
+  isAiConfigured: vi.fn(async () => false),
+  isAiUsable: vi.fn(async () => false),
+}));
 vi.mock("@/lib/ai/task-options", () => ({ loadTaskOptions: vi.fn(async () => ({ creativity: "BALANCED", strict: true, language: null, maxPages: 2 })) }));
 vi.mock("@/lib/ai/tasks", async (original) => ({ ...(await original<typeof import("@/lib/ai/tasks")>()), tailorResume: tailor }));
 

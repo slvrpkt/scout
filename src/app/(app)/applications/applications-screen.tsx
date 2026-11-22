@@ -124,7 +124,7 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, sheet
               value={params.view}
               onValueChange={(view) => go({ view })}
             />
-            <Link href="/applications/history" className={buttonClassName("secondary")}>
+            <Link title="See everything that happened across all your applications, day by day" href="/applications/history" className={buttonClassName("secondary")}>
               Activity log
             </Link>
           </>
@@ -134,7 +134,7 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, sheet
       {/* Where the other archive is, and what Activity log is. */}
       <p className="px-10 pb-3 text-meta text-muted">
         <span className="font-medium text-ink">Activity log</span>: what happened, day by day. Applications you set aside, and job postings the agent skipped, are in the{" "}
-        <Link href="/archive">Archive</Link>.
+        <Link title="See the jobs you archived" href="/archive">Archive</Link>.
       </p>
       {empty ? (
         <FirstApplication />
@@ -152,7 +152,7 @@ export function ApplicationsScreen({ params, rows, counts, summary, empty, sheet
             />
             <div role="group" aria-label="Show" className="flex flex-wrap gap-1.5">
               {FILTERS.map(({ value, label }) => (
-                <button
+                <button title="Show only the applications in this group"
                   key={value}
                   type="button"
                   aria-pressed={params.filter === value}
@@ -210,13 +210,13 @@ function Pager({ page, total, onPage }: { page: number; total: number; onPage: (
       <span>
         {first}–{last} of {total}
       </span>
-      <button type="button" disabled={page === 0} onClick={() => onPage(page - 1)} className={buttonClassName("secondary", "sm")}>
+      <button title="Show the previous page" type="button" disabled={page === 0} onClick={() => onPage(page - 1)} className={buttonClassName("secondary", "sm")}>
         Previous
       </button>
       <span>
         Page {page + 1} of {pages}
       </span>
-      <button type="button" disabled={page >= pages - 1} onClick={() => onPage(page + 1)} className={buttonClassName("secondary", "sm")}>
+      <button title="Show the next page" type="button" disabled={page >= pages - 1} onClick={() => onPage(page + 1)} className={buttonClassName("secondary", "sm")}>
         Next
       </button>
     </nav>
@@ -240,10 +240,10 @@ function FirstApplication() {
         profile is what everything is built from, so it&apos;s worth filling in first.
       </p>
       <div className="flex flex-wrap items-center gap-4 pt-1">
-        <Link href="/jobs" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
+        <Link title="Find jobs to apply to" href="/jobs" className={buttonClassName("primary", "md", "hover:text-on-primary")}>
           Go to Manual job search
         </Link>
-        <Link href="/profile" className="text-sm text-muted underline underline-offset-2 hover:text-ink">
+        <Link title="Add your experience, skills and facts, so every resume is better" href="/profile" className="text-sm text-muted underline underline-offset-2 hover:text-ink">
           Fill in your profile
         </Link>
       </div>

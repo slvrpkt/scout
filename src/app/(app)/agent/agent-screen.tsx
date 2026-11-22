@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/page-header";
 import { ScoreBadge } from "@/components/score-badge";
 import { ScoreExplainer } from "@/components/score-explainer";
 import { HowToApply } from "@/components/how-to-apply";
+import { TrapWarning } from "@/components/trap-warning";
 import {
   linksAttribution,
   SourceAttribution,
@@ -23,9 +24,11 @@ import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useJob } from "@/hooks/use-job";
-import type { RunResults } from "@/lib/agent/budget";
+import type { Period, PeriodResults, RunResults } from "@/lib/agent/budget";
 import type { AgentCandidateView, AgentView } from "@/lib/agent/view";
 import { cn } from "@/lib/cn";
+
+import { RecurringQuestions } from "./recurring-questions";
 import {
   atPlace,
   countsOf,
@@ -37,6 +40,7 @@ import {
 import {
   agentToday,
   dismissAgentCandidate,
+  lookOnCompanySite,
   prepareAgentDraft,
   restoreAgentCandidate,
   runAgentNow,
@@ -45,6 +49,9 @@ import {
 
 type ScanResult = { message: string };
 type DraftResult = { applicationId: string };
+type SourceResult = { found: boolean; score: number | null; skipped: boolean };
+/** The list's tabs: All, Drafts to review (with those at the draft score still waiting for theirs), then score bands ten points apart below it. */
+type Filter = "all" | "drafts" | "band1" | "band2" | "rest";
 
 const SETTINGS: Record<
   NonNullable<AgentView["setupSection"]>,
@@ -76,9 +83,46 @@ type Today = {
   running?: boolean;
   results: RunResults | null;
   all: RunResults & { since: string | null };
+  periods: PeriodResults;
 };
 
-const SINCE = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+const SINCE = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+/** What the tiles count: the last run's postings, a calendar period's so far, or every run's since the first. */
+type Range = "last" | Period | "all";
+const RANGES: { value: Range; label: string; scores: string }[] = [
+  { value: "last", label: "Last run", scores: "Last run's scores" },
+  { value: "today", label: "Today", scores: "Today's scores" },
+  { value: "week", label: "This week", scores: "This week's scores" },
+  { value: "month", label: "This month", scores: "This month's scores" },
+  { value: "all", label: "All time", scores: "All runs' scores" },
+];
+// A period's days are "2026-11-10" strings in your time zone, so they're shown as UTC to keep the date.
+const DAY = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+});
+const MONTH = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+const dayDate = (day: string, plus = 0) =>
+  new Date(Date.parse(`${day}T00:00:00Z`) + plus * 86_400_000);
+/** "Thu, Nov 13", "Mon, Nov 10 – Sun, Nov 16", "November 2026". */
+const periodLine = (period: Period, from: string) =>
+  period === "today"
+    ? `${DAY.format(dayDate(from))}, since midnight`
+    : period === "week"
+      ? `${DAY.format(dayDate(from))} – ${DAY.format(dayDate(from, 6))}`
+      : MONTH.format(dayDate(from));
 
 export function AgentScreen({
   view,
@@ -90,9 +134,8 @@ export function AgentScreen({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [runJobId, setRunJobId] = useState(view.runJobId);
-  const [filter, setFilter] = useState<"all" | "drafts" | "scored" | "below">(
-    "all",
-  );
+  // Drafts to review first: they're what's waiting on you.
+  const [filter, setFilter] = useState<Filter>("drafts");
   const [query, setQuery] = useState("");
   const [company, setCompany] = useState("");
   const [where, setWhere] = useState("");
@@ -106,6 +149,11 @@ export function AgentScreen({
   const [openedAt] = useState(() => Date.now());
   const [selectedId, setSelectedId] = useState<string | null>(initialSelected);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  // Back from a job: its card in view in the list, where you left it.
+  useEffect(() => {
+    if (!initialSelected) return;
+    document.querySelector(`[data-candidate="${CSS.escape(initialSelected)}"]`)?.scrollIntoView?.({ block: "nearest" });
+  }, [initialSelected]);
 
   const run = useJob<ScanResult>(runJobId, 0, (job) => {
     if (job.status !== "DONE" && job.status !== "FAILED") return;
@@ -147,10 +195,17 @@ export function AgentScreen({
           running: Boolean(view.runJobId),
           results: view.lastResults,
           all: view.allResults,
+          periods: view.periodResults,
         };
-  // The tiles: the last run's postings, or every run's since the first.
-  const [range, setRange] = useState<"last" | "all">("last");
-  const shownResults = range === "last" ? today.results : today.all;
+  // The tiles: the last run's postings, today's, this week's or this month's so far, or every run's since the first.
+  const [range, setRange] = useState<Range>("last");
+  const shownResults =
+    range === "last"
+      ? today.results
+      : range === "all"
+        ? today.all
+        : today.periods[range];
+  const rangeInfo = RANGES.find((option) => option.value === range)!;
   const searching = running || Boolean(today.running);
 
   const runNow = () =>
@@ -210,12 +265,25 @@ export function AgentScreen({
   const empty = drafts.length === 0 && scored.length === 0;
 
   // Every tab lists the highest score first (each list comes sorted; All mixes them, so it's sorted again).
-  const lists = {
-    all: [...drafts, ...scored, ...below].sort((a, b) => b.score - a.score),
-    drafts,
-    scored,
-    below,
-  } as const;
+  // Past Drafts to review, the tabs are score bands ten points apart under your draft score, drafts or not.
+  const bar = view.minScore;
+  const all = [...drafts, ...scored, ...below].sort(
+    (a, b) => b.score - a.score,
+  );
+  const inBand = (low: number, high: number) =>
+    all.filter((candidate) => candidate.score >= low && candidate.score < high);
+  // Drafts to review also lists postings at the draft score still waiting for their draft (the day's draft limit, say).
+  const waitingIds = new Set(scored.map((candidate) => candidate.id));
+  const lists: Record<Filter, AgentCandidateView[]> = {
+    all,
+    drafts: [
+      ...drafts.filter((candidate) => candidate.score >= bar),
+      ...scored,
+    ].sort((a, b) => b.score - a.score),
+    band1: inBand(bar - 10, bar),
+    band2: inBand(bar - 20, bar - 10),
+    rest: inBand(-Infinity, bar - 20),
+  };
   // The companies and places in what it found, with how many jobs each, for the Company and Location filters.
   const everything = lists.all;
   const companies = countsOf(
@@ -249,9 +317,10 @@ export function AgentScreen({
     <div className="flex min-h-full flex-col bg-agent-tint">
       <PageHeader
         title="Agentic job search"
+        wide
         description="At the times you choose, it runs each of your saved searches for new postings, scores them against your profile, and keeps the best here for you. Drafts wait for your review, and nothing is ever sent."
         actions={
-          <Button
+          <Button title="Search for new postings now, instead of waiting for the next scheduled run"
             aria-disabled={running || pending || undefined}
             onClick={() => !running && !pending && runNow()}
           >
@@ -259,7 +328,7 @@ export function AgentScreen({
           </Button>
         }
       />
-      <div className="flex flex-col gap-5 px-10 pb-20">
+      <div className="-mt-4 flex flex-col gap-3.5 px-10 pb-20">
         <Notices view={view} />
         {today.waiting > 0 && (
           <ScoreNow
@@ -270,44 +339,52 @@ export function AgentScreen({
         )}
 
         {/* The agent at a glance: the last run, the next one, and what the last run's postings became. Searches are in Settings → Job agent. */}
-        <Card padding="none" className="flex flex-col gap-4 px-6 py-5">
-          {/* Last run, or every run since the first: deleted Archive records still count in All time. */}
-          <div className="flex items-center justify-end">
-            <SegmentedControl<"last" | "all">
-              aria-label="Show"
-              size="sm"
-              options={[
-                { value: "last", label: "Last run" },
-                { value: "all", label: "All time" },
-              ]}
-              value={range}
-              onValueChange={setRange}
-            />
-          </div>
-          <dl className="grid gap-3 lg:grid-cols-[1fr_1fr_2fr]">
-            <Stat label={range === "last" ? "Last run" : "All runs"}>
+        {/* Kept short, so what it found starts high on the page. */}
+        <Card padding="none" className="flex flex-col gap-2.5 px-4 py-3">
+          <dl className="grid gap-2.5 lg:grid-cols-[1fr_1fr_2fr]">
+            <Stat
+              label={range === "all" ? "All runs" : rangeInfo.label}
+              note={
+                range === "last"
+                  ? view.lastRun?.at
+                  : range === "all"
+                    ? today.all.since
+                      ? `Since ${SINCE.format(new Date(today.all.since))}`
+                      : "Since the first run"
+                    : periodLine(range, today.periods[range].from)
+              }
+            >
               {searching && (
                 // While a run searches: so it's plain nothing is stuck.
                 <span className="mb-2 flex items-center gap-2 rounded-control bg-selected px-2.5 py-1.5 text-meta text-primary-text">
-                  <span aria-hidden="true" className="size-3.5 flex-none animate-spin rounded-full border-2 border-current border-t-transparent" />
-                  Hang tight: the job search just started. It takes a few minutes.
+                  <span
+                    aria-hidden="true"
+                    className="size-3.5 flex-none animate-spin rounded-full border-2 border-current border-t-transparent"
+                  />
+                  Hang tight: the job search just started. It takes a few
+                  minutes.
                 </span>
               )}
-              {range === "all" ? (
+              {range !== "last" && shownResults ? (
                 <>
+                  <Big
+                    value={shownResults.found}
+                    label={
+                      shownResults.found === 1
+                        ? "posting found"
+                        : "postings found"
+                    }
+                  />
                   <span className="block text-meta text-muted">
-                    {today.all.since ? `Since ${SINCE.format(new Date(today.all.since))}` : "Since the first run"}
-                  </span>
-                  <Big value={today.all.found} label={today.all.found === 1 ? "posting found" : "postings found"} />
-                  <span className="block text-meta text-muted">
-                    {today.all.scored.toLocaleString("en-US")} scored · {today.all.setAside.toLocaleString("en-US")} set aside by your settings before scoring
+                    {shownResults.scored.toLocaleString("en-US")} scored ·{" "}
+                    {shownResults.setAside.toLocaleString("en-US")} set aside by
+                    your settings before scoring
+                    {shownResults.waiting > 0 &&
+                      ` · ${shownResults.waiting.toLocaleString("en-US")} waiting for a score`}
                   </span>
                 </>
               ) : view.lastRun ? (
                 <>
-                  <span className="block text-meta text-muted">
-                    {view.lastRun.at}
-                  </span>
                   {today.results && today.results.found > 0 ? (
                     <>
                       <Big
@@ -336,23 +413,40 @@ export function AgentScreen({
                 </span>
               )}
             </Stat>
-            <Stat label="Next run">
+            <Stat
+              label="Next run"
+              note={
+                view.nextRun
+                  ? view.nextRunDue
+                    ? "Starting now"
+                    : view.nextRun.split(", ").slice(0, -1).join(", ") ||
+                      "Today"
+                  : undefined
+              }
+            >
               {view.nextRun ? (
-                <>
-                  <span className="block text-meta text-muted">
-                    {view.nextRunDue ? "Starting now" : view.nextRun.split(", ").slice(0, -1).join(", ") || "Today"}
-                  </span>
-                  <span className="mt-1 block text-[44px] leading-none font-bold tracking-tight tabular-nums">
-                    {view.nextRun.split(", ").at(-1)}
-                  </span>
-                </>
+                <span className="block text-[28px] leading-none font-bold tracking-tight tabular-nums">
+                  {view.nextRun.split(", ").at(-1)}
+                </span>
               ) : (
-                <span className="mt-1 block text-lg font-semibold">Off</span>
+                <span className="block text-lg font-semibold">Off</span>
               )}
             </Stat>
-            <Stat label={range === "last" ? "Last run's scores" : "All runs' scores"}>
+            <Stat
+              label={rangeInfo.scores}
+              aside={
+                // Last run, a calendar period so far, or every run since the first: deleted Archive records still count in all but the last run.
+                <SegmentedControl<Range>
+                  aria-label="Show"
+                  size="sm"
+                  options={RANGES.map(({ value, label }) => ({ value, label }))}
+                  value={range}
+                  onValueChange={setRange}
+                />
+              }
+            >
               {shownResults ? (
-                <span className="mt-1 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <span className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
                   <Big
                     value={shownResults.atMin}
                     label={`${view.minScore} and up`}
@@ -368,11 +462,9 @@ export function AgentScreen({
                   />
                 </span>
               ) : (
-                <span className="mt-1 block text-lg font-semibold">
-                  Nothing yet
-                </span>
+                <span className="block text-lg font-semibold">Nothing yet</span>
               )}
-              <span className="mt-2 block text-meta text-muted">
+              <span className="mt-1 block text-meta text-muted">
                 Daily limits: {today.scored} of {view.budget.scoreLimit} scores
                 {view.autoDraft &&
                   ` and ${today.drafted} of ${view.budget.draftLimit} drafts`}{" "}
@@ -383,7 +475,7 @@ export function AgentScreen({
           {running && (
             <p
               role="status"
-              className="border-t border-line pt-3.5 text-sm text-muted"
+              className="border-t border-line pt-2.5 text-sm text-muted"
             >
               {run?.step ?? "Starting the run…"}
             </p>
@@ -399,13 +491,15 @@ export function AgentScreen({
           >
             {(
               [
-                ["all", "All", drafts.length + scored.length + below.length],
-                ["drafts", "Drafts to review", drafts.length],
-                ["scored", "Scored postings", scored.length],
-                ["below", `Below ${view.minScore}`, below.length],
-              ] as const
+                ["drafts", `Drafts to review · ${bar}+`, lists.drafts.length],
+                ["band1", `${bar - 10}–${bar - 1}`, lists.band1.length],
+                ["band2", `${bar - 20}–${bar - 11}`, lists.band2.length],
+                ["rest", `Below ${bar - 20}`, lists.rest.length],
+                // Everything together, last: after the rest are worked through.
+                ["all", "All", lists.all.length],
+              ] satisfies [Filter, string, number][]
             ).map(([value, label, count]) => (
-              <button
+              <button title="Show only the jobs in this group"
                 key={value}
                 type="button"
                 aria-pressed={filter === value}
@@ -414,7 +508,7 @@ export function AgentScreen({
                   setShown(LIST_PAGE);
                 }}
                 className={cn(
-                  "flex items-baseline gap-1.5 rounded-control border px-3 py-2 text-control",
+                  "flex items-baseline gap-1.5 rounded-control border px-3 py-1.5 text-control",
                   filter === value
                     ? "border-primary bg-selected font-medium text-primary-text"
                     : "border-line-field bg-card hover:border-line-strong hover:bg-hover",
@@ -427,9 +521,9 @@ export function AgentScreen({
         </div>
         <Card
           padding="none"
-          className="flex flex-wrap items-end gap-4 px-6 py-4"
+          className="flex flex-wrap items-end gap-3 px-4 py-2.5"
         >
-          <label className="flex min-w-[200px] flex-[2_1_220px] flex-col gap-1.5 text-label text-muted">
+          <label className="flex min-w-[200px] flex-[2_1_220px] flex-col gap-1 text-label text-muted">
             What
             <input
               type="search"
@@ -437,15 +531,15 @@ export function AgentScreen({
               placeholder="Title, company or anything in the posting"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink placeholder:text-muted focus-visible:border-primary"
+              className="rounded-control border border-line-input bg-input px-2.5 py-1.5 text-sm text-ink placeholder:text-muted focus-visible:border-primary"
             />
           </label>
-          <label className="flex min-w-[180px] flex-[1_1_200px] flex-col gap-1.5 text-label text-muted">
+          <label className="flex min-w-[180px] flex-[1_1_200px] flex-col gap-1 text-label text-muted">
             Company
             <select
               value={company}
               onChange={(event) => setCompany(event.target.value)}
-              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+              className="rounded-control border border-line-input bg-input px-2.5 py-1.5 text-sm text-ink focus-visible:border-primary"
             >
               <option value="">Any company</option>
               {companies.map(([name, count]) => (
@@ -455,12 +549,12 @@ export function AgentScreen({
               ))}
             </select>
           </label>
-          <label className="flex min-w-[180px] flex-[1_1_200px] flex-col gap-1.5 text-label text-muted">
+          <label className="flex min-w-[180px] flex-[1_1_200px] flex-col gap-1 text-label text-muted">
             Location
             <select
               value={where}
               onChange={(event) => setWhere(event.target.value)}
-              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+              className="rounded-control border border-line-input bg-input px-2.5 py-1.5 text-sm text-ink focus-visible:border-primary"
             >
               <option value="">Anywhere</option>
               {places.map((choice) => (
@@ -470,14 +564,14 @@ export function AgentScreen({
               ))}
             </select>
           </label>
-          <label className="flex min-w-[150px] flex-col gap-1.5 text-label text-muted">
+          <label className="flex min-w-[150px] flex-col gap-1 text-label text-muted">
             Posted
             <select
               value={postedWithin}
               onChange={(event) =>
                 setPostedWithin(event.target.value as typeof postedWithin)
               }
-              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+              className="rounded-control border border-line-input bg-input px-2.5 py-1.5 text-sm text-ink focus-visible:border-primary"
             >
               <option value="any">Any time</option>
               <option value="1">Past 24 hours</option>
@@ -486,12 +580,12 @@ export function AgentScreen({
               <option value="30">Past month</option>
             </select>
           </label>
-          <label className="flex min-w-[130px] flex-col gap-1.5 text-label text-muted">
+          <label className="flex min-w-[130px] flex-col gap-1 text-label text-muted">
             Score
             <select
               value={scoreRange}
               onChange={(event) => setScoreRange(event.target.value)}
-              className="rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink focus-visible:border-primary"
+              className="rounded-control border border-line-input bg-input px-2.5 py-1.5 text-sm text-ink focus-visible:border-primary"
             >
               <option value="">Any score</option>
               {SCORE_RANGES.map((choice) => (
@@ -501,12 +595,20 @@ export function AgentScreen({
               ))}
             </select>
           </label>
-          <p className="basis-full text-meta text-muted">
+          <p className="basis-full text-xs text-muted">
             Country and distance are set on each saved search in Settings → Job
             agent. Postings you archive, or the agent skips, are in the{" "}
-            <Link href="/archive">Archive</Link>.
+            <Link title="See the postings you archived and the ones the agent skipped" href="/archive">Archive</Link>.
           </p>
         </Card>
+
+        {/* Answer once what several drafts ask, above the drafts. */}
+        {(filter === "drafts" || filter === "all") && (
+          <RecurringQuestions
+            questions={view.recurring.questions}
+            roles={view.recurring.roles}
+          />
+        )}
 
         {list.length === 0 ? (
           <Empty>
@@ -514,78 +616,79 @@ export function AgentScreen({
               ? empty
                 ? "Nothing waiting yet. A run puts the postings that fit you best here."
                 : "Nothing matches these filters."
-              : filter === "drafts"
-                ? view.autoDraft
-                  ? "No drafts yet. After a run, the best new postings get a draft here."
-                  : "No drafts yet. Prepare one from a scored posting, or let the agent prepare them in Settings → Job agent."
-                : filter === "scored"
-                  ? empty
-                    ? "Nothing waiting yet. A run puts the postings that fit you best here."
-                    : "No postings waiting for a draft."
-                  : filter === "below"
-                    ? `Nothing below your minimum score of ${view.minScore}.`
-                    : "Nothing here."}
+              : lists[filter].length > 0
+                ? "Nothing matches these filters."
+                : filter === "drafts"
+                  ? view.autoDraft
+                    ? `No drafts yet. After a run, new postings scoring ${bar} or more get a draft here.`
+                    : "No drafts yet. Prepare one from a scored posting, or let the agent prepare them in Settings → Job agent."
+                  : "Nothing scored in this range."}
           </Empty>
         ) : (
-          <div className="grid items-start gap-5 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
-            <ul
-              aria-label="What it found"
-              className="flex flex-col gap-2 lg:max-h-[calc(100vh-220px)] lg:overflow-y-auto"
-            >
-              {list.slice(0, shown).map((candidate) => (
-                <li key={candidate.id}>
-                  <button
-                    type="button"
-                    aria-pressed={selected?.id === candidate.id}
-                    onClick={() => setSelectedId(candidate.id)}
-                    className={cn(
-                      "flex w-full items-start justify-between gap-3 rounded-card border bg-card px-4 py-3 text-left hover:border-line-strong",
-                      selected?.id === candidate.id
-                        ? "border-ink shadow-control"
-                        : "border-line-card",
-                    )}
-                  >
-                    <span className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-field font-medium text-ink">
-                        {candidate.title}
-                      </span>
-                      <span className="text-meta text-muted">
-                        {[candidate.company, candidate.facts]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                      <WorkModeBadge posting={candidate} className="mt-0.5" />
-                      <FoundDates candidate={candidate} />
-                      {candidate.fresh && <Fresh label={candidate.fresh} />}
-                      {candidate.wasArchived && <WasArchived />}
-                    </span>
-                    <span className="flex shrink-0 flex-col items-end gap-1.5">
-                      <ScoreBadge score={candidate.score} size="sm" />
-                      {candidate.duplicate && (
-                        <DuplicateBadge match={candidate.duplicate} />
+          // The list runs as far down as the job beside it (at least 560px), scrolling inside.
+          <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
+            <div className="relative lg:min-h-[560px]">
+              <ul
+                aria-label="What it found"
+                className="flex flex-col gap-2 lg:absolute lg:inset-0 lg:overflow-y-auto lg:pr-1"
+              >
+                {list.slice(0, shown).map((candidate) => (
+                  <li key={candidate.id}>
+                    <button title="Show this job's details on the right"
+                      type="button"
+                      aria-pressed={selected?.id === candidate.id}
+                      data-candidate={candidate.id}
+                      onClick={() => setSelectedId(candidate.id)}
+                      className={cn(
+                        "flex w-full items-start justify-between gap-3 rounded-card border bg-card px-4 py-3 text-left hover:border-line-strong",
+                        selected?.id === candidate.id
+                          ? "border-ink shadow-control"
+                          : "border-line-card",
                       )}
-                    </span>
-                  </button>
-                </li>
-              ))}
-              {list.length > shown && (
-                <li>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => setShown((count) => count + LIST_PAGE)}
-                  >
-                    Show more ({list.length - shown} more)
-                  </Button>
-                </li>
-              )}
-            </ul>
+                    >
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-field font-medium text-ink">
+                          {candidate.title}
+                        </span>
+                        <span className="text-meta text-muted">
+                          {[candidate.company, candidate.facts]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                        <WorkModeBadge posting={candidate} className="mt-0.5" />
+                        <FoundDates candidate={candidate} />
+                        {candidate.fresh && <Fresh label={candidate.fresh} />}
+                        {candidate.wasArchived && <WasArchived />}
+                        {waitingIds.has(candidate.id) && <WaitingForDraft />}
+                      </span>
+                      <span className="flex shrink-0 flex-col items-end gap-1.5">
+                        <ScoreBadge score={candidate.score} size="sm" />
+                        {candidate.duplicate && (
+                          <DuplicateBadge match={candidate.duplicate} />
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+                {list.length > shown && (
+                  <li>
+                    <Button title="Load the next 50 jobs in this list"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setShown((count) => count + LIST_PAGE)}
+                    >
+                      Show more ({list.length - shown} more)
+                    </Button>
+                  </li>
+                )}
+              </ul>
+            </div>
             {selected && (
-              <div key={selected.id} className="min-w-0">
+              <div key={selected.id} className="min-w-0 self-start">
                 {draftIds.has(selected.id) ? (
                   <CandidateCard candidate={selected} minScore={view.minScore}>
-                    <Link
+                    <Link title="Open the tailored resume drafted for this job, to review and refine it"
                       href={`/applications/${selected.applicationId}`}
                       className={buttonClassName(
                         "primary",
@@ -595,7 +698,7 @@ export function AgentScreen({
                     >
                       Review Opportunity
                     </Link>
-                    <OpenPosting url={selected.url} />
+                    <OpenPosting url={selected.sourceUrl ?? selected.url} />
                     <ArchiveButton onClick={() => archive(selected)} />
                   </CandidateCard>
                 ) : (
@@ -603,6 +706,7 @@ export function AgentScreen({
                     candidate={selected}
                     minScore={view.minScore}
                     onArchive={() => archive(selected)}
+                    waiting={waitingIds.has(selected.id)}
                   />
                 )}
               </div>
@@ -623,7 +727,7 @@ export function ArchiveButton({
   size?: "sm" | "md";
 }) {
   return (
-    <Button variant="danger-outline" size={size} onClick={onClick}>
+    <Button title="Hide this job; it's kept in the Archive, nothing is deleted" variant="danger-outline" size={size} onClick={onClick}>
       Archive
     </Button>
   );
@@ -643,7 +747,7 @@ function Notices({ view }: { view: AgentView }) {
     return note(
       <>
         The job agent is off.{" "}
-        <Link
+        <Link title="Open the agent's settings to switch it on"
           href={SETTINGS.agent.href}
           className="font-medium text-warning underline underline-offset-2"
         >
@@ -658,7 +762,7 @@ function Notices({ view }: { view: AgentView }) {
     return note(
       <>
         {view.setupProblem.replace(/ in Settings → [^.]+ first\.$/, ".")}{" "}
-        <Link
+        <Link title="Open the settings that need fixing before the agent can run"
           href={SETTINGS[view.setupSection].href}
           className="font-medium text-warning underline underline-offset-2"
         >
@@ -674,23 +778,41 @@ function Notices({ view }: { view: AgentView }) {
   return null;
 }
 
-function Stat({ label, children }: { label: string; children: ReactNode }) {
+/** A tile: its name with a note beside it ("Last run · Sat 21 Nov, 1:00 PM"), and a control at the right end if it has one. */
+function Stat({
+  label,
+  note,
+  aside,
+  children,
+}: {
+  label: string;
+  note?: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-1 rounded-card bg-surface px-5 py-4 text-sm">
+    // The name on the first line with its note and control beside it, what it counts under them.
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-1.5 gap-y-1.5 rounded-card bg-surface px-4 py-2.5 text-sm">
       <dt className="text-label font-medium text-muted">{label}</dt>
-      <dd>{children}</dd>
+      <dd className="contents">
+        <span className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-label text-muted">
+          <span>{note && <>· {note}</>}</span>
+          {aside && <span className="overflow-x-auto">{aside}</span>}
+        </span>
+        <span className="col-span-2 block">{children}</span>
+      </dd>
     </div>
   );
 }
 
-/** A count as the tiles show it: big and bold, with what it counts under it. */
+/** A count as the tiles show it: big and bold, with what it counts beside it. */
 function Big({ value, label }: { value: number; label: string }) {
   return (
-    <span className="flex flex-col">
-      <span className="text-[44px] leading-none font-bold tracking-tight tabular-nums">
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-[28px] leading-none font-bold tracking-tight tabular-nums">
         {value}
       </span>
-      <span className="mt-1 text-meta text-muted">{label}</span>
+      <span className="text-meta text-muted">{label}</span>
     </span>
   );
 }
@@ -730,7 +852,7 @@ function Empty({ children }: { children: ReactNode }) {
 export function OpenPosting({ url }: { url: string }) {
   if (!url) return null;
   return (
-    <a
+    <a title="Open the original job posting in a new tab"
       href={url}
       target="_blank"
       rel="noopener noreferrer"
@@ -764,16 +886,22 @@ export function CandidateCard({
     : `/agent/posting/${candidate.id}`;
   return (
     <Card padding="none" className="flex flex-col gap-3.5 px-6 py-5">
-      {/* The actions in a row of their own at the top (shown first), the job's details under them. */}
-      <div className="flex flex-col-reverse gap-4">
-        <div className="flex min-w-0 flex-col gap-0.5">
+      {/* The title and the actions on one line (a long title ends in "…"; the actions go under it when there's no room), the job's details under them. */}
+      <div className="flex flex-col gap-0.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {full ? (
-            <h1 className="font-serif text-[26px] leading-tight text-pretty">
+            <h1
+              title={candidate.title}
+              className="min-w-0 flex-[1_1_240px] truncate font-serif text-[26px] leading-tight"
+            >
               {candidate.title}
             </h1>
           ) : (
-            <h3 className="font-serif text-[20px] leading-tight text-pretty">
-              <Link
+            <h3
+              title={candidate.title}
+              className="min-w-0 flex-[1_1_240px] truncate font-serif text-[20px] leading-tight"
+            >
+              <Link title="Open this job: its draft if there is one, otherwise the full posting"
                 href={opens}
                 className="text-ink underline-offset-4 hover:text-ink hover:underline"
               >
@@ -781,6 +909,29 @@ export function CandidateCard({
               </Link>
             </h3>
           )}
+          {/* The actions, there without scrolling: all one height, the score centered on them. */}
+          <div className="ml-auto flex max-w-full min-w-0 flex-wrap items-center justify-end gap-2.5">
+            {/* Save for later comes first, before Review opportunity and the rest. */}
+            <AgentSaveButton
+              candidateId={candidate.id}
+              saved={candidate.saved ?? false}
+            />
+            <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
+              {children}
+            </div>
+            <ScoreExplainer
+              score={candidate.score}
+              title={[candidate.title, candidate.company]
+                .filter(Boolean)
+                .join(" at ")}
+              reasons={candidate.reasons}
+              redFlags={candidate.redFlags}
+              breakdown={candidate.breakdown}
+              minScore={minScore}
+            />
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-col gap-0.5">
           {candidate.company && (
             <p className="text-sm text-ink">{candidate.company}</p>
           )}
@@ -798,6 +949,21 @@ export function CandidateCard({
           <span className="mt-1.5">
             <HowToApply url={candidate.url} links={candidate.applyLinks} />
           </span>
+          {candidate.traps && candidate.traps.length > 0 && (
+            <TrapWarning traps={candidate.traps} />
+          )}
+          {candidate.sourceCheck === "found" && (
+            <p className="text-xs font-medium text-success">
+              ✓ Found on the company&apos;s site: its own description and apply
+              page
+            </p>
+          )}
+          {candidate.sourceCheck === "not found" && (
+            <p className="text-xs text-muted">
+              Not found on the company&apos;s site: the description is the job
+              board&apos;s
+            </p>
+          )}
           {candidate.foundBy && (
             <p className="text-xs text-muted">Found by “{candidate.foundBy}”</p>
           )}
@@ -809,27 +975,6 @@ export function CandidateCard({
               className="mt-1.5 self-start"
             />
           )}
-        </div>
-        {/* The actions at the top, so they're there without scrolling: all one height, the score centered on them. */}
-        <div className="flex flex-wrap items-center justify-end gap-2.5">
-          {/* Save for later comes first, before Review opportunity and the rest. */}
-          <AgentSaveButton
-            candidateId={candidate.id}
-            saved={candidate.saved ?? false}
-          />
-          <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
-            {children}
-          </div>
-          <ScoreExplainer
-            score={candidate.score}
-            title={[candidate.title, candidate.company]
-              .filter(Boolean)
-              .join(" at ")}
-            reasons={candidate.reasons}
-            redFlags={candidate.redFlags}
-            breakdown={candidate.breakdown}
-            minScore={minScore}
-          />
         </div>
       </div>
       {candidate.duplicate && <DuplicateNote match={candidate.duplicate} />}
@@ -854,11 +999,12 @@ export function CandidateCard({
           {candidate.description}
         </div>
       )}
-      {looksCutShort(candidate.description) && !candidate.error?.startsWith("Not drafted:") && (
-        <p role="alert" className="text-meta font-medium text-error">
-          {shortPostingWarning(candidate.description)}
-        </p>
-      )}
+      {looksCutShort(candidate.description) &&
+        !candidate.error?.startsWith("Not drafted:") && (
+          <p role="alert" className="text-meta font-medium text-error">
+            {shortPostingWarning(candidate.description)}
+          </p>
+        )}
       {candidate.error && (
         <p role="alert" className="text-meta text-error">
           {candidate.error}
@@ -874,11 +1020,14 @@ export function ScoredCard({
   onArchive,
   minScore,
   full = false,
+  waiting = false,
 }: {
   candidate: AgentCandidateView;
   onArchive: () => void;
   minScore?: number;
   full?: boolean;
+  /** At the draft score, its draft not written yet: says so. */
+  waiting?: boolean;
 }) {
   const router = useRouter();
   const [jobId, setJobId] = useState(candidate.draftJobId);
@@ -908,14 +1057,18 @@ export function ScoredCard({
 
   return (
     <CandidateCard candidate={candidate} minScore={minScore} full={full}>
-      <Button
+      {waiting && !preparing && <WaitingForDraft />}
+      <Button title="Write a tailored resume for this job now (about a minute)"
         size="sm"
         aria-disabled={preparing || undefined}
         onClick={() => !preparing && prepare()}
       >
         {preparing ? "Preparing draft…" : "Prepare draft"}
       </Button>
-      <OpenPosting url={candidate.url} />
+      <OpenPosting url={candidate.sourceUrl ?? candidate.url} />
+      {!candidate.sourceCheck && !preparing && (
+        <LookOnCompanySite candidateId={candidate.id} />
+      )}
       <ArchiveButton onClick={onArchive} />
       {preparing && job?.step && (
         <span role="status" className="text-meta text-muted">
@@ -923,6 +1076,63 @@ export function ScoredCard({
         </span>
       )}
     </CandidateCard>
+  );
+}
+
+/**
+ * Look on company website: finds the posting on the company's own site, for
+ * its own description and the page to apply on, following the job until
+ * it's done.
+ */
+function LookOnCompanySite({ candidateId }: { candidateId: string }) {
+  const router = useRouter();
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [starting, startTransition] = useTransition();
+  useJob<SourceResult>(jobId, 0, (update) => {
+    if (update.status === "DONE") {
+      setJobId(null);
+      const result = update.result;
+      toast(
+        !result?.found
+          ? "Not found on the company's site. The job board's description stays."
+          : result.score !== null
+            ? `Found on the company's site, and scored ${result.score} from its own description.`
+            : "Found on the company's site: its description and apply page are on the card.",
+      );
+      router.refresh();
+    } else if (update.status === "FAILED") {
+      setJobId(null);
+      toast(update.error ?? "Couldn't look on the company's site just now.");
+    }
+  });
+  const looking = starting || Boolean(jobId);
+  return (
+    <Button title="Look for this job on the employer's own site, for its own description and apply page"
+      size="sm"
+      variant="secondary"
+      aria-disabled={looking || undefined}
+      onClick={() =>
+        !looking &&
+        startTransition(async () => {
+          const result = toastResult(await lookOnCompanySite({ candidateId }));
+          if (result.ok) setJobId(result.data.jobId);
+        })
+      }
+    >
+      {looking ? "Looking on company website…" : "Look on company website"}
+    </Button>
+  );
+}
+
+/** On a posting at the draft score whose draft isn't written yet: the next run writes it, or Prepare draft now. */
+function WaitingForDraft() {
+  return (
+    <span
+      className="self-start rounded-full bg-warning-surface px-2.5 py-0.5 text-meta font-medium text-warning"
+      title="The next run writes its draft, or click Prepare draft to write it now."
+    >
+      Waiting for a draft
+    </span>
   );
 }
 

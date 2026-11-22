@@ -32,7 +32,7 @@ export function HumanizeCard({ initial }: { initial: boolean }) {
       />
       <p className="text-meta text-muted">
         Based on the{" "}
-        <a href="https://github.com/blader/humanizer" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2 hover:text-ink">
+        <a title="Open the humanizer skill on GitHub, in a new tab" href="https://github.com/blader/humanizer" target="_blank" rel="noopener noreferrer" className="text-muted underline underline-offset-2 hover:text-ink">
           humanizer skill
         </a>{" "}
         by Siqi Chen (MIT), which draws on Wikipedia&apos;s &ldquo;Signs of AI writing&rdquo;.

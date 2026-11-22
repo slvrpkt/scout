@@ -112,14 +112,15 @@ export function DocumentPreview({
   return (
     <div
       className={cn(
-        "@container flex min-w-0 flex-[999_1_480px] flex-col items-center overflow-auto bg-canvas px-10 pt-10 pb-16",
+        "@container flex min-w-0 flex-[999_1_480px] flex-col items-center overflow-auto bg-canvas px-6 pt-3 pb-16",
         className,
       )}
     >
-      <div className="flex flex-col items-start justify-center gap-6 @min-[900px]:flex-row">
-      <div className={cn("flex flex-col gap-4", side ? styles.besideSide : styles.pageScale)}>
+      {/* With a side, it sits at the right edge and the page is centered in the room left of it. */}
+      <div className="flex w-full flex-col items-center gap-6 @min-[900px]:flex-row @min-[900px]:items-start">
+      <div className={cn("flex min-w-0 flex-col items-center gap-3 @min-[900px]:flex-1", side ? styles.besideSide : styles.pageScale)}>
         <div className="flex w-[calc(var(--u)*640)] flex-col gap-1 text-meta text-muted">
-          <div className="flex min-h-11 items-center justify-between gap-3">
+          <div className="flex min-h-9 items-center justify-between gap-3">
             <span className="min-w-0">{label}</span>
             <span className="flex-none">{typeof meta === "function" ? meta(pages) : meta}</span>
           </div>

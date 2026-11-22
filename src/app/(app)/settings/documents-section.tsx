@@ -24,6 +24,8 @@ export type DocumentSettings = {
   paper: PaperSize;
   dateFormat: DateFormat;
   defaultTone: Tone;
+  /** Whether drafts write their cover letter on their own when first opened. */
+  autoCoverLetter: boolean;
   docLanguage: string | null;
   /** The base resume's language; null is English. */
   resumeLanguage: string | null;
@@ -157,7 +159,7 @@ export function DocumentsSection({
                   } else if (event.key === "Escape") setAddingLanguage(false);
                 }}
               />
-              <Button variant="secondary" size="sm" onClick={() => void addLanguage()}>
+              <Button title="Add this language" variant="secondary" size="sm" onClick={() => void addLanguage()}>
                 Add
               </Button>
             </div>
@@ -225,6 +227,17 @@ export function DocumentsSection({
       </Card>
 
       <Card padding="none" className="flex flex-col px-7 pt-1.5 pb-2.5">
+        <Toggle
+          className="border-b border-line py-4"
+          label="Write cover letters automatically"
+          description={
+            settings.autoCoverLetter
+              ? "On: each draft writes its cover letter the first time you open it."
+              : "Off, to save AI costs: a draft's Cover letter tab has Write cover letter, and it's written in a minute or two when you click it."
+          }
+          checked={settings.autoCoverLetter}
+          onCheckedChange={(autoCoverLetter) => change({ autoCoverLetter })}
+        />
         <Toggle
           className="py-4"
           label="Include references"

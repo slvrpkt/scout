@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ApplicationOrigin, DocumentKind, type ApplicationStatus, type EmployerType, type NoteKind } from "@/generated/prisma/enums";
+import { ApplicationOrigin, DocumentKind, type ApplicationStatus, type EmployerType, NoteKind } from "@/generated/prisma/enums";
 import { matchSchema, matchScore } from "@/lib/application-data";
 import { resolveListParams, sortRows, statusesIn, updatedAgo, type Sort } from "@/lib/applications-list";
 import { guessAppliedVia } from "@/lib/applied-via";
@@ -49,8 +49,12 @@ export type ApplicationRow = {
   employer: { type: EmployerType | null; chosen: EmployerType | null; auto: boolean };
   /** Started by hand (New Application, Manual job search), not by the job agent. */
   manual: boolean;
-  /** The latest event added on the Activity tab or with Add Event, for the table's Activity column; null without one. */
+  /** The latest event added on the Activity tab or with Add Event; null without one. */
   latestEvent: { kind: NoteKind; body: string } | null;
+  /** Every event added, newest first, each with its day: the table's and the sheet's Activity column. */
+  events: { kind: NoteKind; body: string; on: string }[];
+  /** The salary you asked for when applying: the latest Expected salary event's amount; "" without one. */
+  expectedSalary: string;
   /** Applied Using: the platform the user chose, else Scout's guess (`auto`); null value with nothing to go on. */
   appliedVia: { value: string | null; auto: boolean };
   /** The salary as the posting gives it, usually a range; "" when it doesn't say. */
@@ -102,7 +106,7 @@ export async function loadApplicationRows(
       startup: { select: { postedAt: true } },
       documents: { where: { kind: DocumentKind.RESUME }, select: { id: true } },
       sentDocuments: { where: { kind: DocumentKind.RESUME }, orderBy: { sentAt: "desc" }, take: 1, select: { id: true, driveFileId: true } },
-      notes: { orderBy: [{ at: "desc" }, { createdAt: "desc" }], take: 1, select: { kind: true, body: true } },
+      notes: { orderBy: [{ at: "desc" }, { createdAt: "desc" }], select: { kind: true, body: true, at: true } },
     },
   });
   const rows = applications.map((application) => {
@@ -130,7 +134,9 @@ export async function loadApplicationRows(
         chosen: application.employerType,
       },
       manual: application.origin === ApplicationOrigin.MANUAL,
-      latestEvent: application.notes[0] ?? null,
+      latestEvent: application.notes[0] ? { kind: application.notes[0].kind, body: application.notes[0].body } : null,
+      notes: application.notes,
+      expectedSalary: application.notes.find((note) => note.kind === NoteKind.SALARY)?.body.trim() ?? "",
       appliedVia: application.appliedVia
         ? { value: application.appliedVia, auto: false }
         : { value: guessAppliedVia({ via: application.posting?.via || application.agentCandidate?.via, postingUrl: application.postingUrl }), auto: true },
@@ -147,8 +153,9 @@ export async function loadApplicationRows(
           : null,
     };
   });
-  return sortRows(rows, sort).map(({ sentAt, updatedAt, postedAt, createdAt, ...row }): ApplicationRow => ({
+  return sortRows(rows, sort).map(({ sentAt, updatedAt, postedAt, createdAt, notes, ...row }): ApplicationRow => ({
     ...row,
+    events: notes.map((note) => ({ kind: note.kind, body: note.body, on: fullDates ? formatDate(note.at) : formatShortDate(note.at, now) })),
     posted: postedAt ? (fullDates ? formatDate(postedAt) : formatShortDate(postedAt, now)) : null,
     created: fullDates ? formatDate(createdAt) : formatShortDate(createdAt, now),
     sent: sentAt ? (fullDates ? formatDate(sentAt) : formatShortDate(sentAt, now)) : null,

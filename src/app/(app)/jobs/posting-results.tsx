@@ -57,6 +57,8 @@ const NARROW = "(max-width: 1023px)";
 
 export type PostingResultsProps = {
   today: string;
+  /** The posting to show picked, by its postingKey: the one you came back from. */
+  initialSelected?: string | null;
   /** Score opens a Claude chat, which scores through the connector: it's on, and Scout has no AI model of its own (#221). */
   scoreInClaude?: boolean;
 } & (
@@ -109,8 +111,17 @@ export function PostingResults(props: PostingResultsProps) {
       ? postings.filter((posting) => posting.state.dismissed).length
       : 0;
   const [selectedKey, setSelectedKey] = useState(
-    visible[0] ? postingKey(visible[0]) : null,
+    props.initialSelected && visible.some((posting) => postingKey(posting) === props.initialSelected)
+      ? props.initialSelected
+      : visible[0] ? postingKey(visible[0]) : null,
   );
+  // Back from a job: its card in view in the list, where you left it.
+  useEffect(() => {
+    if (!props.initialSelected) return;
+    document.querySelector(`[data-posting="${CSS.escape(props.initialSelected)}"]`)?.scrollIntoView?.({ block: "nearest" });
+    // Once, when the list first shows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const selected =
     visible.find((posting) => postingKey(posting) === selectedKey) ??
     visible[0] ??
@@ -306,7 +317,7 @@ export function PostingResults(props: PostingResultsProps) {
                 : `${plural(visible.length, "archived posting", "archived postings")}, kept out of your searches`}
           </span>
           {props.mode === "search" && (
-            <button
+            <button title="Run this search again for the newest postings"
               type="button"
               onClick={props.searching ? undefined : props.onSearchAgain}
               aria-disabled={props.searching || undefined}
@@ -316,7 +327,7 @@ export function PostingResults(props: PostingResultsProps) {
             </button>
           )}
           {hidden > 0 && (
-            <button
+            <button title="Show or hide the postings you archived"
               type="button"
               aria-pressed={showDismissed}
               onClick={() => setShowDismissed(!showDismissed)}
@@ -347,7 +358,7 @@ export function PostingResults(props: PostingResultsProps) {
         )}
 
         {next && (
-          <Button
+          <Button title="Load more postings"
             variant="secondary"
             className="self-start"
             onClick={() => void showMore()}
@@ -420,7 +431,7 @@ export function StartButton({
   onClick: () => void;
 }) {
   return (
-    <Button
+    <Button title="Start a tailored resume for this job"
       size="sm"
       aria-disabled={starting || undefined}
       onClick={starting ? undefined : onClick}
@@ -491,7 +502,7 @@ function PostingList({
               posting.state.dismissed && "opacity-60",
             )}
           >
-            <button
+            <button title="Show this job's details on the right"
               type="button"
               data-posting={key}
               aria-pressed={current}
@@ -549,7 +560,7 @@ function PostingList({
             {/* A button can't hold another, so the pill lies over the room the card keeps for it, with the card's border and padding. */}
             {!posting.state.score && (
               <span className="pointer-events-none absolute inset-0 flex items-start justify-end border border-transparent px-4 py-3.5">
-                <button
+                <button title="Score how well this job fits your profile"
                   type="button"
                   aria-label={`${pillLabel} “${title}”`}
                   aria-disabled={scoring[key] ? true : undefined}
@@ -702,7 +713,7 @@ function PostingDetail({
         <div className="flex min-w-0 flex-col gap-1.5">
           <h2 id={headingId} className="font-serif text-section text-pretty">
             {onOpen ? (
-              <button
+              <button title="Start a tailored resume for this job"
                 type="button"
                 aria-disabled={opening || undefined}
                 onClick={opening ? undefined : onOpen}
@@ -760,12 +771,12 @@ function PostingDetail({
           <div className="contents [&>a]:h-8 [&>a]:min-h-8 [&>a]:items-center [&>button]:h-8 [&>button]:min-h-8">
             {children}
             {state.dismissed && (
-              <Button variant="secondary" size="sm" onClick={onRestore}>
+              <Button title="Bring it back from the Archive" variant="secondary" size="sm" onClick={onRestore}>
                 Put back
               </Button>
             )}
             {posting.url && (
-              <a
+              <a title="Open the original job posting in a new tab"
                 href={posting.url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -777,7 +788,7 @@ function PostingDetail({
             )}
             {/* A BA posting with a link of its own still links to its ad on arbeitsagentur.de (#223). */}
             {sourcePage && sourcePage !== posting.url && (
-              <a
+              <a title="Open the posting on its source site, in a new tab"
                 href={sourcePage}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -788,7 +799,7 @@ function PostingDetail({
               </a>
             )}
             {!state.dismissed && (
-              <Button variant="danger-outline" size="sm" onClick={onDismiss}>
+              <Button title="Hide this job; it's kept in the Archive, nothing is deleted" variant="danger-outline" size="sm" onClick={onDismiss}>
                 Archive
               </Button>
             )}
@@ -806,7 +817,7 @@ function PostingDetail({
             />
           ) : (
             // Not scored yet: Manual job search scores on request, so the circle starts it.
-            <button
+            <button title="Score how well this job fits your profile"
               type="button"
               aria-disabled={scoring ? true : undefined}
               onClick={scoring ? undefined : onScore}
@@ -824,7 +835,7 @@ function PostingDetail({
         state.applicationId && (
           <p role="note" className="rounded-card bg-track px-4 py-3 text-meta">
             You&apos;ve applied for this.{" "}
-            <Link
+            <Link title="Open the application you started for this job"
               href={`/applications/${state.applicationId}`}
               className="underline underline-offset-2"
             >

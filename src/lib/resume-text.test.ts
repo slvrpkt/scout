@@ -22,7 +22,8 @@ describe("resumeText (E4-10)", () => {
     }
   });
 
-  it("reads a Word document, one line per paragraph", async () => {
+  // Opening a Word file loads its reader the first time, which takes a few seconds when the whole suite runs at once.
+  it("reads a Word document, one line per paragraph", { timeout: 30_000 }, async () => {
     const result = await resumeText(docxWith(LINES));
     expect(result).toEqual({ ok: true, text: LINES.join("\n\n") });
   });

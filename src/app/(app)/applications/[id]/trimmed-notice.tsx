@@ -29,7 +29,7 @@ export function TrimmedNotice({ items, onPutBack }: { items: Trimmed; onPutBack:
               {describe(item)}
               {!allByPageLimit && byPageLimit(item) && <span className="text-muted"> · to fit the page limit</span>}
             </span>
-            <button
+            <button title="Put this back on the resume"
               type="button"
               aria-label={`Put back the ${describe(item)}`.replace("the 1 bullet", "1 bullet")}
               onClick={() => onPutBack(index)}

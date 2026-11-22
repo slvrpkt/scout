@@ -110,10 +110,10 @@ export function NotesTab({ applicationId, activity, drive = null }: { applicatio
                         className={textAreaClass}
                       />
                       <div className="flex justify-end gap-1.5">
-                        <Button variant="secondary" size="sm" onClick={() => setEditing(null)}>
+                        <Button title="Close without saving" variant="secondary" size="sm" onClick={() => setEditing(null)}>
                           Cancel
                         </Button>
-                        <Button size="sm" aria-disabled={pending || undefined} onClick={save}>
+                        <Button title="Save your changes" size="sm" aria-disabled={pending || undefined} onClick={save}>
                           Save
                         </Button>
                       </div>
@@ -129,7 +129,7 @@ export function NotesTab({ applicationId, activity, drive = null }: { applicatio
                           {entry.date}
                           {entry.edited && " · edited"}
                         </span>
-                        <button
+                        <button title="Edit this entry"
                           type="button"
                           aria-label={`Edit the entry from ${entry.date}`}
                           className="hover:text-ink"
@@ -137,7 +137,7 @@ export function NotesTab({ applicationId, activity, drive = null }: { applicatio
                         >
                           Edit
                         </button>
-                        <button
+                        <button title="Delete this entry"
                           type="button"
                           aria-label={`Delete the entry from ${entry.date}`}
                           className="text-danger hover:text-error-strong"
@@ -227,12 +227,12 @@ function DriveLine({ applicationId, drive }: { applicationId: string; drive: Dri
       </span>
       <span className="flex items-center gap-2">
         {drive.problem && !drive.saving && (
-          <Button variant="secondary" size="sm" onClick={retry} disabled={pending}>
+          <Button title="Try saving to Google Drive again" variant="secondary" size="sm" onClick={retry} disabled={pending}>
             {pending ? "Starting…" : "Try Again"}
           </Button>
         )}
         {drive.folderUrl && (
-          <a href={drive.folderUrl} target="_blank" rel="noreferrer" className={buttonClassName("secondary", "sm")}>
+          <a title="Open this application's folder in Google Drive" href={drive.folderUrl} target="_blank" rel="noreferrer" className={buttonClassName("secondary", "sm")}>
             Open In Google Drive
           </a>
         )}

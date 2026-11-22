@@ -1,11 +1,12 @@
-import { costOfTokens, type CostCenter, type TokenUse } from "@/lib/cost-rates";
+import { costOfTokens, WEB_SEARCH_COST, type CostCenter, type TokenUse } from "@/lib/cost-rates";
 import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 
+import { openBatchWindow } from "../batch-window";
 import { AiError } from "../errors";
-import { BaseProvider, DEFAULT_MAX_TOKENS, SCHEMA_REFUSED, withJsonSchema, type BatchItem, type ChatAnswer, type JsonCompletionRequest, type ChatCall, type Effort } from "../provider";
+import { BaseProvider, DEFAULT_MAX_TOKENS, SCHEMA_REFUSED, withJsonSchema, type BatchItem, type ChatAnswer, type JsonCompletionRequest, type ChatCall, type Effort, type WebSearchRequest } from "../provider";
 import { keyGuardedFetch } from "./guarded-fetch";
 
 /** Offered when the model list can't be fetched, e.g. before a key is saved. */
@@ -27,6 +28,17 @@ const effortLevels = new Map<string, ReadonlySet<Effort>>();
 // grammar size), so large ones, such as a whole profile, go in the prompt
 // instead (#230).
 const promptSchemas = new Set<string>();
+
+/** How often a batched call checks whether its batch is done. */
+export const BATCH_POLL_MS = 15_000;
+
+/** Waits `ms`, or until `signal` aborts. */
+const pause = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => (clearTimeout(timer), reject(signal.reason)), { once: true });
+  });
 
 /** Claude through the Messages API with the user's own key. */
 /** Notes what a request cost, on the side: it never holds up or fails the request. */
@@ -74,6 +86,10 @@ export class AnthropicProvider extends BaseProvider {
     return true;
   }
 
+  protected override batchesInWindow(): boolean {
+    return true;
+  }
+
   protected override costCenter(): CostCenter {
     return "ANTHROPIC";
   }
@@ -114,6 +130,28 @@ export class AnthropicProvider extends BaseProvider {
     await this.client?.messages.batches.cancel(id);
   }
 
+  /**
+   * A question answered with Claude's web search tool. Searches can pause a
+   * long turn; it's sent again to carry on, a few times at most. Each request
+   * costs its tokens and $0.01 a search.
+   */
+  async searchWeb({ system, prompt, maxSearches, blockedDomains = [], kind, signal = AbortSignal.timeout(this.timeoutMs) }: WebSearchRequest): Promise<string> {
+    if (!this.client) throw AiError.config("Add your Anthropic API key in Settings → AI provider first.");
+    const model = this.model;
+    if (!model) throw AiError.config("Choose a model in Settings → AI provider first.");
+    await this.withinCostLimit();
+    const tool = { type: "web_search_20250305" as const, name: "web_search" as const, max_uses: maxSearches, ...(blockedDomains.length > 0 ? { blocked_domains: [...blockedDomains] } : {}) };
+    const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
+    for (let turn = 0; turn < 3; turn++) {
+      const message = await this.client.messages.create({ model, max_tokens: 2048, system, messages, tools: [tool] }, { signal });
+      const searches = message.usage.server_tool_use?.web_search_requests ?? 0;
+      await import("@/lib/costs").then(({ recordCost }) => recordCost("ANTHROPIC", kind, costOfTokens(model, message.usage) + searches * WEB_SEARCH_COST)).catch(() => {});
+      if (message.stop_reason !== "pause_turn") return message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
+      messages.push({ role: "assistant", content: message.content });
+    }
+    return "";
+  }
+
   /** Current Claude models reject `temperature`; creativity is in the prompt's wording instead. */
   protected override acceptsTemperature(): boolean {
     return false;
@@ -123,6 +161,9 @@ export class AnthropicProvider extends BaseProvider {
     if (!this.client) throw AiError.config("Add your Anthropic API key in Settings → AI provider first.");
     const effort = call.effort && (await this.effortLevels(this.client, call.model, call.signal)).has(call.effort) ? call.effort : undefined;
     const schemaKey = call.json ? `${this.baseURL} ${call.model} ${call.json.name}` : "";
+    // In a batch window, half price if the answer comes back in time; otherwise sent as usual below.
+    const batched = await this.viaBatch(this.client, call, effort, Boolean(call.json) && !promptSchemas.has(schemaKey));
+    if (batched) return batched;
     if (!call.json || promptSchemas.has(schemaKey)) return this.send(this.client, call, effort, false);
     try {
       return await this.send(this.client, call, effort, true);
@@ -131,6 +172,55 @@ export class AnthropicProvider extends BaseProvider {
       promptSchemas.add(schemaKey);
       return this.send(this.client, call, effort, false);
     }
+  }
+
+  /**
+   * The call as a batch of one, inside a batch window: its answer at half
+   * price, or null when it isn't back within the window's wait (the window
+   * then closes, so the rest of the work goes at the normal price) or the
+   * batch couldn't answer it. While it waits, other jobs may run.
+   */
+  private async viaBatch(client: Anthropic, call: ChatCall, effort: Effort | undefined, structured: boolean): Promise<ChatAnswer | null> {
+    const window = openBatchWindow();
+    if (!window) return null;
+    const deadline = Date.now() + window.stepMs;
+    let batch: Anthropic.Messages.MessageBatch;
+    try {
+      batch = await client.messages.batches.create({ requests: [{ custom_id: "step", params: paramsFor(call, effort, structured) }] }, { signal: call.signal });
+    } catch (error) {
+      if (call.signal.aborted) throw error;
+      // No batches just now: this work goes at the normal price.
+      window.expired = true;
+      return null;
+    }
+    const { waitOutsideLimit } = await import("@/lib/jobs/runner");
+    const message = await waitOutsideLimit(this.batchAnswer(client, batch.id, deadline, call.signal));
+    if (!message) {
+      window.expired = true;
+      await client.messages.batches.cancel(batch.id).catch(() => {});
+      return null;
+    }
+    await noteCost(call.model, message.usage, call.json?.name ?? "other", true);
+    if (message.stop_reason === "refusal") {
+      throw new AiError("provider", "The model declined to answer this one. Try rewording it, or try again.", "refusal");
+    }
+    return {
+      text: message.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(""),
+      cutOff: message.stop_reason === "max_tokens" || message.stop_reason === "model_context_window_exceeded",
+    };
+  }
+
+  /** A batch of one's answer once it's done, or null past `deadline` or when it failed. */
+  private async batchAnswer(client: Anthropic, id: string, deadline: number, signal: AbortSignal): Promise<Anthropic.Message | null> {
+    while (Date.now() < deadline) {
+      await pause(Math.min(BATCH_POLL_MS, Math.max(0, deadline - Date.now())), signal);
+      if ((await client.messages.batches.retrieve(id, {}, { signal })).processing_status !== "ended") continue;
+      for await (const entry of await client.messages.batches.results(id, {}, { signal })) {
+        return entry.result.type === "succeeded" ? entry.result.message : null;
+      }
+      return null;
+    }
+    return null;
   }
 
   /** One request; `structured` asks for `call.json` through output_config, otherwise the schema goes in the prompt. */

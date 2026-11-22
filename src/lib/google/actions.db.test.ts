@@ -45,6 +45,8 @@ import {
   saveGoogleClient,
   saveGoogleSettings,
   saveReplyDraft,
+  markEmailImportant,
+  markEmailRead,
   startDraftingReply,
 } from "./actions";
 import { inboxCount, loadConversation, loadInbox, waitingByApplication } from "./inbox-data";
@@ -92,13 +94,14 @@ afterEach(() => vi.unstubAllGlobals());
 afterAll(async () => prisma().$disconnect());
 
 describe("the inbox (E15-3)", () => {
-  it("sorts mail into waiting, unmatched and updates", async () => {
+  it("lists every incoming message newest first, with the conversations around them, and counts the unread", async () => {
     const inbox = await loadInbox();
-    expect(inbox.waiting.map((email) => email.id)).toEqual(["e1"]);
-    expect(inbox.unmatched.map((email) => email.id)).toEqual(["e2"]);
-    expect(inbox.updates.map((email) => [email.id, email.handled, email.read])).toEqual([["e3", true, true]]);
-    expect(inbox.waiting[0]).toMatchObject({ questions: ["When are you free?"], application: { id: "nw", company: "Northwind", status: "SENT" } });
-    expect(await inboxCount()).toBe(2);
+    expect(inbox.messages.map((email) => [email.id, email.handled, email.unread, email.important])).toEqual(
+      expect.arrayContaining([["e1", false, true, false], ["e2", false, true, false], ["e3", true, true, false]]),
+    );
+    expect(inbox.messages.find((email) => email.id === "e1")).toMatchObject({ questions: ["When are you free?"], application: { id: "nw", company: "Northwind", status: "SENT" } });
+    expect(inbox.conversations.filter((email) => email.application?.id === "nw").map((email) => email.id)).toEqual(["e1", "e3"]);
+    expect(await inboxCount()).toBe(3);
     expect(await waitingByApplication()).toEqual(new Map([["nw", { count: 1, summary: "Invites you to a call." }]]));
     expect((await loadConversation("nw")).map((email) => email.id)).toEqual(["e1", "e3"]);
   });
@@ -108,7 +111,7 @@ describe("the inbox (E15-3)", () => {
     expect(await prisma().emailMessage.findUniqueOrThrow({ where: { id: "e2" } })).toMatchObject({ applicationId: "lg" });
     expect(await linkEmail({ emailId: "e2", applicationId: "gone" })).toMatchObject({ ok: false, error: "That application no longer exists." });
     expect(await dismissEmail({ emailId: "e2" })).toMatchObject({ ok: true });
-    expect((await loadInbox()).unmatched).toEqual([]);
+    expect((await loadInbox()).messages.filter((email) => !email.application)).toEqual([]);
   });
 
   it("keeps only the ids of a dismissed mail, and a link leaves it dismissed", async () => {
@@ -138,9 +141,18 @@ describe("the inbox (E15-3)", () => {
 
   it("marks a reply as answered and back", async () => {
     await markHandled({ emailId: "e1", handled: true });
-    expect(await inboxCount()).toBe(1);
+    expect(await prisma().emailMessage.findUniqueOrThrow({ where: { id: "e1" } })).toMatchObject({ handledAt: expect.any(Date) });
     await markHandled({ emailId: "e1", handled: false });
+    expect(await prisma().emailMessage.findUniqueOrThrow({ where: { id: "e1" } })).toMatchObject({ handledAt: null });
+  });
+
+  it("marks a message read, unread and important; the count is what's unread", async () => {
+    expect(await markEmailRead({ emailId: "e1", read: true })).toMatchObject({ ok: true });
     expect(await inboxCount()).toBe(2);
+    await markEmailRead({ emailId: "e1", read: false });
+    expect(await inboxCount()).toBe(3);
+    await markEmailImportant({ emailId: "e2", important: true });
+    expect((await loadInbox()).messages.find((email) => email.id === "e2")).toMatchObject({ important: true, unread: true });
   });
 
   it("has the AI read a mail again", async () => {

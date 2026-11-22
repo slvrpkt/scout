@@ -41,7 +41,7 @@ export function ThingsToNoteCell({ row }: { row: Pick<ApplicationRow, "id" | "ro
   return (
     <div className="flex flex-col items-start gap-1">
       {text && <p className="line-clamp-3 text-meta whitespace-pre-line text-ink">{text}</p>}
-      <button
+      <button title="Add or edit your lasting notes about this role"
         ref={opener}
         type="button"
         onClick={() => {
@@ -83,10 +83,10 @@ export function ThingsToNoteCell({ row }: { row: Pick<ApplicationRow, "id" | "ro
                   {draft.length} / {MAX}
                 </span>
                 <span className="flex gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
+                  <Button title="Close without saving" variant="secondary" size="sm" onClick={() => setOpen(false)}>
                     Cancel
                   </Button>
-                  <Button size="sm" aria-disabled={saving || undefined} onClick={save}>
+                  <Button title="Save your note" size="sm" aria-disabled={saving || undefined} onClick={save}>
                     Save
                   </Button>
                 </span>

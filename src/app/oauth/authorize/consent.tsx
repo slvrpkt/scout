@@ -35,10 +35,10 @@ export function Consent({ request }: { request: ConsentRequest }) {
         </p>
       )}
       <div className="flex flex-wrap gap-3">
-        <Button type="button" aria-disabled={pending || undefined} onClick={() => !pending && answer(true)}>
+        <Button title="Let this app use Scout on your behalf" type="button" aria-disabled={pending || undefined} onClick={() => !pending && answer(true)}>
           {pending ? "Connecting…" : "Allow"}
         </Button>
-        <Button type="button" variant="secondary" aria-disabled={pending || undefined} onClick={() => !pending && answer(false)}>
+        <Button title="Don't let this app use Scout" type="button" variant="secondary" aria-disabled={pending || undefined} onClick={() => !pending && answer(false)}>
           Deny
         </Button>
       </div>

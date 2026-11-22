@@ -175,7 +175,7 @@ function CardFace({ row, lifted = false, onOpen }: { row: ApplicationRow; lifted
       </p>
       <span className="flex items-start gap-1.5">
         {/* The link covers the card, so clicking anywhere opens it. */}
-        <Link
+        <Link title="Open this application"
           href={`/applications/${row.id}`}
           onClick={onOpen}
           draggable={false}

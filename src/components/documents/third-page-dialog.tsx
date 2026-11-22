@@ -21,10 +21,10 @@ export function ThirdPageDialog({ open, onAnswer }: { open: boolean; onAnswer: (
             up to three pages instead, keeping them in full? Either way, anything shortened is rewritten in fewer words, keeping the facts.
           </Dialog.Description>
           <div className="flex flex-wrap justify-end gap-2">
-            <Button variant="secondary" onClick={() => onAnswer(false)}>
+            <Button title="Keep this resume to two pages" variant="secondary" onClick={() => onAnswer(false)}>
               Keep it to two pages
             </Button>
-            <Button onClick={() => onAnswer(true)}>Allow up to three pages</Button>
+            <Button title="Allow a third page for this resume" onClick={() => onAnswer(true)}>Allow up to three pages</Button>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

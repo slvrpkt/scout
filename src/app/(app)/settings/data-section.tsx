@@ -215,7 +215,7 @@ export function DataSection({
           title="Download all PDFs"
           description="Every tailored resume and cover letter, zipped and sorted by company."
           action={
-            <Button variant="secondary" size="sm" aria-disabled={zipping || undefined} onClick={() => !zipping && void zipAll()}>
+            <Button title="Make a zip of all your data to download" variant="secondary" size="sm" aria-disabled={zipping || undefined} onClick={() => !zipping && void zipAll()}>
               {zipping ? "Zipping…" : "Download"}
             </Button>
           }
@@ -227,7 +227,7 @@ export function DataSection({
           )}
           {zip?.status === "DONE" && zip.result && (
             <p>
-              <a href={`/api/downloads/${zip.id}`} download className={buttonClassName("text", "sm", "underline underline-offset-2")}>
+              <a title="Save the zip of your data" href={`/api/downloads/${zip.id}`} download className={buttonClassName("text", "sm", "underline underline-offset-2")}>
                 Download {zip.result.fileName}
               </a>
             </p>
@@ -247,7 +247,7 @@ export function DataSection({
                 aria-hidden="true"
                 onChange={(event) => void chooseFile(event.target.files?.[0])}
               />
-              <Button variant="secondary" size="sm" aria-disabled={importing || undefined} onClick={() => !importing && fileInput.current?.click()}>
+              <Button title="Load data from a Scout export file" variant="secondary" size="sm" aria-disabled={importing || undefined} onClick={() => !importing && fileInput.current?.click()}>
                 {importing ? "Importing…" : "Choose file"}
               </Button>
             </>
@@ -393,11 +393,11 @@ function SampleData({ state }: { state: { loaded: boolean; loadedAt: string | nu
       </div>
       <div className="flex flex-wrap gap-2">
         {state.loaded ? (
-          <Button variant="secondary" size="sm" aria-disabled={busy !== null || undefined} onClick={() => busy === null && void run("remove")}>
+          <Button title="Take the made-up sample data out" variant="secondary" size="sm" aria-disabled={busy !== null || undefined} onClick={() => busy === null && void run("remove")}>
             {busy === "remove" ? "Removing…" : "Remove sample data"}
           </Button>
         ) : (
-          <Button size="sm" aria-disabled={busy !== null || !state.canLoad || undefined} onClick={() => busy === null && state.canLoad && void run("load")}>
+          <Button title="Fill Scout with made-up sample data, to try it out" size="sm" aria-disabled={busy !== null || !state.canLoad || undefined} onClick={() => busy === null && state.canLoad && void run("load")}>
             {busy === "load" ? "Loading…" : "Load sample data"}
           </Button>
         )}
@@ -452,7 +452,7 @@ function DangerZone() {
             }}
             className="min-w-0 flex-[1_1_200px] rounded-control border border-line-input bg-input px-3 py-2.5 font-mono text-[13.5px] focus-visible:border-error-strong focus-visible:outline-offset-0"
           />
-          <Button
+          <Button title="Delete all your data; this can't be undone"
             variant="danger"
             size="sm"
             aria-disabled={!ready || deleting || undefined}
@@ -461,7 +461,7 @@ function DangerZone() {
           >
             {deleting ? "Deleting…" : "Delete for good"}
           </Button>
-          <Button
+          <Button title="Keep your data"
             variant="text"
             size="sm"
             className="px-3!"
@@ -475,7 +475,7 @@ function DangerZone() {
         </div>
       ) : (
         <div>
-          <Button variant="danger-outline" size="sm" onClick={() => setConfirming(true)}>
+          <Button title="Start deleting all your data (you'll confirm first)" variant="danger-outline" size="sm" onClick={() => setConfirming(true)}>
             Delete everything…
           </Button>
         </div>
@@ -521,7 +521,7 @@ function BackupToDrive({ drive }: { drive: BackupStatus["drive"] }) {
       {/* Two different things go to Drive: say which is which. */}
       <p role="note" className="rounded-control bg-surface px-3 py-2 text-meta text-muted">
         <b className="text-ink">This is a full backup:</b> everything Scout needs to be restored on another computer. It&apos;s different from{" "}
-        <Link href="/settings?section=google" className="underline underline-offset-2 hover:text-ink">
+        <Link title="Open the Google Drive setting" href="/settings?section=google" className="underline underline-offset-2 hover:text-ink">
           Save What I Send To Google Drive
         </Link>{" "}
         in Settings → Google, which only keeps the jobs you applied to: a folder for each, with the resume and cover letter you sent.
@@ -533,11 +533,11 @@ function BackupToDrive({ drive }: { drive: BackupStatus["drive"] }) {
       )}
       <div className="flex flex-wrap items-center gap-3">
         {/* Back up now goes with the copy to Drive: off while the copy is off. */}
-        <Button variant="secondary" size="sm" disabled={!(on && drive.allowed)} aria-disabled={busy || undefined} onClick={() => !busy && void now()}>
+        <Button title="Back up your data to Google Drive now" variant="secondary" size="sm" disabled={!(on && drive.allowed)} aria-disabled={busy || undefined} onClick={() => !busy && void now()}>
           {busy ? "Backing up…" : "Back up now"}
         </Button>
         {drive.folderUrl && (
-          <a href={drive.folderUrl} target="_blank" rel="noreferrer" className="text-meta text-muted underline underline-offset-2 hover:text-ink">
+          <a title="Open your Scout backups folder in Google Drive" href={drive.folderUrl} target="_blank" rel="noreferrer" className="text-meta text-muted underline underline-offset-2 hover:text-ink">
             Open &ldquo;Scout backups&rdquo; in Google Drive
           </a>
         )}
@@ -583,7 +583,7 @@ function BackupCleanup({ usage: initial }: { usage?: { count: number; bytes: num
             </option>
           ))}
         </Select>
-        <Button variant="secondary" size="sm" disabled={usage.count === 0} onClick={() => setAsking(true)}>
+        <Button title="Delete older backups to free up Drive space" variant="secondary" size="sm" disabled={usage.count === 0} onClick={() => setAsking(true)}>
           Clear old backups
         </Button>
       </div>

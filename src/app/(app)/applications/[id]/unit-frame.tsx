@@ -29,7 +29,10 @@ export type UnitFrameProps = {
   flashing: boolean;
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (text: string) => void;
+  /** Saves the text and, for a job, the skills under it when they changed. */
+  onSave: (text: string, skills?: string) => void;
+  /** A job's skills line, edited with its bullets. */
+  skills?: Unit | null;
   onRegenerate?: () => void;
   onAskAi?: () => void;
   /** Takes it off a tailored resume (#217). */
@@ -58,6 +61,7 @@ export function UnitFrame({
   onEdit,
   onCancel,
   onSave,
+  skills = null,
   onRegenerate,
   onAskAi,
   onLeaveOut,
@@ -89,7 +93,7 @@ export function UnitFrame({
         {head}
         {!editing && children}
       </div>
-      {editing && <UnitEditor unit={unit} saving={saving} onCancel={onCancel} onSave={onSave} />}
+      {editing && <UnitEditor unit={unit} skills={skills} saving={saving} onCancel={onCancel} onSave={onSave} />}
       {flagged && <CheckThis facts={unit.unverified!} />}
       {busy ? (
         <span className={cn(styles.status, "rounded-[6px] border border-line-popover bg-card px-2 py-1 font-sans text-[11.5px] leading-[1.2] text-muted")}>
@@ -104,21 +108,21 @@ export function UnitFrame({
               "gap-0.5 rounded-control bg-inverse p-[3px] font-sans text-xs leading-[1.2] font-medium whitespace-nowrap shadow-toolbar",
             )}
           >
-            <button type="button" className={toolButton} onClick={onEdit}>
+            <button title="Edit this section by hand" type="button" className={toolButton} onClick={onEdit}>
               Edit
             </button>
             {onRegenerate && (
-              <button type="button" className={toolButton} onClick={onRegenerate}>
+              <button title="Have the AI write this section again" type="button" className={toolButton} onClick={onRegenerate}>
                 Regenerate
               </button>
             )}
             {onAskAi && (
-              <button type="button" className={toolButton} onClick={onAskAi}>
+              <button title="Ask the AI for a change to just this section" type="button" className={toolButton} onClick={onAskAi}>
                 Ask AI
               </button>
             )}
             {onLeaveOut && (
-              <button type="button" className={toolButton} onClick={onLeaveOut}>
+              <button title="Leave this section off the resume" type="button" className={toolButton} onClick={onLeaveOut}>
                 Leave out
               </button>
             )}
@@ -132,16 +136,20 @@ export function UnitFrame({
 /** The text box that replaces a unit while it's edited: a role's bullets one per line. */
 function UnitEditor({
   unit,
+  skills,
   saving,
   onCancel,
   onSave,
 }: {
   unit: Unit;
+  skills: Unit | null;
   saving: boolean;
   onCancel: () => void;
-  onSave: (text: string) => void;
+  onSave: (text: string, skills?: string) => void;
 }) {
   const [value, setValue] = useState(unit.text);
+  const [skillsValue, setSkillsValue] = useState(skills?.text ?? "");
+  const submit = () => onSave(value, skills && skillsValue.trim() !== skills.text.trim() ? skillsValue : undefined);
   // Grows with the text where the browser can (field-sizing); elsewhere, about a row per 70 characters.
   const rows = Math.max(3, value.split("\n").reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 70)), 1));
   return (
@@ -161,11 +169,39 @@ function UnitEditor({
             onCancel();
           } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
             event.preventDefault();
-            onSave(value);
+            submit();
           }
         }}
         className="max-h-[calc(60vh/var(--preview-scale,1))] w-full resize-y rounded-control border border-primary bg-input px-3 py-2.5 text-control leading-[1.55] text-ink [field-sizing:content] focus-visible:outline-offset-0 disabled:opacity-60"
       />
+      {skills && (
+        <div className="flex flex-col gap-1">
+          <label htmlFor={`${skills.id}-input`} className="text-xs font-medium text-muted">
+            Skills under this job
+          </label>
+          <input
+            id={`${skills.id}-input`}
+            type="text"
+            value={skillsValue}
+            disabled={saving}
+            aria-describedby={`${skills.id}-hint`}
+            onChange={(event) => setSkillsValue(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                onCancel();
+              } else if (event.key === "Enter") {
+                event.preventDefault();
+                submit();
+              }
+            }}
+            className="w-full rounded-control border border-line bg-input px-3 py-2 text-control text-ink focus-visible:outline-offset-0 disabled:opacity-60"
+          />
+          <span id={`${skills.id}-hint`} className="text-xs text-muted">
+            Separated by commas; what fits on one line prints. Leave it empty to show your Profile&apos;s again.
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-end gap-1.5">
         {isBulletUnit(unit.id) && (
           <span id={`${unit.id}-hint`} className="mr-auto text-xs text-muted">
@@ -174,13 +210,13 @@ function UnitEditor({
         )}
         {isHeadingUnit(unit.id) && (
           <span id={`${unit.id}-hint`} className="mr-auto text-xs text-muted">
-            {unit.id.startsWith(ROLE_HEAD) ? "Job title, company and place, one per line. " : ""}For this resume only: your Profile stays as it is.
+            {unit.id.startsWith(ROLE_HEAD) ? "Job title, company, place and dates, one per line. " : ""}For this resume only: your Profile stays as it is.
           </span>
         )}
-        <Button variant="secondary" size="sm" className="min-h-[calc(var(--px)*30)] bg-input" onClick={onCancel} disabled={saving}>
+        <Button title="Close without saving" variant="secondary" size="sm" className="min-h-[calc(var(--px)*30)] bg-input" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button size="sm" className="min-h-[calc(var(--px)*30)]" onClick={() => onSave(value)} disabled={saving}>
+        <Button title="Save your edit" size="sm" className="min-h-[calc(var(--px)*30)]" onClick={submit} disabled={saving}>
           {saving ? "Saving…" : "Save"}
         </Button>
       </div>

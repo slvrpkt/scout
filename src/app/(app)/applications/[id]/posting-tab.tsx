@@ -88,7 +88,7 @@ export function PostingTab({
             </h2>
             <p id={notesHint} className="text-sm text-pretty text-muted">
               Anything worth stressing or leaving out for this role. The AI uses it with your profile, your{" "}
-              <Link href={sectionHref("facts")} className="text-muted underline underline-offset-2 hover:text-ink">
+              <Link title="Open Facts about me in your profile" href={sectionHref("facts")} className="text-muted underline underline-offset-2 hover:text-ink">
                 Facts about me
               </Link>{" "}
               and your base resume the next time it writes or rewrites something here.
@@ -120,7 +120,7 @@ export function PostingTab({
               {posting.url && (
                 <>
                   {" · "}
-                  <a
+                  <a title="Open the original job posting in a new tab"
                     href={posting.url}
                     target="_blank"
                     rel="noopener noreferrer"

@@ -64,7 +64,7 @@ export function EmailTab({
             I&apos;ll write a short email to go with your resume and cover letter, to whoever the posting says to send applications
             to. Copy it into your mail app or open it there, and attach the PDFs.
           </p>
-          <Button className="mt-1" aria-disabled={writing || undefined} onClick={() => !writing && onWrite()}>
+          <Button title="Write a short email to send with your application" className="mt-1" aria-disabled={writing || undefined} onClick={() => !writing && onWrite()}>
             {writing ? "Writing the email…" : "Write the email"}
           </Button>
         </div>
@@ -133,14 +133,14 @@ export function EmailTab({
             sentBefore={gmail.sentBefore}
           />
         )}
-        <Button variant={gmail?.sender.from ? "secondary" : "primary"} onClick={() => void copy(body, "message")}>
+        <Button title="Copy the email, to paste into your mail app" variant={gmail?.sender.from ? "secondary" : "primary"} onClick={() => void copy(body, "message")}>
           Copy message
         </Button>
         {/* Mail apps can't take attachments from a link: the PDFs are attached by hand. */}
-        <a href={mailtoHref({ to, subject, body })} className={buttonClassName("secondary", "md")}>
+        <a title="Start this email in your mail app" href={mailtoHref({ to, subject, body })} className={buttonClassName("secondary", "md")}>
           Open in mail app
         </a>
-        <Button variant="text" className="ml-auto" aria-disabled={writing || undefined} onClick={() => !writing && onWrite()}>
+        <Button title="Write the email again" variant="text" className="ml-auto" aria-disabled={writing || undefined} onClick={() => !writing && onWrite()}>
           {writing ? "Rewriting…" : "Rewrite"}
         </Button>
       </div>
@@ -155,7 +155,7 @@ function Field({ label, onCopy, children }: { label: string; onCopy?: () => void
       <span className="w-14 shrink-0 text-meta text-muted">{label}</span>
       <div className="min-w-0 flex-1 text-field break-words">{children}</div>
       {onCopy && (
-        <Button variant="text" size="sm" className="py-0!" aria-label={`Copy the ${label === "To" ? "recipient" : label.toLowerCase()}`} onClick={onCopy}>
+        <Button title="Copy this line" variant="text" size="sm" className="py-0!" aria-label={`Copy the ${label === "To" ? "recipient" : label.toLowerCase()}`} onClick={onCopy}>
           Copy
         </Button>
       )}

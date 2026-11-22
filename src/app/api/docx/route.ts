@@ -11,7 +11,7 @@ import { resolveFileName } from "@/lib/file-name";
 import { fileDownload, holdFile } from "@/lib/pdf/downloads";
 import { prisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
-import { NO_COVER_LETTER, rememberDownloadFormat } from "@/lib/sent-documents";
+import { NO_COVER_LETTER, rememberDownloadFormat, rememberLetterUsed } from "@/lib/sent-documents";
 import { maxPages } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-data";
 import { route } from "@/lib/route";
@@ -80,6 +80,7 @@ async function buildRequested(request: NextRequest): Promise<{ file: Uint8Array;
     if (!document) return notFound(doc === "resume" ? "This application has no tailored resume." : "This application has no cover letter.");
     loaded = { ...documents, document, isResume: doc === "resume", date };
     await rememberDownloadFormat(id, FileFormat.DOCX);
+    if (doc === "letter") await rememberLetterUsed(id);
     if (doc === "resume") return checkedResumeDocx(id, loaded);
   }
   return documentDocx(loaded);

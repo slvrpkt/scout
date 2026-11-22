@@ -20,14 +20,14 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
     items: [
       { href: "/", label: "Dashboard", icon: House, isActive: (pathname) => pathname === "/" },
       { href: "/agent", label: "Agentic job search", icon: Bot },
-      { href: "/jobs", label: "Manual job search", icon: Search },
+      // A new manual application (a job you found yourself) is part of Manual job search.
+      { href: "/jobs", label: "Manual job search", icon: Search, isActive: (pathname) => within(pathname, "/jobs") || within(pathname, "/new") },
       { href: "/saved", label: "Saved for later", icon: Bookmark },
       {
         href: "/applications",
         label: "Job application log",
         icon: BriefcaseBusiness,
-        // A new application becomes one, so the flow belongs to Applications.
-        isActive: (pathname) => within(pathname, "/applications") || within(pathname, "/new"),
+        isActive: (pathname) => within(pathname, "/applications"),
       },
       { href: "/archive", label: "Archive", icon: Archive },
       // Hidden for now, not removed: the page still works at /startups. To bring
@@ -46,9 +46,11 @@ export const NAV: { label?: string; items: NavItem[] }[] = [
   },
 ];
 
-export const isCurrent = ({ href, isActive = (path) => within(path, href) }: NavItem, pathname: string) => isActive(pathname);
+/** Whether the item is the current section: the one the page says it's in (`override`, an href), else by the address. */
+export const isCurrent = ({ href, isActive = (path) => within(path, href) }: NavItem, pathname: string, override: string | null = null) =>
+  override ? href === override : isActive(pathname);
 
 /** The section a path belongs to, for the page bar's title; undefined outside them all. */
-export function currentSection(pathname: string): NavItem | undefined {
-  return NAV.flatMap((group) => group.items).find((item) => isCurrent(item, pathname));
+export function currentSection(pathname: string, override: string | null = null): NavItem | undefined {
+  return NAV.flatMap((group) => group.items).find((item) => isCurrent(item, pathname, override));
 }

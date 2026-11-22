@@ -5,10 +5,12 @@ export async function register() {
     const { checkEnvOnStartup } = await import("@/lib/env");
     checkEnvOnStartup();
 
-    // AI jobs left running by the previous process can't finish (E6-7).
+    // AI jobs the previous process left running start again (E6-7).
     const { recoverInterruptedJobs } = await import("@/lib/jobs/runner");
     const { logServerError } = await import("@/lib/log");
-    await recoverInterruptedJobs().catch((error: unknown) => logServerError("startup", error));
+    await recoverInterruptedJobs()
+      .then(({ resumed, failed }) => resumed + failed > 0 && console.log(`Jobs cut off by the restart: ${resumed} started again${failed ? `, ${failed} left to the job agent or to Retry` : ""}.`))
+      .catch((error: unknown) => logServerError("startup", error));
 
     // Finished jobs, with what they were given and wrote, are deleted after a while.
     const { startJobSweep } = await import("@/lib/jobs/retention");

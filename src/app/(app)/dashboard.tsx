@@ -153,7 +153,7 @@ function WhereThingsStand({ byStatus }: { byStatus: Record<ApplicationStatus, nu
         <h2 id="standing-heading" className="text-[15px] font-medium">
           Where things stand
         </h2>
-        <Link href="/applications?view=board" className="text-meta text-muted underline underline-offset-3 hover:text-ink">
+        <Link title="Open your applications as a board, by stage" href="/applications?view=board" className="text-meta text-muted underline underline-offset-3 hover:text-ink">
           Open board
         </Link>
       </div>
@@ -193,7 +193,7 @@ function WorthALook({ items, quietDays }: { items: DashboardFigures["attention"]
         <ul className="grid gap-x-6 @min-[760px]/attention:grid-cols-2 @min-[1180px]/attention:grid-cols-3">
           {items.map((item) => (
             <li key={item.id} className="-mx-2.5 border-t border-line">
-              <Link href={`/applications/${item.id}${item.tab ? `?tab=${item.tab}` : ""}`} className="flex items-start gap-3 rounded-control px-2.5 py-[13px] text-ink hover:bg-hover">
+              <Link title="Open this application" href={`/applications/${item.id}${item.tab ? `?tab=${item.tab}` : ""}`} className="flex items-start gap-3 rounded-control px-2.5 py-[13px] text-ink hover:bg-hover">
                 <StatusDot status={item.status} className="mt-1.5" />
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="text-field font-medium">
@@ -230,7 +230,7 @@ function Welcome({ profileStarted }: { profileStarted: boolean }) {
             If you haven&apos;t filled in your profile yet, start there: every tailored resume and cover letter is built from it. To start an
             application, find a job on Agentic or Manual job search, or use + New manual application there.
           </p>
-          <Link href="/profile" className={buttonClassName("secondary")}>
+          <Link title="Add your experience, skills and facts, so every resume is better" href="/profile" className={buttonClassName("secondary")}>
             Fill in your profile
           </Link>
         </>

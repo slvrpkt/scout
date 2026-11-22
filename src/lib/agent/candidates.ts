@@ -83,6 +83,7 @@ export function candidateData(posting: FoundPosting, score: PostingFit): Prisma.
     description: posting.description,
     complete: posting.complete,
     applyLinks: posting.applyLinks?.length ? posting.applyLinks : Prisma.DbNull,
+    employerSite: posting.employerSite ?? "",
     score: score.score,
     reasons: score.reasons,
     redFlags: score.redFlags,

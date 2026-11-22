@@ -11,6 +11,8 @@ export type OutgoingMail = {
   to: string;
   subject: string;
   body: string;
+  /** The same message formatted, sent alongside the plain text for mail apps that show it. */
+  html?: string;
   attachments?: Attachment[];
   /** The Message-ID being answered, to reply in its thread. */
   inReplyTo?: string;
@@ -63,7 +65,21 @@ export function buildMessage(mail: OutgoingMail, { boundary = `dossier-${randomB
     "MIME-Version: 1.0",
     ...(mail.inReplyTo ? [`In-Reply-To: ${mail.inReplyTo}`, `References: ${[mail.references, mail.inReplyTo].filter(Boolean).join(" ")}`] : []),
   ];
-  const text = ["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", wrapped(mail.body.replace(/\r?\n/g, "\r\n"))].join("\r\n");
+  const plain = ["Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", wrapped(mail.body.replace(/\r?\n/g, "\r\n"))].join("\r\n");
+  // Formatted: the plain text and the HTML as alternatives, the mail app showing the best it can.
+  const alternative = `${boundary}-alt`;
+  const text = mail.html
+    ? [
+        `Content-Type: multipart/alternative; boundary="${alternative}"`,
+        "",
+        `--${alternative}`,
+        plain,
+        `--${alternative}`,
+        ["Content-Type: text/html; charset=UTF-8", "Content-Transfer-Encoding: base64", "", wrapped(mail.html)].join("\r\n"),
+        `--${alternative}--`,
+        "",
+      ].join("\r\n")
+    : plain;
   const attachments = mail.attachments ?? [];
   if (attachments.length === 0) return [...headers, text].join("\r\n");
 

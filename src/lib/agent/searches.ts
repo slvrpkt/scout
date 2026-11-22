@@ -3,6 +3,9 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { EMPTY_QUERY, searchQuerySchema, type JobSource, type SearchQuery } from "@/lib/job-search/search";
 import { prisma } from "@/lib/prisma";
+import { lastKnownTimeZone } from "@/lib/time-zone";
+
+import { addToClearedTally } from "./cleared-tally";
 
 // The job agent's saved searches: every run goes through all the ones
 // switched on, one after another, and keeps what's new from each.
@@ -85,10 +88,15 @@ export async function updateAgentSearch(id: string, changes: { query?: SearchQue
 }
 
 /** Removes a search; what it found stays. */
-export async function deleteAgentSearch(id: string): Promise<void> {
-  // What it found and hasn't been scored goes with it.
-  await prisma.queuedPosting.deleteMany({ where: { searchId: id } });
-  await prisma.agentSearch.deleteMany({ where: { id } });
+export async function deleteAgentSearch(id: string, timeZone?: string): Promise<void> {
+  const zone = timeZone ?? (await lastKnownTimeZone());
+  await prisma.$transaction(async (tx) => {
+    // What it found and hasn't been scored goes with it, still counted as found.
+    const waiting = await tx.queuedPosting.findMany({ where: { searchId: id }, select: { createdAt: true } });
+    await tx.queuedPosting.deleteMany({ where: { searchId: id } });
+    await addToClearedTally(tx, waiting.map((row) => ({ createdAt: row.createdAt, kind: "unscored" })), zone);
+    await tx.agentSearch.deleteMany({ where: { id } });
+  });
 }
 
 /** Notes how a search went in a run, for the Agent screen. */

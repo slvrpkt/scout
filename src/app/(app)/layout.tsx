@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { AGENT_JOB_KEY } from "@/lib/agent/jobs";
 import { countPostings } from "@/lib/postings";
 import { progressMessage } from "@/lib/agent/progress";
+import { periodResults } from "@/lib/agent/budget";
 import { countAgentQueue } from "@/lib/agent/view";
 import { verifySession } from "@/lib/auth/session";
 import { loadGoogleAccount } from "@/lib/google/account";
@@ -48,11 +49,13 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   ]);
   const timeZone = zone ?? settings.browserTimeZone ?? "UTC";
   const overLimits = await costLimitsPassed(settings.costLimits, new Date(), timeZone).catch(() => []);
+  // With a limit reached, what the job agent got through today, counted as its Today tab counts it.
+  const today = overLimits.length > 0 ? await periodResults(new Date(), timeZone, settings.agentMinScore, settings.agentClearedTally).then(({ today }) => today).catch(() => null) : null;
   const progress = progressMessage({ searching, scoreAt: settings.agentScoreAt, batchAt: settings.agentBatchAt, now: new Date(), timeZone: zone ?? settings.browserTimeZone ?? "UTC" });
 
   return (
     <div className="flex min-h-screen">
-      <a
+      <a title="Skip the menu and go to the page's content"
         href="#main"
         className="fixed top-3 left-3 z-50 -translate-y-[200%] rounded-control bg-primary px-4 py-2.5 text-sm font-medium text-on-primary hover:text-on-primary focus:translate-y-0"
       >
@@ -84,7 +87,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </main>
       </div>
       {google?.expiredAt && <GoogleExpiredDialog email={google.email} />}
-      {overLimits.length > 0 && <CostLimitDialog limits={overLimits.map((over) => overLimitBlock(over, new Date(), timeZone))} />}
+      {overLimits.length > 0 && (
+        <CostLimitDialog limits={overLimits.map((over) => overLimitBlock(over, new Date(), timeZone))} today={today && { found: today.found, scored: today.scored, setAside: today.setAside }} />
+      )}
     </div>
   );
 }

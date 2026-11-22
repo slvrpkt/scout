@@ -32,7 +32,7 @@ export function ThemeMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="text" size="sm" className="data-[state=open]:text-ink">
+        <Button title="Choose a different look for this document" variant="text" size="sm" className="data-[state=open]:text-ink">
           {current.name} theme
           <span aria-hidden="true" className="text-[10px]">
             ▼

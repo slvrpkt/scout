@@ -28,7 +28,7 @@ export function ScoreNow({ waiting, scoring, onStarted }: { waiting: number; sco
           ? `${jobs} being scored now. The counts here update as the scores come in.`
           : `${jobs} waiting for a score. Scoring starts about 5 minutes after the search, and you don't have to wait for it.`}
       </span>
-      <Button size="sm" variant="secondary" disabled={busy} onClick={score}>
+      <Button title="Score the jobs still waiting, now instead of at the next run" size="sm" variant="secondary" disabled={busy} onClick={score}>
         {busy ? "Scoring…" : "Score now"}
       </Button>
     </div>

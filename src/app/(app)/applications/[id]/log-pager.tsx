@@ -9,7 +9,7 @@ import type { LogNeighbours } from "@/lib/applications-data";
 export function LogPager({ neighbours: { previous, next, position, total } }: { neighbours: LogNeighbours }) {
   const step = (id: string | null, label: string, icon: ReactNode, after = false) =>
     id ? (
-      <Link href={`/applications/${id}`} className={buttonClassName("secondary", "sm")}>
+      <Link title={`Open the ${after ? "next" : "previous"} application in your log`} href={`/applications/${id}`} className={buttonClassName("secondary", "sm")}>
         {!after && icon}
         {label}
         {after && icon}

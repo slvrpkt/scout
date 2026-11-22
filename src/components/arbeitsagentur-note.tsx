@@ -23,7 +23,7 @@ export function ArbeitsagenturNote({ accepted, onAccept, className }: { accepted
     <div role="note" className={cn("flex flex-col gap-3 rounded-card bg-warning-surface px-4 py-3 text-meta text-warning", className)}>
       <p>
         {ARBEITSAGENTUR_NOTE}{" "}
-        <a href={ARBEITSAGENTUR_TERMS_URL} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+        <a title="Read the Federal Employment Agency's terms of use, in a new tab" href={ARBEITSAGENTUR_TERMS_URL} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
           The BA&apos;s terms of use
           <span className="sr-only"> (German, opens in a new tab)</span>
         </a>

@@ -248,6 +248,7 @@ export const updateSettings = action(
     paper: z.enum(PaperSize).optional(),
     dateFormat: z.enum(DateFormat).optional(),
     defaultTone: z.enum(Tone).optional(),
+    autoCoverLetter: z.boolean().optional(),
     /** A language name, or null for the posting's language. */
     docLanguage: z.string().trim().min(1).max(60).nullable().optional(),
     /** One of the built-in languages, or null for English. */

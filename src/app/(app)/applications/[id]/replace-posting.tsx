@@ -31,7 +31,7 @@ export function ReplacePosting({ id }: { id: string }) {
   if (!open) {
     return (
       <div>
-        <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        <Button title="Paste a new job description for this application" variant="secondary" size="sm" onClick={() => setOpen(true)}>
           Replace the job description
         </Button>
       </div>
@@ -52,10 +52,10 @@ export function ReplacePosting({ id }: { id: string }) {
         className="w-full rounded-control border border-line-input bg-input px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-primary focus:outline-none"
       />
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" aria-disabled={pending || !text.trim() || undefined} onClick={save}>
+        <Button title="Read this job description and update the match and score" size="sm" aria-disabled={pending || !text.trim() || undefined} onClick={save}>
           {pending ? "Reading it, about half a minute…" : "Use this description"}
         </Button>
-        <Button variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={() => !pending && setOpen(false)}>
+        <Button title="Close without changing the job description" variant="secondary" size="sm" aria-disabled={pending || undefined} onClick={() => !pending && setOpen(false)}>
           Cancel
         </Button>
         <span className="text-xs text-muted">The match and ATS score follow it. Your resume is rewritten only when you ask.</span>

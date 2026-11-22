@@ -1,27 +1,32 @@
 import type { Unit } from "@/lib/application-data";
-import type { ProfileData } from "@/lib/profile";
+import { formatDateRange, type ProfileData } from "@/lib/profile";
 
-// A tailored resume's own headings: each job's title, company and place, and
+// A tailored resume's own headings: each job's title, company, place and dates, and
 // where you live in the header, changed for this resume alone (say the next
 // town over, or a company's new name). The profile never changes. A resume
 // stores them only once you change one, by clicking it or through the chat;
 // until then they're drawn from the profile, so these units are added to
 // what the page and the chat see (withHeadingUnits), as the letter's frame is.
 
-/** A job's heading: three lines, its title, the company and its place. */
+/** A job's heading: four lines, its title, the company, its place and its dates. */
 export const ROLE_HEAD = "role-head:";
 /** Where you live, as the header's contact line shows it. */
 export const LOCATION_UNIT = "location";
 
 export const isHeadingUnit = (id: string) => id === LOCATION_UNIT || id.startsWith(ROLE_HEAD);
 
-/** "Senior PM\nAcme\nColumbia, MD" as its parts; a line left empty is left out. */
-export function parseRoleHead(text: string): { role: string; company: string; location: string } {
-  const [role = "", company = "", location = ""] = text.split("\n").map((line) => line.trim());
-  return { role, company, location };
+/**
+ * "Senior PM\nAcme\nArlington, VA\nJun 2010 – Jul 2017" as its parts; a line
+ * left empty is left out, except the dates: empty (or a heading stored before
+ * it had them), the profile's are shown.
+ */
+export function parseRoleHead(text: string): { role: string; company: string; location: string; dates: string } {
+  const [role = "", company = "", location = "", dates = ""] = text.split("\n").map((line) => line.trim());
+  return { role, company, location, dates };
 }
 
-const roleHeadText = (entry: ProfileData["experience"][number]) => [entry.role, entry.company, entry.location].map((part) => part.trim()).join("\n");
+const roleHeadText = (entry: ProfileData["experience"][number]) =>
+  [entry.role, entry.company, entry.location, formatDateRange(entry)].map((part) => part.trim()).join("\n");
 
 /** "City, State", as the profile gives it. */
 export const profileLocation = (basics: Pick<ProfileData["basics"], "city" | "state">) =>
@@ -38,6 +43,13 @@ export function withHeadingUnits(units: readonly Unit[], profile: ProfileData): 
       const id = `${ROLE_HEAD}${unit.id.slice("experience:".length)}`;
       const entry = profile.experience.find((candidate) => `experience:${candidate.id}` === unit.id);
       if (entry && !has.has(id)) result.push({ id, label: `${unit.label || entry.company} heading`, text: roleHeadText(entry) });
+    }
+    // A heading stored before it had dates shows the profile's, to change like the rest.
+    const entry = unit.id.startsWith(ROLE_HEAD) && profile.experience.find((candidate) => `${ROLE_HEAD}${candidate.id}` === unit.id);
+    if (entry && !parseRoleHead(unit.text).dates) {
+      const { role, company, location } = parseRoleHead(unit.text);
+      result.push({ ...unit, text: [role, company, location, formatDateRange(entry)].join("\n") });
+      continue;
     }
     result.push(unit);
   }

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { ApplicationStatus, ChatRole, DocumentKind, NoteKind, VersionCause } from "@/generated/prisma/enums";
 import { action, ActionError } from "@/lib/action";
+import { NO_LETTER_SENT, NO_LETTER_USED, rememberLetterUsed, withNote, withoutNote } from "@/lib/sent-documents";
 import { isAiConfigured, isAiUsable } from "@/lib/ai/config";
 import { editsSchema, extractedSchema, matchSchema, trimmedSchema, unitsSchema, withSkillAdded } from "@/lib/application-data";
 import { WRITTEN_EMAIL_UNITS } from "@/lib/application-email";
@@ -35,6 +36,8 @@ import { saveApplicationJob } from "@/lib/application-saved";
 import { replacePostingText, rewriteForPosting } from "@/lib/replace-posting";
 import { rewriteLetter } from "@/lib/jobs/write-letter";
 import { applyStatusChange } from "@/lib/status-changes";
+import { applicationStamp } from "@/lib/application-stamp";
+import { ROLE_SKILLS } from "@/lib/resume-content";
 import { cleanUnitText, isPublicationUnit, unitName } from "@/lib/unit-text";
 
 const GONE = "That application no longer exists.";
@@ -45,6 +48,13 @@ const refresh = (id: string) => revalidatePath(`/applications/${id}`);
 const refreshHistory = (id: string) => {
   refresh(id);
   revalidatePath("/applications/history");
+  // The sheet lists every event and the expected salary of what was sent: it follows each change.
+  void prisma.application
+    .findUnique({ where: { id }, select: { sentAt: true } })
+    .then(async (application) => {
+      if (application?.sentAt) (await import("@/lib/applications-sheet")).queueSheetSync();
+    })
+    .catch((error) => logServerError("queueing the sheet after an event changed", error));
 };
 
 /** The Resume tab's layout switch (APP-4): the theme's own layout, or a single column. */
@@ -131,8 +141,13 @@ export const saveApplicationForLater = action(z.object({ id: z.string().min(1), 
  * off what was sent too, unless it's already in Google Drive.
  */
 export const setNoCoverLetter = action(z.object({ id: z.string().min(1), on: z.boolean() }), async ({ id, on }) => {
-  const { count } = await prisma.application.updateMany({ where: { id }, data: { noCoverLetter: on } });
-  if (count === 0) throw new ActionError(GONE);
+  const application = await prisma.application.findUnique({ where: { id }, select: { thingsToNote: true, sentAt: true } });
+  if (!application) throw new ActionError(GONE);
+  // Things To Note says so, in the log and the sheet; turned back on, it's taken out again.
+  const thingsToNote = on ? withNote(application.thingsToNote, NO_LETTER_SENT) : withoutNote(withoutNote(application.thingsToNote, NO_LETTER_SENT), NO_LETTER_USED);
+  await prisma.application.update({ where: { id }, data: { noCoverLetter: on, thingsToNote } });
+  // Already applied: the sheet shows it too.
+  if (application.sentAt) (await import("@/lib/applications-sheet")).queueSheetSync();
   if (on) await prisma.sentDocument.deleteMany({ where: { applicationId: id, kind: DocumentKind.COVER_LETTER, driveFileId: null } });
   refresh(id);
   return null;
@@ -197,7 +212,8 @@ export const saveUnit = action(
   async ({ id, document, unitId, text, expected }) => {
     const clean = cleanUnitText(unitId, text);
     // The email's recipient may be left empty, for the mail app to fill in.
-    if (!clean && !(document === DocumentKind.EMAIL && unitId === "to")) {
+    const roleSkills = document === DocumentKind.RESUME && unitId.startsWith(ROLE_SKILLS);
+    if (!clean && !(document === DocumentKind.EMAIL && unitId === "to") && !roleSkills) {
       throw new ActionError("Write something first, or cancel to keep it as it was.");
     }
 
@@ -216,8 +232,32 @@ export const saveUnit = action(
         documents[document] = addHeadingUnit(units, { ...drawn, text: clean });
         return;
       }
+      // The skills under a job, changed with it: stored from now on; emptied, the profile's show again.
+      if (roleSkills && units) {
+        const skills = clean
+          .split(",")
+          .map((skill) => skill.trim())
+          .filter(Boolean)
+          .join(", ");
+        const rest = units.filter((entry) => entry.id !== unitId);
+        if (!skills) {
+          documents[document] = rest;
+          return;
+        }
+        if (unit) {
+          unit.text = skills;
+          return;
+        }
+        const job = rest.findIndex((entry) => entry.id === `experience:${unitId.slice(ROLE_SKILLS.length)}`);
+        if (job < 0) throw new ActionError(PART_GONE);
+        const label = (await loadProfile()).experience.find((entry) => `${ROLE_SKILLS}${entry.id}` === unitId);
+        documents[document] = [...rest.slice(0, job + 1), { id: unitId, label: `${label?.company || label?.role || "Job"} skills`, text: skills }, ...rest.slice(job + 1)];
+        return;
+      }
       if (!unit) throw new ActionError(PART_GONE);
-      if (unit.text !== expected) {
+      // A heading stored before it had dates was shown with the profile's.
+      const shown = units && document === DocumentKind.RESUME && isHeadingUnit(unitId) ? withHeadingUnits(units, await loadProfile()).find((entry) => entry.id === unitId)?.text : undefined;
+      if (unit.text !== expected && shown !== expected) {
         throw new ActionError("This part changed while you were editing it. Copy your text, cancel, and edit the new version.");
       }
       unit.text = clean;
@@ -306,7 +346,8 @@ const POSTING_REPLY = "I can change the resume, the cover letter or the email. S
 export const sendMessage = action(
   z.object({
     id: z.string().min(1),
-    text: z.string().trim().min(1, "Write what should change first.").max(2000),
+    // Up to five changes sent together, each up to 2,000 characters.
+    text: z.string().trim().min(1, "Write what should change first.").max(10_500),
     /** The document on screen; null on the Job posting and Notes tabs, and on the Email tab before there's an email. */
     viewing: z.enum(DocumentKind).nullable(),
     /** The unit picked with "Ask AI". */
@@ -776,4 +817,102 @@ export const answerResumePages = action(z.object({ id: z.string().min(1), allow:
   refresh(id);
   toast(fits ? (allow ? "Up to three pages, for this resume only." : "Kept to two pages.") : "It still runs long. Shorten it by hand if it has to fit.");
   return null;
+});
+
+/**
+ * Regrade resume, on the ATS score: the requirement check again, this time
+ * reading the resume as you've edited it as well as your profile, so what you
+ * added counts. The score then follows it, and the suggestions are worked out
+ * again. One small AI call.
+ */
+export const regradeResume = action(z.object({ id: z.string().min(1) }), async ({ id }, { toast }) => {
+  const application = await prisma.application.findUnique({ where: { id }, include: { documents: { where: { kind: DocumentKind.RESUME } } } });
+  if (!application) throw new ActionError(GONE);
+  const extracted = extractedSchema.safeParse(application.extracted);
+  const units = unitsSchema.safeParse(application.documents[0]?.units);
+  if (!extracted.success || !units.success) throw new ActionError("There's no posting or resume to grade yet.");
+  if (!(await isAiUsable())) throw new ActionError("Regrading needs the AI: set it up in Settings → AI.");
+  const { getAiProvider } = await import("@/lib/ai");
+  const { loadTaskOptions } = await import("@/lib/ai/task-options");
+  const { matchRequirements } = await import("@/lib/ai/tasks");
+  let matching;
+  try {
+    const [provider, options, profile] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile()]);
+    const resumeText = units.data.map((unit) => `${unit.label}: ${unit.text}`).join("\n");
+    matching = await matchRequirements(provider, { requirements: extracted.data.requirements, profile, resumeText }, options);
+  } catch (error) {
+    logServerError("regrading a resume", error);
+    throw new ActionError(error instanceof AiError ? error.message : "The resume couldn't be regraded just now. Try again in a moment.");
+  }
+  await prisma.application.update({
+    where: { id },
+    data: { match: matching.data as unknown as Prisma.InputJsonValue, matchedWith: matching.promptVersion },
+  });
+  await queueSuggestions(id);
+  refresh(id);
+  toast("Regraded against your resume as it is now.");
+  return null;
+});
+
+/** Copy cover letter, in Quick Apply: the letter is being used, so marking the application applied keeps it as sent. */
+export const noteLetterUsed = action(z.object({ id: z.string().min(1) }), async ({ id }) => {
+  await rememberLetterUsed(id);
+  return null;
+});
+
+/** What the page shows, as a fingerprint: the page checks it now and then, and redraws when it changed elsewhere. */
+export const applicationStampOf = action(z.object({ id: z.string().min(1) }), async ({ id }) => applicationStamp(id));
+
+/** Write cover letter, on a draft whose letter isn't written (with automatic letters off in Settings): writes it in the background. The job's id. */
+export const writeLetterNow = action(z.object({ id: z.string().min(1) }), async ({ id }) => {
+  const application = await prisma.application.findUnique({ where: { id }, select: { noCoverLetter: true } });
+  if (!application) throw new ActionError(GONE);
+  if (!(await isAiUsable())) throw new ActionError("Writing a cover letter needs the AI: set it up in Settings → AI provider.");
+  const { queueLetter } = await import("@/lib/jobs/write-letter");
+  const jobId = await queueLetter(id);
+  if (!jobId) throw new ActionError("The cover letter couldn't be started just now. Try again in a moment.");
+  return jobId;
+});
+
+/** Dismiss on a suggestion beside the resume (folded away under the rest), or Restore. */
+export const dismissSuggestion = action(z.object({ id: z.string().min(1), text: z.string().min(1).max(1000), dismissed: z.boolean() }), async ({ id, text, dismissed }) => {
+  const application = await prisma.application.findUnique({ where: { id }, select: { dismissedSuggestions: true } });
+  if (!application) throw new ActionError(GONE);
+  const rest = application.dismissedSuggestions.filter((entry) => entry !== text);
+  await prisma.application.update({ where: { id }, data: { dismissedSuggestions: dismissed ? [...rest, text].slice(-50) : rest } });
+  return null;
+});
+
+/**
+ * "Not true" on a suggestion beside the resume: it's taken off, and what it's
+ * about goes into Facts about me, which every AI step reads, so it's never
+ * suggested again on any job.
+ */
+export const markSuggestionNotTrue = action(z.object({ id: z.string().min(1), text: z.string().min(1).max(1000) }), async ({ id, text }) => {
+  const application = await prisma.application.findUnique({ where: { id }, select: { resumeSuggestions: true } });
+  if (!application) throw new ActionError(GONE);
+  await prisma.application.update({ where: { id }, data: { resumeSuggestions: application.resumeSuggestions.filter((entry) => entry !== text) } });
+
+  // What it's about, in a few words; the suggestion's own words if the AI can't say.
+  let topic = text.replace(/\s+/g, " ").slice(0, 120);
+  try {
+    if (await isAiUsable()) {
+      const { getAiProvider } = await import("@/lib/ai");
+      const { loadTaskOptions } = await import("@/lib/ai/task-options");
+      const { nameTopic } = await import("@/lib/ai/tasks");
+      const named = (await nameTopic(await getAiProvider(), { suggestion: text }, await loadTaskOptions())).data;
+      if (named) topic = named;
+    }
+  } catch (error) {
+    logServerError("naming a suggestion that isn't true", error);
+  }
+  const { acceptProfileChange, notTrueFact } = await import("@/lib/recurring-questions");
+  const fact = notTrueFact(topic);
+  if (!(await prisma.fact.count({ where: { applicationId: null, text: fact } }))) {
+    const last = await prisma.fact.aggregate({ where: { applicationId: null }, _max: { sort: true } });
+    await prisma.fact.create({ data: { applicationId: null, text: fact, sort: (last._max.sort ?? 0) + 1 } });
+    // Only a note for the AI: no draft needs rewriting for it.
+    await acceptProfileChange();
+  }
+  return { topic };
 });

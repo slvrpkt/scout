@@ -1,5 +1,7 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import type { z } from "zod";
 
 import { Prisma } from "@/generated/prisma/client";
@@ -34,6 +36,11 @@ export type JobDefinition<I, R> = {
    * write its data idempotently (upsert, or replace in one transaction).
    */
   run: (input: I, context: JobContext) => Promise<R>;
+  /**
+   * false: a restart doesn't start it again, it fails with JOB_MESSAGES.interrupted
+   * and its own module picks up the pieces (the job agent's runs and drafts).
+   */
+  resumable?: boolean;
 };
 
 /** What a page learns about a job. */
@@ -49,8 +56,12 @@ export type JobView<R = unknown> = {
 export const JOB_MESSAGES = {
   failed: "Something went wrong while working on this. Try again.",
   interrupted: "Scout restarted before this finished. Try again.",
+  interruptedAgain: "Scout restarted before this could finish, three times in a row. Try again.",
   cancelled: "Cancelled.",
 } as const;
+
+/** How many times a job cut off by a restart is picked up again on its own; past it, one that keeps stopping Scout waits for Retry. */
+export const MAX_RESUMES = 2;
 
 /** Jobs at once: local models do best with one request at a time (PRD §11). */
 const LOCAL_CONCURRENCY = 1;
@@ -62,6 +73,8 @@ type RunnerState = {
   definitions: Map<string, JobDefinition<unknown, unknown>>;
   queue: string[];
   running: Map<string, AbortController>;
+  /** Running jobs waiting on something slow and cheap, such as a batch: they don't count towards the limit. */
+  waiting: Set<string>;
   listeners: Map<string, Set<Listener>>;
   pumping: boolean;
 };
@@ -72,9 +85,32 @@ const state: RunnerState = (globalForJobs.jobRunner ??= {
   definitions: new Map(),
   queue: [],
   running: new Map(),
+  waiting: new Set(),
   listeners: new Map(),
   pumping: false,
 });
+// Older hot-reloaded state, from before jobs could wait.
+state.waiting ??= new Set();
+
+/** The job the current code runs for, so a long wait inside it can free its place. */
+const currentJob = new AsyncLocalStorage<string>();
+
+/**
+ * Awaits `work` without holding the current job's place among those running
+ * at once: for a wait that takes minutes and no effort here, such as a batch
+ * of AI calls, so other jobs can start meanwhile. Outside a job, just awaits.
+ */
+export async function waitOutsideLimit<T>(work: Promise<T>): Promise<T> {
+  const id = currentJob.getStore();
+  if (!id) return work;
+  state.waiting.add(id);
+  void pump();
+  try {
+    return await work;
+  } finally {
+    state.waiting.delete(id);
+  }
+}
 
 /** Registers a job type; call at module level where the job is defined. */
 export function defineJob<I, R>(definition: JobDefinition<I, R>): JobDefinition<I, R> {
@@ -133,7 +169,7 @@ export async function startJob<I, R>(
 export async function retryJob(id: string): Promise<boolean> {
   const { count } = await prisma.job.updateMany({
     where: { id, status: JobStatus.FAILED },
-    data: { status: JobStatus.QUEUED, step: null, error: null, result: Prisma.DbNull, startedAt: null, finishedAt: null },
+    data: { status: JobStatus.QUEUED, step: null, error: null, result: Prisma.DbNull, startedAt: null, finishedAt: null, resumes: 0 },
   });
   if (count === 0) return false;
   await notify(id);
@@ -206,7 +242,7 @@ async function pump(): Promise<void> {
   state.pumping = true;
   try {
     const limit = await concurrency();
-    while (state.queue.length > 0 && state.running.size < limit) {
+    while (state.queue.length > 0 && state.running.size - state.waiting.size < limit) {
       const id = state.queue.shift()!;
       const controller = new AbortController();
       state.running.set(id, controller);
@@ -233,7 +269,7 @@ async function execute(id: string, controller: AbortController): Promise<void> {
     const definition = state.definitions.get(job.type);
     if (!definition) throw new Error(`No job type "${job.type}" is defined.`);
 
-    const result = await definition.run(definition.input.parse(job.input), {
+    const result = await currentJob.run(id, () => definition.run(definition.input.parse(job.input), {
       id,
       signal: controller.signal,
       step: async (name) => {
@@ -242,7 +278,7 @@ async function execute(id: string, controller: AbortController): Promise<void> {
         if (count === 0) controller.abort();
         else await notify(id);
       },
-    });
+    }));
     await finish(id, { status: JobStatus.DONE, result: definition.result.parse(result) as Prisma.InputJsonValue });
   } catch (error) {
     // AI failures already say what to do; anything else is logged and kept vague.
@@ -258,12 +294,31 @@ async function execute(id: string, controller: AbortController): Promise<void> {
 
 /**
  * Called once at startup: jobs a previous process left queued or running
- * can't finish, so they're marked failed and the page offers Retry.
+ * start again on their own, oldest first, from the beginning (every job may
+ * run twice, as Retry does). One cut off more than MAX_RESUMES times in a
+ * row may be what stops Scout, so it's marked failed and the page offers Retry,
+ * as is one whose module recovers it itself (resumable: false).
  */
-export async function recoverInterruptedJobs(): Promise<number> {
-  const { count } = await prisma.job.updateMany({
-    where: { status: { in: [JobStatus.QUEUED, JobStatus.RUNNING] } },
+export async function recoverInterruptedJobs(): Promise<{ resumed: number; failed: number }> {
+  await import("./definitions");
+  const unfinished = { status: { in: [JobStatus.QUEUED, JobStatus.RUNNING] } };
+  const own = [...state.definitions.values()].filter((definition) => definition.resumable === false).map((definition) => definition.type);
+  const { count: handedOver } = await prisma.job.updateMany({
+    where: { ...unfinished, type: { in: own } },
     data: { status: JobStatus.FAILED, error: JOB_MESSAGES.interrupted, finishedAt: new Date() },
   });
-  return count;
+  const { count: gaveUp } = await prisma.job.updateMany({
+    where: { ...unfinished, resumes: { gte: MAX_RESUMES } },
+    data: { status: JobStatus.FAILED, error: JOB_MESSAGES.interruptedAgain, finishedAt: new Date() },
+  });
+  const failed = handedOver + gaveUp;
+  const left = await prisma.job.findMany({ where: unfinished, orderBy: { createdAt: "asc" }, select: { id: true } });
+  if (left.length > 0) {
+    await prisma.job.updateMany({
+      where: { id: { in: left.map((job) => job.id) } },
+      data: { status: JobStatus.QUEUED, step: null, startedAt: null, resumes: { increment: 1 } },
+    });
+    for (const job of left) enqueue(job.id);
+  }
+  return { resumed: left.length, failed };
 }

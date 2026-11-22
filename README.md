@@ -25,6 +25,8 @@ Job hunting is exhausting. You read the same kinds of postings over and over, re
 
 Scout is a fork of [Dossier](https://github.com/AienTech/dossier), an open-source job application tracker by AienTech, adapted for job seekers in the US and available to anyone looking for work. It does the sifting, not the applying: it finds the postings that fit, scores how well each matches your resume, and grades your tailored resume against common US ATS standards. Where to apply, and what goes out, is always your call.
 
+**Built to run on a modest budget.** Scout is designed so that a complete job search (scheduled searches, fit scoring and tailored resumes) costs under $20 a month in AI and job-search API fees, using an efficient model such as Claude Haiku. Its spending limits keep it there, and bringing that cost down further is an ongoing goal.
+
 > **Scout never applies for you.** Its agents search, read and score postings and prepare drafts. Nothing is sent, submitted or applied for until you do it yourself.
 
 > **Please double-check what the AI writes.** Scout uses AI models (large language models), and they can be wrong, even confidently, and can occasionally invent a detail. Scout tells the AI to use only facts from your profile, and checks for invented ones, but no check is perfect. Read every resume and cover letter before you send it, and only send what's true for you.
@@ -55,6 +57,22 @@ Ten things Scout does, and [many more](#and-much-more):
 9. **Your job application log.** A board from draft to offer, a dashboard with your funnel and weekly activity, an archive, and a warning when you're about to apply to the same job twice.
 10. **Your data stays mostly on your computer.** Scout runs on your own machine with your own database, and you can export everything at any time. The exception is the AI: to write or score, Scout sends the AI provider you choose the parts of your profile and the posting it needs. With a local model (Ollama or LM Studio), even that stays on your computer.
 
+### What's new
+
+The highlights of Scout 1.12. [CHANGELOG.md](CHANGELOG.md) has the full release notes.
+
+- **Fix what several drafts are missing, all at once.** When two or more drafts ask for the same thing your resume doesn't say (an accessibility audit, a tool, a kind of project), Scout groups them into one question. Answer it once: it's kept in your profile and added to the drafts you pick. Not true, Later and Dismiss put it away, and an answered question never comes back under another name. The box stays folded until you want it.
+- **Smarter suggestions.** Suggestions beside each resume are judged by meaning, not by matching words, so you're not asked to add what your resume already says. "Before you apply" checks (a clearance, travel, relocation) leave out what your background already settles. Dismiss one you don't want, or mark it not true and it's never suggested for any job again.
+- **Stories, not lists.** Each job's bullets now read as a story: the business and the problem first, then what you did, then the results. The summary is written last, from the finished resume.
+- **Edit more by hand.** Change each job's dates and the skills line under it right on the resume, and regrade the resume against the posting after you edit it.
+- **Cover letters when you want one.** Letters are written on request (one click, a minute or two), three short paragraphs, so you don't pay for letters you won't send.
+- **Salary expectations.** Note what you asked for on each application; it shows on the log, in its activity and in the Google Sheet.
+- **A roomier workspace.** The agent's tiles, filters and job cards take half the space they did, the resume opens larger and centered, and pages update on their own when something changes.
+- **Drafts stay with their search.** A draft you haven't applied to stays under Agentic or Manual job search, and joins your Job application log once you apply. Drafts are listed best first, by score and then by resume grade.
+- **Weekends off.** The agent rests on Saturdays and Sundays unless you turn them on, and you choose how many times a day it runs.
+- **Back to where you were.** A job's page links back to the exact place you found it, with that job still selected.
+- **Everything explains itself.** Every button and link says what it does when you hover over it.
+
 ### And much more
 
 Read your existing resume (PDF or Word) to fill in your profile · Save for later, a short list of jobs to come back to · Gmail and Google Calendar integration (optional) · a Claude connector (MCP) · cost estimates and spending limits for your API keys · resume themes and a theme builder · application history and undo · dark mode · and plenty of small touches.
@@ -67,11 +85,15 @@ Read your existing resume (PDF or Word) to fill in your profile · Save for late
 
 ![The agentic job search, with scored postings and the selected one's details](docs/images/agent.png)
 
+**Questions that keep coming up.** The same gap in several drafts, answered once, three at a time.
+
+![The box that groups what several drafts are missing, opened, with Yes it's true, Not true, Later and Dismiss](docs/images/recurring.png)
+
 **An agent search.** A job title, alternative titles, locations, filters and what to skip.
 
 ![A saved agent search with alternative titles](docs/images/agent-search.png)
 
-**A tailored application.** The resume written for this job, its grade against common ATS criteria, suggestions, and the chat to refine it.
+**A tailored application.** The resume written for this job, its grade against common ATS criteria, suggestions judged by meaning, and the chat to refine it.
 
 ![An application with its tailored resume, ATS score and refining chat](docs/images/application.png)
 

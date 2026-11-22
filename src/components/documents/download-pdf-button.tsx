@@ -34,9 +34,10 @@ export function fileNameFrom(disposition: string | null): string | null {
  */
 export async function downloadHeld(
   href: string,
-  progress: string,
-): Promise<void> {
-  toast(progress);
+  /** Said while it renders; null says nothing, for a page that shows its own progress. */
+  progress: string | null,
+): Promise<boolean> {
+  if (progress) toast(progress);
   try {
     const response = await fetch(href, { method: "POST" });
     if (!response.ok) {
@@ -44,7 +45,7 @@ export async function downloadHeld(
         error?: string;
       } | null;
       toast(body?.error ?? messages.unexpected);
-      return;
+      return false;
     }
     const { url, note } = (await response.json()) as {
       url: string;
@@ -52,8 +53,10 @@ export async function downloadHeld(
     };
     downloadFrom(url);
     if (note) toast(note);
+    return true;
   } catch {
     toast(messages.offline);
+    return false;
   }
 }
 
@@ -145,7 +148,7 @@ export function DownloadPdfButton({
       {noticeShown && notice && (
         <WaitNotice message={notice} onClose={closeNotice} />
       )}
-      <a
+      <a title="Download this file"
         href={href}
         aria-disabled={busy || undefined}
         onClick={(event) => {

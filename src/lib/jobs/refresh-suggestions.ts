@@ -7,7 +7,7 @@ import { getAiProvider } from "@/lib/ai";
 import { isAiUsable } from "@/lib/ai/config";
 import { loadTaskOptions } from "@/lib/ai/task-options";
 import { suggestResume } from "@/lib/ai/tasks";
-import { extractedOf, unitsSchema } from "@/lib/application-data";
+import { extractedOf, matchSchema, unitsSchema } from "@/lib/application-data";
 import { logServerError } from "@/lib/log";
 import { prisma } from "@/lib/prisma";
 import { loadProfile } from "@/lib/profile-data";
@@ -32,7 +32,7 @@ export const refreshSuggestionsJob = defineJob({
     const units = unitsSchema.safeParse(application?.documents[0]?.units);
     if (!application || !units.success) return { suggestions: 0 };
     const [provider, options, profile] = await Promise.all([getAiProvider(), loadTaskOptions(), loadProfile()]);
-    const { data } = await suggestResume(provider, { profile, extracted: extractedOf(application), units: units.data }, { ...options, signal });
+    const { data } = await suggestResume(provider, { profile, extracted: extractedOf(application), units: units.data, match: matchSchema.safeParse(application.match).data ?? null }, { ...options, signal });
     await prisma.application.updateMany({ where: { id: applicationId }, data: { resumeSuggestions: data } });
     return { suggestions: data.length };
   },

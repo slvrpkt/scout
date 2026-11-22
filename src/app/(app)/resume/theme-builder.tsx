@@ -124,10 +124,10 @@ export function ThemeBuilder({ draft, onChange, onSave, onCancel, saving, templa
       {(!template || template.entry === "inline") && <Choices label="Dates" value={draft.dateStyle} options={options(DATE_STYLES)} onChange={set("dateStyle")} />}
       <Choices label="Spacing" value={draft.density} options={options(DENSITIES)} onChange={set("density")} />
       <div className="flex gap-2 pt-1.5">
-        <Button type="submit" className="flex-1" disabled={saving}>
+        <Button title="Save this theme" type="submit" className="flex-1" disabled={saving}>
           {saving ? "Saving…" : "Save theme"}
         </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>
+        <Button title="Close without saving" type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
       </div>

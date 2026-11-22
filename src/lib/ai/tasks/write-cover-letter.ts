@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import type { Tone } from "@/generated/prisma/enums";
 import { SIGN_OFF_UNIT, unitsSchema, type Extracted, type Match, type Unit } from "@/lib/application-data";
+import { stripTraps, trapsForPrompt } from "@/lib/screening-traps";
 import type { ProfileData } from "@/lib/profile";
 import { FRAME_LABELS, isFrameUnit } from "@/lib/letter-frame";
 import { TONES } from "@/lib/tones";
@@ -26,7 +27,7 @@ import {
   type Task,
 } from "./prompt-parts";
 
-export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@7";
+export const WRITE_COVER_LETTER_VERSION = "write-cover-letter@9";
 
 const answerSchema = z.object({
   recipient: z.string(),
@@ -37,11 +38,15 @@ const answerSchema = z.object({
 
 const INSTRUCTIONS = `You write a candidate's cover letter for one job, as JSON.
 
-- recipient: the address block, one line per line: who it's for (the company's hiring team, or the contact person the posting names, at the company), then the place if the job has one. Usual for a letter in its language, e.g. "Ledgerly · Hiring team\\nAmsterdam".
-- greeting: the salutation before the first paragraph, usual for a letter in its language, with its punctuation: the contact person by name when the posting names one, else the hiring team, e.g. "Dear Ledgerly team,".
-- paragraphs: 3–4 paragraphs, about 220–280 words together and never over 300, so the letter fits one page with room to spare. Open with why this role and this company, then the problem the job is there to solve and where the candidate has solved it before, and close by inviting a conversation, with where the candidate is based if it matters for the job. No greeting, sign-off or name in them: those are separate.
-- label: a short English name for each paragraph's purpose, e.g. "Why this role", "The challenge", "Where I've solved it", "Closing".
-- Where the job asks for something the profile doesn't have ("gap"), don't claim it. If it matters, say so honestly in a sentence and show how the candidate would close the gap.
+- recipient: the address block, one item per line, as a business letter has it: the contact person's name and then their title when the posting names them, otherwise "Hiring Manager" (in the letter's language); then the company's name; then its street address and its city, state and zip code, only as far as the posting gives them (often just the city and state). Never make up an address. E.g. "Hiring Manager\\nLedgerly\\nAmsterdam".
+- greeting: the salutation before the first paragraph, to a particular person when the posting names one, else the hiring manager. In English it ends with a colon, as a business letter does: "Dear Ms. Patel:" or "Dear Hiring Manager:". In other languages, as usual there.
+- paragraphs: exactly 3 paragraphs, 130–170 words together and never over 180, so the whole letter takes no more than half a page. Brief, but specific:
+  1. Opening: clearly say why the candidate is writing, name the position, and, where the posting or the candidate's notes say so, how they heard about it or the company (never invent a referral or a source).
+  2. Middle: why this employer and this kind of work, and one or two key examples from the candidate's experience that show the skills this job needs most. Don't retell the resume: pick the examples, in a confident voice, so the reader wants to read the resume.
+  3. Closing: say again how interested they are and how they'd use their skills for the organization's work, thank the reader for considering the application, and end by saying they look forward to discussing the position.
+  No greeting, sign-off or name in them: those are separate.
+- label: a short English name for each paragraph's purpose: "Opening", "Why me", "Closing".
+- Write only about what the candidate has. Never mention, apologise for or explain away anything the job asks for that the profile doesn't show: a missing certification, skill, degree, clearance or number of years. Leave it out entirely, without claiming it either, and make the case with the strengths they do have.
 - signOff: the closing line before the name, matching the tone, with its punctuation (e.g. "Warm regards,").
 - The sender's name, contact details and the date are added from the profile; don't write them.`;
 
@@ -92,6 +97,7 @@ export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider,
           resume?.length &&
             `The candidate's tailored resume for this job, as it is now (it may have been edited for this job). Build the letter on what it stresses, in your own words, without repeating it line for line:\n${resume.map((unit) => `${unit.label}: ${unit.text}`).join("\n")}`,
           applicationFacts(facts),
+          trapsForPrompt(extracted.traps ?? []),
         ]
           .filter(Boolean)
           .join("\n\n"),
@@ -112,7 +118,8 @@ export const writeCoverLetter: Task<CoverLetterInput, Unit[]> = async (provider,
     ...(answer.greeting.trim() ? [{ id: "greeting", label: FRAME_LABELS.greeting, text: answer.greeting.trim() }] : []),
     ...withoutFrame(answer.paragraphs, signOff)
       .filter((paragraph) => paragraph.text.trim())
-      .map((paragraph, index) => ({ id: `paragraph:${index + 1}`, label: paragraph.label.trim() || `Paragraph ${index + 1}`, text: paragraph.text.trim() })),
+      // A word the posting planted as a screening trap never makes it in.
+      .map((paragraph, index) => ({ id: `paragraph:${index + 1}`, label: paragraph.label.trim() || `Paragraph ${index + 1}`, text: stripTraps(paragraph.text, extracted.traps ?? []).trim() })),
     { id: SIGN_OFF_UNIT, label: "Sign-off", text: signOff },
   ]);
   return {

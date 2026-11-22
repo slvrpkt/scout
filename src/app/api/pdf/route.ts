@@ -9,7 +9,7 @@ import { countPdfPages } from "@/lib/pdf/pages";
 import { renderPdf } from "@/lib/pdf/render";
 import { prisma } from "@/lib/prisma";
 import { loadProfileName } from "@/lib/profile-data";
-import { NO_COVER_LETTER, rememberDownloadFormat } from "@/lib/sent-documents";
+import { NO_COVER_LETTER, rememberDownloadFormat, rememberLetterUsed } from "@/lib/sent-documents";
 import { maxPages, pagesInWords } from "@/lib/settings";
 import { loadSettings } from "@/lib/settings-data";
 import { route } from "@/lib/route";
@@ -92,6 +92,7 @@ async function renderRequested(request: NextRequest): Promise<{ pdf: Uint8Array;
 
   const pdf = await renderPdf(`/print/${doc}/${id}`);
   await rememberDownloadFormat(id, FileFormat.PDF);
+  if (doc === "letter") await rememberLetterUsed(id);
   const limit = doc === "resume" ? ((await prisma.application.findUnique({ where: { id }, select: { resumePageLimit: true } }))?.resumePageLimit ?? maxPages(settings.pageLimit)) : null;
   return {
     pdf,

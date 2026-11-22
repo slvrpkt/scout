@@ -61,26 +61,55 @@
   direction: ltr;
 }
 
-/* Hidden with opacity, not display: a hidden button can't take focus, so
-   Tab from the unit would drop focus on the page instead of reaching Edit
-   (E11-3). */
+/* Hidden with opacity and visibility, not display: a hidden button can't take
+   focus, so Tab from the unit would drop focus on the page instead of reaching
+   Edit (E11-3). It shows at once, and hides only after a moment: the pointer
+   on its way up to it, across the gap or a part inside this one (a job's
+   heading), would otherwise make it vanish just before it gets there. */
 .toolbar {
   display: flex;
   opacity: 0;
-  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.12s ease 0.45s,
+    visibility 0s linear 0.57s;
 }
 
 .frame:hover > .toolbar,
 .frame:focus-visible > .toolbar,
 .frame:has(:focus-visible) > .toolbar {
   opacity: 1;
-  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 0.08s ease,
+    visibility 0s;
 }
 
-/* A part inside another (a job's heading in the job): under the pointer, only its own toolbar and highlight show. */
+/* An invisible bridge under the toolbar, down over the gap to the part: the
+   pointer stays on the part (the toolbar is inside it) all the way up. */
+.toolbar::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 14px;
+}
+
+/* A part inside another (a job's heading in the job): under the pointer, only its own toolbar and highlight show,
+   the outer one going after the same moment, so it can still be reached across the inner one. */
 .frame:has(.frame:hover) > .toolbar {
   opacity: 0;
-  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 0.12s ease 0.45s,
+    visibility 0s linear 0.57s;
+}
+
+/* Over the outer toolbar itself, it stays, whatever is under it. */
+.frame > .toolbar:hover {
+  opacity: 1;
+  visibility: visible;
+  transition: none;
 }
 
 .frame:has(.frame:hover)::before {
@@ -116,6 +145,14 @@
 @media (prefers-reduced-motion: reduce) {
   .frame::before {
     transition: none;
+  }
+
+  /* No fade, but the same moment before it hides, so it can still be reached. */
+  .toolbar,
+  .frame:has(.frame:hover) > .toolbar {
+    transition:
+      opacity 0s linear 0.5s,
+      visibility 0s linear 0.5s;
   }
 
   .flash::before {

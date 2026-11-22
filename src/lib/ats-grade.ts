@@ -130,9 +130,15 @@ function namesFor(name: string, pairs: readonly string[][]): string[] {
 }
 
 /** A requirement's skill, under any of its names, else most of its meaningful words, appear in the text. */
+/** Words too broad to stand for a named skill: "Microsoft" on a resume isn't Microsoft Office. */
+const BROAD_WORDS = new Set(["microsoft", "google", "amazon", "aws", "apache", "oracle", "adobe", "atlassian", "suite", "documentation", "documents", "development", "management", "skills", "experience", "tools", "proficiency", "knowledge", "methodology", "systems", "software"]);
+
 function covers(words: ReadonlySet<string>, text: string, requirement: Pick<Requirement, "text" | "skill">, pairs: readonly string[][]): boolean {
   if (requirement.skill?.trim()) {
-    return namesFor(requirement.skill, pairs).some((name) => phrase(text, name) || (wordsOf(name).length > 0 && wordsOf(name).every((word) => words.has(word))));
+    const named = (name: string) => phrase(text, name) || (wordsOf(name).length > 0 && wordsOf(name).every((word) => words.has(word)));
+    // "Agile/Scrum" is two things: on the resume when each one is, in any order.
+    const parts = requirement.skill.split("/").map((part) => part.trim()).filter(Boolean);
+    return namesFor(requirement.skill, pairs).some(named) || (parts.length > 1 && parts.every((part) => namesFor(part, pairs).some(named)));
   }
   const wanted = wordsOf(requirement.text);
   if (wanted.length === 0) return true;
@@ -171,6 +177,7 @@ export function atsGrade({
   content,
   sidebar,
   requirements,
+  verdicts = [],
   extras = {},
 }: {
   content: ResumeContent;
@@ -178,6 +185,13 @@ export function atsGrade({
   sidebar: boolean;
   /** What the posting asks for. Spoken languages are left to the match table. */
   requirements: readonly (Pick<Requirement, "text" | "skill"> & Partial<Pick<Requirement, "kind" | "years">>)[];
+  /**
+   * The requirement check's verdicts, which read the whole background: for a
+   * general requirement (a duty, a degree, experience) they decide whether it's
+   * met, since its words rarely appear as written. Named tools and
+   * certifications are still matched word for word: that's what an ATS searches.
+   */
+  verdicts?: readonly { requirement: string; result: "covered" | "partial" | "gap" }[];
   extras?: GradeExtras;
 }): AtsGrade {
   const text = resumeWords(content);
@@ -217,28 +231,36 @@ export function atsGrade({
   if (sidebar) fixes.push("Use a single column: a sidebar can scramble the reading order. Rewrite to Reach A does this for you.");
 
   // Job match: each skill and requirement, hard skills, years and degrees counting double.
-  const words = new Set(wordsOf(text));
+  // "SDLC/SELC" on the resume says each of them too.
+  const words = new Set(wordsOf(text).flatMap((word) => [word, ...(word.includes("/") ? word.split("/").filter((part) => part.length > 1) : [])]));
   const label = (requirement: Pick<Requirement, "text" | "skill">) => requirement.skill?.trim() || requirement.text.trim();
   const items: { label: string; weight: number; hard: boolean; met: boolean }[] = [];
   const beforeApplying: string[] = [];
+  const verdictOf = (text: string) => verdicts.find((verdict) => verdict.requirement.trim() === text.trim())?.result;
   for (const requirement of requirements) {
     if (requirement.kind === "language") continue;
     if (CANT_SHOW.test(requirement.text)) {
-      beforeApplying.push(requirement.text.trim());
+      // A check before applying only when your background doesn't already settle it (a clearance you hold, your citizenship).
+      if (verdictOf(requirement.text) !== "covered") beforeApplying.push(requirement.text.trim());
       continue;
     }
     if (requirement.kind === "years") {
       if (requirement.years && extras.years !== undefined) items.push({ label: requirement.text.trim(), weight: 2, hard: true, met: extras.years >= requirement.years });
       continue;
     }
+    const verdict = verdictOf(requirement.text);
     const level = degreeLevel(requirement.text);
     if (level > 0 && !requirement.skill?.trim()) {
+      // The check judges level and field, so it can see a degree that words alone miss.
       const yours = Math.max(0, ...content.education.map((entry) => degreeLevel(entry.degree)));
-      items.push({ label: requirement.text.trim(), weight: 2, hard: true, met: yours >= level });
+      items.push({ label: requirement.text.trim(), weight: 2, hard: true, met: (verdict !== undefined && verdict !== "gap") || yours >= level });
       continue;
     }
     const hard = requirement.kind === "skill" && Boolean(requirement.skill?.trim());
-    items.push({ label: label(requirement), weight: hard ? 2 : 1, hard, met: covers(words, lower, requirement, pairs) });
+    // A named skill the check says you have counts once its name is partly on the resume ("SELC" for "SELC documentation").
+    const named = hard && verdict !== undefined && verdict !== "gap" && wordsOf(requirement.skill ?? "").some((word) => word.length > 2 && !BROAD_WORDS.has(word) && words.has(word));
+    const met = covers(words, lower, requirement, pairs) || named || (!hard && verdict !== undefined && verdict !== "gap");
+    items.push({ label: label(requirement), weight: hard ? 2 : 1, hard, met });
   }
   const total = items.reduce((sum, item) => sum + item.weight, 0);
   const match = total > 0 ? Math.round((items.filter((item) => item.met).reduce((sum, item) => sum + item.weight, 0) / total) * 100) : null;

@@ -4,7 +4,7 @@ import type { AgentRun } from "@/lib/settings";
 import { saveSettings } from "@/lib/settings-data";
 import { createTestClient, resetDatabase } from "@/test/db";
 
-import { nextAgentRun, resetInterruptedDrafts, scheduledRunDue, startDueRun } from "./schedule";
+import { nextAgentRun, offDaysOf, resetInterruptedDrafts, scheduledRunDue, startDueRun } from "./schedule";
 import { runLimitProblem } from "./runs";
 
 const db = vi.hoisted(() => ({ client: undefined as ReturnType<typeof createTestClient> | undefined }));
@@ -46,6 +46,35 @@ describe("switching the agent on (after a time today has gone by)", () => {
 
   it("catches up as before when it isn't known when it was switched on", () => {
     expect(scheduledRunDue(now, times, "America/New_York", [], null)).toBe(true);
+  });
+});
+
+describe("weekends switched off", () => {
+  const times = ["08:00", "13:00"];
+  const newYork = "America/New_York";
+  const saturday = new Date("2026-11-21T14:00:00.000Z"); // 9 AM, Saturday 21 November, in New York
+  const fridayEvening = new Date("2026-11-20T20:00:00.000Z"); // 3 PM, Friday, after its 1 PM run
+  const ranAtOne = [run("2026-11-20T18:00:00.000Z")];
+
+  it("skips a day switched off, even a time missed earlier that day", () => {
+    expect(scheduledRunDue(saturday, times, newYork, [])).toBe(true);
+    expect(scheduledRunDue(saturday, times, newYork, [], null, offDaysOf({ agentRunSaturday: false, agentRunSunday: true }))).toBe(false);
+  });
+
+  it("puts the next run on the next day that's on: Friday afternoon to Monday morning with both off", () => {
+    expect(nextAgentRun(fridayEvening, times, newYork, ranAtOne).toISOString()).toBe("2026-11-21T13:00:00.000Z");
+    expect(nextAgentRun(fridayEvening, times, newYork, ranAtOne, null, offDaysOf({ agentRunSaturday: false, agentRunSunday: true })).toISOString()).toBe("2026-11-22T13:00:00.000Z");
+    expect(nextAgentRun(fridayEvening, times, newYork, ranAtOne, null, offDaysOf({ agentRunSaturday: false, agentRunSunday: false })).toISOString()).toBe("2026-11-23T13:00:00.000Z");
+    // On a day off, the next one is the next day that's on too.
+    expect(nextAgentRun(saturday, times, newYork, [], null, offDaysOf({ agentRunSaturday: false, agentRunSunday: false })).toISOString()).toBe("2026-11-23T13:00:00.000Z");
+  });
+
+  it("starts no scheduled run on a day switched off", async () => {
+    await saveSettings({ agentEnabled: true, agentTimes: ["08:00"], agentRunSaturday: false });
+    zone.value = "America/New_York";
+    expect(await startDueRun(saturday)).toBeNull();
+    await saveSettings({ agentRunSaturday: true });
+    expect(await startDueRun(saturday)).toBe("agent-job");
   });
 });
 
@@ -167,6 +196,23 @@ describe("the schedule (E16-4)", () => {
     expect(await prisma().agentCandidate.findMany({ orderBy: { externalId: "asc" }, select: { status: true, error: true } })).toEqual([
       { status: "SCORED", error: "Drafting was interrupted. Try again." },
       { status: "DRAFTED", error: null },
+    ]);
+  });
+
+  it("also redoes a draft that was still waiting its turn, but not one drafted or archived since", async () => {
+    const now = new Date("2026-11-13T17:10:00Z");
+    for (const [id, status] of [["waiting", "SCORED"], ["archived", "DISMISSED"]] as const) {
+      await prisma().agentCandidate.create({ data: { id, source: "JSEARCH", externalId: id, dedupeKey: id, status } });
+      await prisma().job.create({ data: { type: "agent-draft", key: `agent-candidate:${id}`, status: "FAILED", error: "Scout restarted before this finished. Try again.", input: { candidateId: id }, finishedAt: now } });
+    }
+    // One that had started is the DRAFTING case above; one that failed for another reason stays as it is.
+    await prisma().agentCandidate.create({ data: { id: "broke", source: "JSEARCH", externalId: "broke", dedupeKey: "broke", status: "SCORED" } });
+    await prisma().job.create({ data: { type: "agent-draft", key: "agent-candidate:broke", status: "FAILED", error: "The AI is unreachable.", input: { candidateId: "broke" }, finishedAt: now } });
+    expect(await resetInterruptedDrafts(now)).toBe(1);
+    expect(await prisma().agentCandidate.findMany({ orderBy: { id: "asc" }, select: { id: true, error: true } })).toEqual([
+      { id: "archived", error: null },
+      { id: "broke", error: null },
+      { id: "waiting", error: "Drafting was interrupted. Try again." },
     ]);
   });
 });

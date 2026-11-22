@@ -111,7 +111,7 @@ export function ScoringSection({ initial }: { initial: ScoringView }) {
               onSave={saveKey}
             />
             <div className="flex flex-wrap items-center gap-3.5 pt-1">
-              <Button variant="secondary" onClick={() => void test()} disabled={connection.status === "testing"}>
+              <Button title="Check that Scout can reach this service with this key" variant="secondary" onClick={() => void test()} disabled={connection.status === "testing"}>
                 {connection.status === "testing" ? "Testing…" : "Test connection"}
               </Button>
               <ConnectionStatus connection={connection} />
@@ -120,7 +120,7 @@ export function ScoringSection({ initial }: { initial: ScoringView }) {
 
           <p className="text-sm text-muted">
             Jev&apos;s scores and your AI model&apos;s aren&apos;t on the same scale. If the job agent queues too many postings or too few, change its minimum score in{" "}
-            <Link href="/settings?section=agent" className="underline underline-offset-2 hover:text-ink">
+            <Link title="Open the job agent settings" href="/settings?section=agent" className="underline underline-offset-2 hover:text-ink">
               Settings → Job agent
             </Link>
             .

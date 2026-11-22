@@ -77,7 +77,7 @@ export function AboutSection({ facts, updates }: { facts: AboutFacts; updates: U
         />
       </Card>
       <div className="flex flex-wrap items-center gap-3.5">
-        <Button variant="secondary" aria-disabled={check.status === "checking" || undefined} onClick={() => check.status !== "checking" && void run()}>
+        <Button title="See whether a newer version of Scout is out" variant="secondary" aria-disabled={check.status === "checking" || undefined} onClick={() => check.status !== "checking" && void run()}>
           {check.status === "checking" ? "Checking…" : "Check for updates"}
         </Button>
         <p role="status" className="text-control text-muted">
@@ -86,12 +86,12 @@ export function AboutSection({ facts, updates }: { facts: AboutFacts; updates: U
           {check.status === "newer" && (
             <>
               Version {check.version} is available.{" "}
-              <a href={check.url} target="_blank" rel="noopener noreferrer" className={LINK}>
+              <a title="Read what's new in that version" href={check.url} target="_blank" rel="noopener noreferrer" className={LINK}>
                 See what&apos;s new{" "}
                 <span className="sr-only">(opens in a new tab)</span>
               </a>
               {" · "}
-              <a href={UPGRADE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
+              <a title="How to update Scout" href={UPGRADE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
                 How to update{" "}
                 <span className="sr-only">(opens in a new tab)</span>
               </a>
@@ -102,7 +102,7 @@ export function AboutSection({ facts, updates }: { facts: AboutFacts; updates: U
       <p className="text-meta text-muted">Checking asks GitHub for the latest release and sends nothing about you or this install, daily or when you press it.</p>
       <p className="text-meta text-muted">
         Scout sends no usage data and has no telemetry. What leaves this install is only what you send to your AI provider and job search, and the update check when it&apos;s on. Questions or problems:{" "}
-          <a href={ISSUES_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
+          <a title="Open Scout's page on GitHub, to report a problem or ask a question" href={ISSUES_URL} target="_blank" rel="noopener noreferrer" className={LINK}>
             Scout on GitHub <span className="sr-only">(opens in a new tab)</span>
           </a>
           .

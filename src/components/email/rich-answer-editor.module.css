@@ -1,0 +1,64 @@
+/* The answer box: about 16 lines to start, growing with the text; drag its corner for more. */
+.editor {
+  resize: vertical;
+  overflow: auto;
+  min-height: 380px;
+  max-height: 75vh;
+}
+
+.content {
+  min-height: 380px;
+  padding: 10px 12px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-ink);
+  outline: none;
+}
+
+.content p {
+  margin: 0 0 12px;
+}
+
+.content ul,
+.content ol {
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+
+.content ul {
+  list-style: disc;
+}
+
+.content ol {
+  list-style: decimal;
+}
+
+.content li p {
+  margin: 0;
+}
+
+.content a {
+  color: var(--color-primary-text);
+  text-decoration: underline;
+}
+
+/* The open-source fonts Scout bundles, shown as they'll look to readers who have them. */
+.content [style*="font-family: Inter"] {
+  font-family: var(--typeface-inter), Arial, sans-serif !important;
+}
+.content [style*="font-family: 'IBM Plex Sans'"] {
+  font-family: var(--typeface-plex-sans), Arial, sans-serif !important;
+}
+.content [style*="font-family: 'Work Sans'"] {
+  font-family: var(--typeface-work-sans), Arial, sans-serif !important;
+}
+.content [style*="font-family: Lora"] {
+  font-family: var(--typeface-lora), Georgia, serif !important;
+}
+.content [style*="font-family: 'Source Serif 4'"] {
+  font-family: var(--typeface-source-serif), Georgia, serif !important;
+}
+.content [style*="font-family: 'EB Garamond'"] {
+  font-family: var(--typeface-eb-garamond), Georgia, serif !important;
+}

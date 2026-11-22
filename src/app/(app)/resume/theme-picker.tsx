@@ -69,7 +69,7 @@ export function ThemePicker({ themes, activeId, userName, onSelect, onCustomize,
           {custom.map((theme) => {
             const active = theme.id === activeId;
             return (
-              <button
+              <button title="Use this theme"
                 key={theme.id}
                 type="button"
                 data-in-use={active || undefined}
@@ -94,7 +94,7 @@ export function ThemePicker({ themes, activeId, userName, onSelect, onCustomize,
           })}
         </div>
       )}
-      <button
+      <button title="Design a theme of your own"
         type="button"
         onClick={onCustomize}
         className="flex flex-col gap-[3px] rounded-[10px] border border-dashed border-line-strong p-3.5 text-left text-control hover:border-line-strong"
@@ -109,14 +109,14 @@ export function ThemePicker({ themes, activeId, userName, onSelect, onCustomize,
             In use: <span className="text-ink">{active.name}</span>
           </p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <Button variant="text" size="sm" aria-label={`Duplicate ${active.name}`} onClick={actions.duplicate}>
+            <Button title="Make a copy of this theme to change" variant="text" size="sm" aria-label={`Duplicate ${active.name}`} onClick={actions.duplicate}>
               Duplicate
             </Button>
-            <Button variant="text" size="sm" aria-label={`Export ${active.name}`} onClick={actions.exportFile}>
+            <Button title="Save this theme as a file" variant="text" size="sm" aria-label={`Export ${active.name}`} onClick={actions.exportFile}>
               Export
             </Button>
             {!active.builtIn && (
-              <Button variant="danger-text" size="sm" aria-label={`Delete ${active.name}…`} onClick={actions.remove}>
+              <Button title="Delete this theme" variant="danger-text" size="sm" aria-label={`Delete ${active.name}…`} onClick={actions.remove}>
                 Delete…
               </Button>
             )}
@@ -130,13 +130,13 @@ export function ThemePicker({ themes, activeId, userName, onSelect, onCustomize,
                   <li key={line}>{line}</li>
                 ))}
               </ul>
-              <Button variant="danger-text" size="sm" className="self-start" onClick={onRemoveTemplate}>
+              <Button title="Stop using the imported template" variant="danger-text" size="sm" className="self-start" onClick={onRemoveTemplate}>
                 Remove template
               </Button>
             </div>
           )}
           <p className="mt-3 self-end text-right text-meta text-muted">Upload your own resume (PDF or Word) to use its layout. Optional.</p>
-          <Button variant="blue" className="self-end" onClick={() => fileInput.current?.click()}>
+          <Button title="Load a theme from a file, or copy the look of a resume (PDF or Word)" variant="blue" className="self-end" onClick={() => fileInput.current?.click()}>
             Import a theme…
           </Button>
           <input
@@ -197,7 +197,7 @@ function ThemeThumbnail({
   );
   const sketch = { accent, sideHeadings, timeline };
   return (
-    <button
+    <button title="Use this layout"
       type="button"
       data-in-use={active || undefined}
       onClick={onSelect}

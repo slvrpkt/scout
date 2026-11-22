@@ -272,7 +272,7 @@ function GroupHeading({ name, others, onRename }: { name: string; others: readon
   return (
     <div className="flex items-baseline justify-between gap-3">
       <h4 className="text-control font-medium">{name}</h4>
-      <Button
+      <Button title="Rename this group"
         variant="text"
         size="sm"
         onClick={() => {
@@ -307,7 +307,7 @@ function NewGroup({ existing, onCreate }: { existing: readonly string[]; onCreat
   };
   if (!naming) {
     return (
-      <Button variant="secondary" size="sm" className="self-start" onClick={() => setNaming(true)}>
+      <Button title="Start a new group of skills" variant="secondary" size="sm" className="self-start" onClick={() => setNaming(true)}>
         + New group
       </Button>
     );
@@ -415,7 +415,7 @@ function LanguagesCard({ profile, update }: { profile: ProfileData; update: Upda
               >
                 <LevelOptions />
               </Select>
-              <button
+              <button title="Remove this language"
                 type="button"
                 aria-label={`Remove ${language.name}`}
                 onClick={() => void remove(language.id)}
@@ -449,7 +449,7 @@ function LanguagesCard({ profile, update }: { profile: ProfileData; update: Upda
         >
           <LevelOptions />
         </Select>
-        <Button variant="secondary" className="bg-input" onClick={() => void add()}>
+        <Button title="Add this language" variant="secondary" className="bg-input" onClick={() => void add()}>
           Add
         </Button>
       </div>

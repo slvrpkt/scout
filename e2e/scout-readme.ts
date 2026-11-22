@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { expect, test, type Page } from "@playwright/test";
 
 import { sql } from "./support";
@@ -85,6 +87,38 @@ test("the agentic job search: found, scored and ranked", async ({ page }) => {
   await shot(page, "agent");
 });
 
+test("questions that keep coming up: answered once for several drafts", async ({ page }) => {
+  // Two drafts that each miss the same five things, grouped into topics as the AI groups them.
+  const drafts = await sql<{ id: string; company: string }>(`SELECT id, company FROM "Application" WHERE company IN ('Ledgerly', 'Brightline Transit') ORDER BY id`);
+  const topics = [
+    ["Accessibility audits (WCAG 2.1 AA)", "Ran WCAG 2.1 AA accessibility audits on the design system and fixed what they found.", "Mention accessibility audits against WCAG 2.1 AA, if you've run them."],
+    ["Usability testing with customers", "Ran moderated usability tests with customers every sprint.", "Say how often you test designs with real users."],
+    ["Owning a design system", "Owned the design system used by 40 engineers, from tokens to components.", "Name the design system you owned and who used it."],
+    ["Handoff to engineers in Figma Dev Mode", "Handed off specs to engineers in Figma Dev Mode.", "Mention working with engineers through Figma Dev Mode."],
+    ["Payments or fintech experience", "Designed invoicing and payout flows for small-business customers.", "Bring forward any payments or fintech work."],
+  ];
+  for (const draft of drafts) {
+    await sql(`UPDATE "Application" SET status = 'DRAFT', "archivedAt" = NULL, "resumeSuggestions" = $2, "dismissedSuggestions" = '{}' WHERE id = $1`, [draft.id, topics.map(([, , text]) => text)]);
+  }
+  const items = drafts.flatMap((draft) => topics.map(([, , text]) => [draft.id, text]));
+  // The fingerprint the app keeps, so it doesn't group them again with the fake AI.
+  const stamp = createHash("sha1").update(JSON.stringify(items)).digest("hex").slice(0, 16);
+  const recurring = {
+    stamp,
+    topics: topics.map(([topic, guess, text]) => ({ topic, roleId: null, guess, items: drafts.map((draft) => ({ applicationId: draft.id, company: draft.company, text })) })),
+  };
+  await sql(`INSERT INTO "Setting" (key, value, "updatedAt") VALUES ('recurringTopics', $1, now()) ON CONFLICT (key) DO UPDATE SET value = $1`, [JSON.stringify(recurring)]);
+  await sql(`INSERT INTO "Setting" (key, value, "updatedAt") VALUES ('topicDecisions', '{}', now()) ON CONFLICT (key) DO UPDATE SET value = '{}'`);
+  await page.goto("/agent");
+  const open = page.getByRole("button", { name: /Click here to review and fix/ });
+  await expect(open).toBeVisible({ timeout: 30_000 });
+  await open.click();
+  await expect(page.getByText("1–3 of 5")).toBeVisible();
+  // The whole box in view, its pages at the bottom, with the tiles above it.
+  await page.getByRole("region", { name: "Questions that keep coming up" }).evaluate((box) => box.scrollIntoView({ block: "end" }));
+  await shot(page, "recurring");
+});
+
 test("an agent search: titles, places, filters and what to skip", async ({ page }) => {
   await page.goto("/settings?section=agent");
   await expect(page.getByText("Product Design Lead").first()).toBeVisible({ timeout: 15_000 });
@@ -128,6 +162,8 @@ test("an application: tailored resume, ATS grade and the chat", async ({ page })
       ].join("\n"),
     ]);
   }
+  // A wide window, as on a desktop monitor: the suggestions beside the resume, the chat on the right.
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(`/applications/${ledgerly.id}`);
   await expect(page.getByRole("article", { name: "Resume" })).toContainText("Jane Doe");
   await shot(page, "application");

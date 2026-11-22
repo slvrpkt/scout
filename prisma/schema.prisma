@@ -454,6 +454,8 @@ model Application {
   awaitingReview      Boolean           @default(false)
   /// Sent without a cover letter: it can't be downloaded, isn't attached in Gmail or saved as sent. A letter already written is kept.
   noCoverLetter       Boolean           @default(false)
+  /// When its cover letter was downloaded, copied or emailed: a letter never used isn't counted as sent with it.
+  letterUsedAt  DateTime?
   title               String            @default("")
   company             String            @default("")
   role                String            @default("")
@@ -508,6 +510,8 @@ model Application {
   resumePagesReason   String?
   /// Ideas from the AI for matching this job better, for the candidate to vet.
   resumeSuggestions   String[]         @default([])
+  /// Suggestions you dismissed on this resume, by their text: shown folded away under the rest.
+  dismissedSuggestions String[]        @default([])
   /// When the resume was last written from the profile; older than the profile's last change, it's out of date.
   resumeWrittenAt     DateTime?
   /// When the job description was last replaced (Job Posting tab); a resume written before it is offered a rewrite.
@@ -565,6 +569,8 @@ model StatusEvent {
   at                    DateTime          @default(now())
   previousFurthestStage FunnelStage?
   previousSentAt        DateTime?
+  /// This send marked it "No cover letter" (the letter was never used); undoing it puts the letter back.
+  droppedLetter         Boolean           @default(false)
   /// The copies saved when this change sent the application; undoing it removes them.
   sentDocuments         SentDocument[]
 
@@ -689,6 +695,8 @@ enum NoteKind {
   INTERVIEW
   MEETING
   UPDATE
+  /// The salary you asked for when applying: its text is the amount, e.g. "$120,000". The log's Expected Salary column shows the latest.
+  SALARY
 }
 
 /// A tailored document frozen as it was sent (application history): the
@@ -841,6 +849,15 @@ model AgentCandidate {
   description   String               @default("")
   /// Where it can be applied to: the employer's page, LinkedIn, where the source found it (FoundPosting.applyLinks).
   applyLinks    Json?
+  /// The company's website, when the source said (JSearch's employer_website).
+  employerSite  String       @default("")
+  /// Whether it was looked for on the company's own site: "found" or "not found"; null before.
+  sourceCheck   String?
+  sourceCheckedAt DateTime?
+  /// The posting's page on the company's site, once found: where to apply.
+  sourceUrl     String?
+  /// The job board's text, kept when the company's own replaced it in `description`.
+  boardDescription String?
   complete      Boolean              @default(false)
   /// 0–100: how well the posting fits the profile (score-posting).
   score         Int                  @default(0)
@@ -1068,6 +1085,8 @@ model EmailMessage {
   classifiedWith  String?
   /// The drafted answer, while there is one.
   replyDraft      String             @default("")
+  /// The drafted answer as the Inbox editor's document (its formatting); null when it's plain text.
+  replyDraftDoc   Json?
   /// What the draft couldn't answer from the profile (stringList).
   replyGaps       Json?
   draftedWith     String?
@@ -1076,6 +1095,10 @@ model EmailMessage {
   /// "Not job-related": only the ids and date are kept, so the inbox check
   /// doesn't fetch it again.
   dismissedAt     DateTime?
+  /// When you opened it in the inbox, or marked it read; null while unread.
+  readAt      DateTime?
+  /// Marked important (★) in the inbox.
+  important   Boolean   @default(false)
   createdAt       DateTime           @default(now())
 
   @@index([threadId])
@@ -1128,6 +1151,8 @@ model Job {
   result        Json?
   /// Why it failed, written for the user.
   error         String?
+  /// Times it was picked up again after Scout restarted mid-way; past MAX_RESUMES it fails and waits for Retry.
+  resumes       Int          @default(0)
   createdAt     DateTime     @default(now())
   startedAt     DateTime?
   finishedAt    DateTime?
