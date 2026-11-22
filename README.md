@@ -23,7 +23,9 @@
 
 Job hunting is exhausting. You read the same kinds of postings over and over, rewrite your resume for each one, and wonder whether an applicant tracking system (ATS) will even read it properly. Scout takes on the repetitive parts, so you can spend your energy on the jobs and the people that matter.
 
-Scout is a fork of [Dossier](https://github.com/AienTech/dossier), an open-source job application tracker by AienTech, adapted for job seekers in the US and available to anyone looking for work. It does the sifting, not the applying: it finds the postings that fit, scores how well each matches your resume, and grades your tailored resume against common US ATS standards. Where to apply, and what goes out, is always your call.
+Scout is an independent project built on [Dossier](https://github.com/AienTech/dossier), an open-source job application tracker by AienTech. It began from Dossier's code in October 2026 and has since grown into a job search tool of its own, adding an agentic job search, fit scoring, ATS-criteria checks, story-driven tailored resumes and much more. It's made for job seekers in the US and available to anyone looking for work. Scout isn't affiliated with or endorsed by AienTech.
+
+It does the sifting, not the applying: it finds the postings that fit, scores how well each matches your resume, and grades your tailored resume against common US ATS standards. Where to apply, and what goes out, is always your call.
 
 **Built to run on a modest budget.** Scout is designed so that a complete job search (scheduled searches, fit scoring and tailored resumes) costs under $20 a month in AI and job-search API fees, using an efficient model such as Claude Haiku. Its spending limits keep it there, and bringing that cost down further is an ongoing goal.
 
