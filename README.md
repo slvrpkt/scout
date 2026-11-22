@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/hero.png" alt="Scout: your agentic job search companion. Finds the jobs, scores them against your profile, drafts tailored resumes checked against common ATS criteria, and helps you refine many at once. It never applies for you." width="100%">
+  <img src="docs/images/hero.png" alt="Scout: your agentic job search companion. Finds the jobs, scores them against your profile, drafts tailored resumes checked against common ATS criteria, and helps you refine many at once. By design, it never applies on your behalf." width="100%">
 </p>
 
 <h1 align="center">Scout</h1>
@@ -29,7 +29,7 @@ It does the sifting, not the applying: it finds the postings that fit, scores ho
 
 **Built to run on a modest budget.** Scout is designed so that a complete job search (scheduled searches, fit scoring and tailored resumes) costs under $20 a month in AI and job-search API fees, using an efficient model such as Claude Haiku. Its spending limits keep it there, and bringing that cost down further is an ongoing goal.
 
-> **Scout never applies for you.** Its agents search, read and score postings and prepare drafts. Nothing is sent, submitted or applied for until you do it yourself.
+> **By design, Scout never applies on your behalf.** Its agents search, read and score postings and prepare drafts, but nothing is sent, submitted or applied for until you do it yourself. Where your name goes is always your decision.
 
 > **Please double-check what the AI writes.** Scout uses AI models (large language models), and they can be wrong, even confidently, and can occasionally invent a detail. Scout tells the AI to use only facts from your profile, and checks for invented ones, but no check is perfect. Read every resume and cover letter before you send it, and only send what's true for you.
 
