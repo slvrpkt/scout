@@ -15,13 +15,16 @@ Please report it privately through GitHub: on the repository's **Security** tab,
 - **API keys.** Stored encrypted with a key derived from `DOSSIER_SECRET`, never sent to the browser, never logged. The AI provider's key and the job sources' keys each have their own derived key, and each job source's key only goes to that source. The AI server's address is yours to set, so when a request carries a key, Scout doesn't follow a redirect to another host.
 - **Job sources.** Find jobs is off until a source is chosen. Searches go from the server to that source's fixed address only, with a time and size limit; the browser never talks to a job source. A link in a result is kept only when it's `http(s)`, and postings sent back from the browser are checked the same way. Fetching the rest of a posting goes through the same guarded fetcher as Fetch, so it never reaches the server's own network.
 - **Google.** Gmail and Calendar are off until you enter your own OAuth client and connect. Signing in is OAuth's authorization code flow with a `state` signed by a key derived from `DOSSIER_SECRET`, valid for 10 minutes, and the callback needs your session too. The refresh token and the client's secret are stored encrypted, each with its own derived key, and never sent to the browser or logged; access tokens stay in the server's memory. Scout asks only for the permissions of the features you choose (sending, reading, free/busy and events), and every send needs your confirmation.
+- **Spending limits.** Scout's agents run on their own, so every paid request (AI and job search) is checked against daily, weekly and monthly limits first, and each cost is recorded before the next request checks. When a limit is reached, or can't be checked, the request doesn't go out and the agent pauses.
+- **MCP connector.** Off until you turn it on. An app connects only after you sign in to Scout and press **Allow**, and only from a callback address you added; its sign-in is signed with `DOSSIER_SECRET`, and **Disconnect all apps**, a new password or a new secret ends it. No tool it offers deletes, archives or sends anything.
 - **Errors.** Unexpected errors are logged on the server without the data involved; the browser only gets a generic message.
 
 ## AI and untrusted text
 
 A job posting, or a reply from Gmail, is text someone else wrote, and it goes into prompts. It could try to steer the model ("ignore your instructions and…"). What limits the damage:
 
-- The model has no tools: it can't read your other data, browse or change anything. It only returns text.
+- The model can't read your other data or change anything: it only returns text. The one exception is finding a job on the employer's site, where Claude may run one web search with the job's title, company and place; the page it names is then read by Scout's own guarded fetcher and kept only if the title and company match.
+- Hidden instructions in a posting meant to catch AI-written applications (resume screening traps) are flagged when the posting is read, shown to you, and kept out of your documents.
 - What it returns is shown as plain text, never as HTML, and checked against a schema before it's saved.
 - The fact guard flags claims in a draft that your profile doesn't back up.
 - You read every document before you send it, and a drafted answer to a mail only goes out when you confirm it.
