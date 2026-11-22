@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="docs/images/hero.png" alt="Scout: your agentic job search companion. Finds the jobs, scores them against your profile, and drafts tailored resumes checked against common ATS criteria. It never applies for you." width="100%">
+  <img src="docs/images/hero.png" alt="Scout: your agentic job search companion. Finds the jobs, scores them against your profile, drafts tailored resumes checked against common ATS criteria, and helps you refine many at once. It never applies for you." width="100%">
 </p>
 
 <h1 align="center">Scout</h1>
 
 <p align="center">
   <strong>Your agentic job search companion.</strong><br>
-  It searches for jobs on a schedule, scores each one against your profile, and drafts a tailored resume and cover letter for the ones worth your time. You review everything and decide what to send.
+  It searches for jobs on a schedule, scores each one against your profile, and drafts a story-driven, tailored resume for the ones worth your time. Then it helps you polish them fast: refine a resume in batches of changes, and fix what several drafts are missing in one go. You review everything and decide what to send.
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ Scout is a fork of [Dossier](https://github.com/AienTech/dossier), an open-sourc
 
 ## What it does
 
-Ten things Scout does, and [many more](#and-much-more):
+Twelve things Scout does, and [many more](#and-much-more):
 
 **Find**
 
@@ -47,15 +47,20 @@ Ten things Scout does, and [many more](#and-much-more):
 
 **Write**
 
-5. **Resumes tailored to the full job description.** Scout reads the whole posting and your whole career history, then writes a resume for that job: what's relevant first, scope and ownership spelled out, results over duties, and nothing invented.
+5. **Resumes that tell your story, tailored to the full job description.** Scout reads the whole posting and your whole career history, then writes a resume for that job. Each role reads as one story (the business and its problem, what you did, the results), with what this job wants most up front, and the summary is written last, from the finished resume. Nothing is invented.
 6. **Your page limit, exactly.** Ask for 2 or 3 pages and you get 2 or 3 pages, in both the PDF and the Word file. Older jobs are condensed first and recent ones last, and every point that's shortened is rewritten shorter, never just cut off.
 7. **A base resume at any length.** Full, two pages or three, in a dozen themes, downloaded as PDF or Word.
-8. **Cover letters and a refining chat.** A cover letter in the tone you choose, and a chat to change anything ("make the summary shorter", "lead with leadership").
+8. **Refine in batches, edit anything.** Line up to five changes in the chat ("make the summary shorter", "lead with leadership") and make them in one go; it asks when a request is unclear, and whether something new is for this job or every job. Change any section, job title, company, place, dates or skills line by hand, regrade the resume after you edit, and undo or restore any earlier version. Cover letters are written when you ask for one, in a standard three-paragraph format.
+
+**Polish**
+
+9. **Fix what several drafts are missing, all at once.** When two or more drafts ask for the same thing your resume doesn't say, Scout groups them into one question. Answer it once: it's kept in your profile and added to every draft you pick.
+10. **Suggestions that understand your resume.** Ideas beside each resume are judged by meaning, not matching words, so you're never asked to add what it already says. Dismiss one, or mark it not true and it's never suggested again, on any job.
 
 **Track**
 
-9. **Your job application log.** A board from draft to offer, a dashboard with your funnel and weekly activity, an archive, and a warning when you're about to apply to the same job twice.
-10. **Your data stays mostly on your computer.** Scout runs on your own machine with your own database, and you can export everything at any time. The exception is the AI: to write or score, Scout sends the AI provider you choose the parts of your profile and the posting it needs. With a local model (Ollama or LM Studio), even that stays on your computer.
+11. **From draft to applied, and beyond.** Quick Apply downloads your resume and cover letter, copies the letter and opens the employer's own page to apply on. Drafts stay with the search they came from until you apply, then join your job application log: a board from draft to offer, a dashboard with your funnel and weekly activity, an archive, an inbox for employers' emails (once you connect Gmail), and a warning when you're about to apply to the same job twice.
+12. **Your data stays mostly on your computer.** Scout runs on your own machine with your own database, and you can export everything at any time. The exception is the AI: to write or score, Scout sends the AI provider you choose the parts of your profile and the posting it needs. With a local model (Ollama or LM Studio), even that stays on your computer.
 
 ### What's new
 
