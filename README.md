@@ -104,17 +104,25 @@ Read your existing resume (PDF or Word) to fill in your profile · Save for late
 
 ![An application with its tailored resume, ATS score and refining chat](docs/images/application.png)
 
+**Your dashboard.** Your funnel from applied to offer, and what happened each week.
+
+![The dashboard, with the application funnel and weekly activity](docs/images/dashboard.png)
+
+**Your job application log.** Every application on a board from draft to offer, ready to drag along as it moves.
+
+![The job application log as a board, by stage](docs/images/applications.png)
+
 <table>
   <tr>
     <td width="50%"><strong>Manual job search with filters</strong><br><img src="docs/images/find-jobs.png" alt="Manual job search"></td>
     <td width="50%"><strong>Scoring by your own rules</strong><br><img src="docs/images/scoring.png" alt="Scoring settings"></td>
   </tr>
   <tr>
-    <td><strong>The base resume, at your page limit</strong><br><img src="docs/images/resume.png" alt="The base resume"></td>
-    <td><strong>Your funnel on the dashboard</strong><br><img src="docs/images/dashboard.png" alt="The dashboard funnel"></td>
+    <td><strong>A cover letter written for the job</strong><br><img src="docs/images/cover-letter.png" alt="A tailored cover letter beside the refining chat"></td>
+    <td><strong>Spending limits that keep costs in check</strong><br><img src="docs/images/costs.png" alt="Estimated cost by service and the daily, weekly and monthly limits"></td>
   </tr>
   <tr>
-    <td><strong>The job application log</strong><br><img src="docs/images/applications.png" alt="The application board"></td>
+    <td><strong>The base resume, at your page limit</strong><br><img src="docs/images/resume.png" alt="The base resume"></td>
     <td><strong>Your profile</strong><br><img src="docs/images/profile.png" alt="The profile"></td>
   </tr>
 </table>

@@ -169,6 +169,22 @@ test("an application: tailored resume, ATS grade and the chat", async ({ page })
   await shot(page, "application");
 });
 
+test("a cover letter, written for the job", async ({ page }) => {
+  const [ledgerly] = await sql<{ id: string }>(`SELECT id FROM "Application" WHERE company = 'Ledgerly' LIMIT 1`);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto(`/applications/${ledgerly.id}?tab=letter`);
+  await expect(page.getByRole("tab", { name: /cover letter/i, selected: true })).toBeVisible({ timeout: 15_000 });
+  await shot(page, "cover-letter");
+});
+
+test("estimated cost and spending limits", async ({ page }) => {
+  await page.goto("/settings?section=costs");
+  // The spending limits in view, with what's been spent above them.
+  await page.getByText("Cost limits", { exact: true }).first().scrollIntoViewIfNeeded();
+  await page.mouse.wheel(0, 500);
+  await shot(page, "costs");
+});
+
 test("the base resume at a page length", async ({ page }) => {
   await page.goto("/resume");
   await shot(page, "resume");
